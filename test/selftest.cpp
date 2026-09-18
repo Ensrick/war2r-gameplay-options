@@ -515,53 +515,115 @@ int wmain(int argc, wchar_t** argv) {
     regionMap[22 * kMap + 23] = regionMap[22 * kMap + 24] = 1;
     config::g.workerAutoHarvest = config::g.workerAutoRepair = false;
 
-    // Map-start data tweaks, run against the real default data (Data\Rez\unitdata.dat values typed in here).
+    // Map-start data tweaks, run against real default values (Data\Rez\unitdata.dat / upgrades.dat, typed in here).
     {
         uint16_t* hpT = At<uint16_t>(kRvaMaxHpByType);
         uint32_t* sightT = At<uint32_t>(kRvaSightByType);
         uint8_t* goldT = At<uint8_t>(kRvaGoldCostByType);
         uint8_t* lumberT = At<uint8_t>(kRvaLumberCostByType);
+        uint8_t* oilT = At<uint8_t>(kRvaOilCostByType);
         uint16_t* upGold = At<uint16_t>(kRvaUpgradeGold);
         uint16_t* upLumber = At<uint16_t>(kRvaUpgradeLumber);
-        hpT[kFootman] = 60; hpT[0x19] = 240; hpT[0x23] = 800; hpT[0x3A] = 400; hpT[kTypeGoldMine] = 25500; hpT[0x4A] = 1200;
-        sightT[kDragon] = 6; sightT[0x2A] = 6; sightT[kFootman] = 4; sightT[0x28] = 9;
-        goldT[kFootman] = 60; lumberT[kFootman] = 0; goldT[8] = 50; lumberT[8] = 5; goldT[kDragon] = 225; goldT[0x3A] = 50; lumberT[0x3A] = 25;
-        upGold[4] = 200; upLumber[4] = 200; upGold[20] = 1500; upGold[0] = 800; upGold[31] = 1000;
-        const uint8_t callSite[] = {0xE8};
-        CHECK(*At<uint8_t>(kRvaMapLoadCallSite) == callSite[0], "map load call site is not a call");
+        constexpr uint8_t kFarmT = 0x3A, kFoundry = 0x4E, kKeep = 0x58, kGuardTower = 0x60, kDestroyer = 0x1E;
+        auto resetTables = [&] {
+            hpT[kFootman] = 60; hpT[0x19] = 240; hpT[0x23] = 800; hpT[kFarmT] = 400; hpT[kTypeGoldMine] = 25500; hpT[0x4A] = 1200;
+            sightT[kDragon] = 6; sightT[0x2A] = 6; sightT[kFootman] = 4; sightT[0x28] = 9;
+            goldT[kFootman] = 60; lumberT[kFootman] = 0; goldT[8] = 50; lumberT[8] = 5; goldT[kDragon] = 225;
+            goldT[kDestroyer] = 70; lumberT[kDestroyer] = 35; oilT[kDestroyer] = 70;
+            goldT[kFarmT] = 50; lumberT[kFarmT] = 25; goldT[kFoundry] = 70; lumberT[kFoundry] = 40; oilT[kFoundry] = 40;
+            goldT[kKeep] = 200; lumberT[kKeep] = 100; oilT[kKeep] = 20; goldT[kGuardTower] = 50; lumberT[kGuardTower] = 15;
+            upGold[0] = 800; upGold[4] = 200; upLumber[4] = 200; upGold[8] = 300; upGold[12] = 700; upGold[20] = 1500;
+            upGold[31] = 1000; upGold[33] = 1000; upGold[35] = 1000; upGold[41] = 2000; upGold[44] = 1000;
+            upGold[34] = 0;  // holy vision is free and must stay free
+        };
+        auto resetCosts = [&] { for (double& k : config::g.cost) k = 1.0; };
+        resetTables();
+        CHECK(*At<uint8_t>(kRvaMapLoadCallSite) == 0xE8, "map load call site is not a call");
 
         *At<uint8_t>(kRvaNetGameAtLoad) = 1;
+        config::g.hpUnits = 2.0;
         datatweaks::OnNewMapTablesLoaded();
-        CHECK(hpT[kFootman] == 60 && goldT[kFootman] == 60, "data tables were edited for a multiplayer map");
+        CHECK(hpT[kFootman] == 60, "data tables were edited for a multiplayer map");
+        config::g.hpUnits = 1.0;
         *At<uint8_t>(kRvaNetGameAtLoad) = 0;
-        CHECK(config::g.hpUnits == 1.0 && config::g.hpHeroes == 1.0 && config::g.costUnits == 1.0 &&
-                  config::g.costRangedUpgrades == 1.0 && config::g.costSiegeUpgrades == 1.0,
-              "every multiplier must default to 1.0");
+
+        bool allOne = config::g.hpUnits == 1.0 && config::g.hpHeroes == 1.0;
+        for (double k : config::g.cost) allOne = allOne && k == 1.0;
+        CHECK(allOne, "every health and price multiplier must default to 1.0");
         datatweaks::OnNewMapTablesLoaded();
-        CHECK(hpT[kFootman] == 60 && hpT[0x19] == 240 && goldT[kFootman] == 60 && upGold[4] == 200, "defaults must leave health and prices alone");
-        sightT[kDragon] = sightT[0x2A] = 6;  // the default run already added the sight bonus: start the next run fresh
+        CHECK(hpT[kFootman] == 60 && hpT[0x19] == 240 && goldT[kFootman] == 60 && goldT[kFarmT] == 50 && goldT[kKeep] == 200 &&
+                  upGold[0] == 800 && upGold[4] == 200 && upGold[33] == 1000,
+              "defaults must leave health and every price alone");
+        CHECK(sightT[kDragon] == 8 && sightT[0x2A] == 8 && sightT[kFootman] == 4, "sight +2 for dragon and gryphon only");
+
+        // Health: units and heroes only.
+        resetTables();
         config::g.hpUnits = 2.0; config::g.hpHeroes = 4.0;
-        config::g.costUnits = config::g.costRangedUpgrades = config::g.costSiegeUpgrades = 0.5;
         datatweaks::OnNewMapTablesLoaded();
         CHECK(hpT[kFootman] == 120 && hpT[0x19] == 960 && hpT[0x23] == 3200, "health: units x2, heroes x4 (footman %u grom %u deathwing %u)", hpT[kFootman], hpT[0x19], hpT[0x23]);
-        CHECK(hpT[0x3A] == 400 && hpT[0x4A] == 1200 && hpT[kTypeGoldMine] == 25500, "structures and the gold mine must keep their health");
-        CHECK(goldT[kFootman] == 30 && goldT[8] == 25 && lumberT[8] == 3 && goldT[kDragon] == 113, "unit prices halved (archer lumber %u dragon %u)", lumberT[8], goldT[kDragon]);
-        CHECK(lumberT[kFootman] == 0 && goldT[0x3A] == 50 && lumberT[0x3A] == 25, "free stays free, buildings keep their price");
-        CHECK(upGold[4] == 100 && upLumber[4] == 100 && upGold[20] == 750 && upGold[31] == 500, "ranged and siege upgrades halved");
-        CHECK(upGold[0] == 800, "sword upgrade must keep its price");
-        CHECK(sightT[kDragon] == 8 && sightT[0x2A] == 8 && sightT[kFootman] == 4, "sight +2 for dragon and gryphon only");
-        config::g.sightBonus[0x28] = 5;
+        CHECK(hpT[kFarmT] == 400 && hpT[0x4A] == 1200 && hpT[kTypeGoldMine] == 25500, "structures and the gold mine must keep their health");
+        config::g.hpUnits = config::g.hpHeroes = 1.0;
+
+        // Each price group moves its own rows and nothing else.
+        resetTables();
+        config::g.cost[kCostUnits] = 0.5;
         datatweaks::OnNewMapTablesLoaded();
-        CHECK(sightT[0x28] == 9 && sightT[kDragon] == 9, "sight must clamp at 9 (%u)", sightT[0x28]);
-        // Engine caps: 16-bit health, byte-of-tens unit price, 16-bit upgrade price. Structures still untouched.
-        hpT[kFootman] = 60; hpT[0x23] = 800; goldT[kDragon] = 225; upGold[20] = 1500;
-        config::g.hpUnits = 1000.0; config::g.hpHeroes = 1000.0; config::g.costUnits = 2.0; config::g.costSiegeUpgrades = 1000.0;
+        CHECK(goldT[kFootman] == 30 && goldT[8] == 25 && lumberT[8] == 3 && goldT[kDragon] == 113 && lumberT[kFootman] == 0,
+              "unit prices halved, free stays free (archer lumber %u dragon %u)", lumberT[8], goldT[kDragon]);
+        CHECK(goldT[kDestroyer] == 35 && oilT[kDestroyer] == 70, "unit oil price must not move");
+        CHECK(goldT[kFarmT] == 50 && goldT[kKeep] == 200 && upGold[0] == 800, "units multiplier leaked into structures or research");
+
+        resetTables(); resetCosts();
+        config::g.cost[kCostBuildings] = 0.5;
+        datatweaks::OnNewMapTablesLoaded();
+        CHECK(goldT[kFarmT] == 25 && lumberT[kFarmT] == 13 && goldT[kFoundry] == 35 && oilT[kFoundry] == 20, "building prices halved incl. oil (farm lumber %u)", lumberT[kFarmT]);
+        CHECK(goldT[kKeep] == 200 && goldT[kGuardTower] == 50 && goldT[kFootman] == 60, "buildings multiplier leaked into building upgrades or units");
+
+        resetTables(); resetCosts();
+        config::g.cost[kCostBuildingUpgrades] = 0.5;
+        datatweaks::OnNewMapTablesLoaded();
+        CHECK(goldT[kKeep] == 100 && lumberT[kKeep] == 50 && oilT[kKeep] == 10 && goldT[kGuardTower] == 25 && lumberT[kGuardTower] == 8,
+              "building upgrade prices halved (keep %u tower lumber %u)", goldT[kKeep], lumberT[kGuardTower]);
+        CHECK(goldT[kFarmT] == 50 && goldT[kFoundry] == 70, "building upgrades multiplier leaked into plain buildings");
+
+        resetTables(); resetCosts();
+        config::g.cost[kCostMeleeUpgrades] = 0.5;
+        datatweaks::OnNewMapTablesLoaded();
+        CHECK(upGold[0] == 400 && upGold[8] == 150, "melee research halved (swords %u shields %u)", upGold[0], upGold[8]);
+        CHECK(upGold[4] == 200 && upGold[20] == 1500 && upGold[33] == 1000 && upGold[12] == 700 && upGold[41] == 2000, "melee multiplier leaked into another group");
+
+        resetTables(); resetCosts();
+        config::g.cost[kCostRangedUpgrades] = 0.5;
+        datatweaks::OnNewMapTablesLoaded();
+        CHECK(upGold[4] == 100 && upLumber[4] == 100 && upGold[31] == 500 && upGold[0] == 800, "elf / troll research halved only");
+
+        resetTables(); resetCosts();
+        config::g.cost[kCostPaladinOgreMage] = 0.5;
+        datatweaks::OnNewMapTablesLoaded();
+        CHECK(upGold[33] == 500 && upGold[35] == 500 && upGold[44] == 500 && upGold[34] == 0, "paladin / ogre-mage group halved, free stays free");
+        CHECK(upGold[41] == 2000 && upGold[0] == 800, "paladin / ogre-mage multiplier leaked into another group");
+
+        resetTables(); resetCosts();
+        config::g.cost[kCostSiegeUpgrades] = 0.5; config::g.cost[kCostNavalUpgrades] = 0.5; config::g.cost[kCostMageDeathKnightSpells] = 0.5;
+        datatweaks::OnNewMapTablesLoaded();
+        CHECK(upGold[20] == 750 && upGold[12] == 350 && upGold[41] == 1000 && upGold[33] == 1000, "siege / naval / mage spell groups");
+
+        // Engine caps: 16-bit health, byte-of-tens type price, 16-bit research price.
+        resetTables(); resetCosts();
+        config::g.hpUnits = 1000.0; config::g.hpHeroes = 1000.0;
+        config::g.cost[kCostUnits] = 2.0; config::g.cost[kCostBuildingUpgrades] = 2.0; config::g.cost[kCostSiegeUpgrades] = 1000.0;
         datatweaks::OnNewMapTablesLoaded();
         CHECK(hpT[kFootman] == 60000 && hpT[0x23] == 65535, "health cap is 65535 (footman %u deathwing %u)", hpT[kFootman], hpT[0x23]);
-        CHECK(goldT[kDragon] == 255 && upGold[20] == 65535, "unit price caps at 2550, upgrade price at 65535 (%u, %u)", goldT[kDragon], upGold[20]);
-        CHECK(hpT[0x3A] == 400 && goldT[0x3A] == 50, "structures must never be scaled");
-        config::g.hpUnits = config::g.hpHeroes = config::g.costUnits = config::g.costRangedUpgrades = config::g.costSiegeUpgrades = 1.0;
-        hpT[kFootman] = 60; hpT[0x19] = 240;  // what the later scenarios expect
+        CHECK(goldT[kDragon] == 255 && goldT[kKeep] == 255 && upGold[20] == 65535, "price caps: 2550 for a type, 65535 for research (%u, %u, %u)", goldT[kDragon], goldT[kKeep], upGold[20]);
+        CHECK(hpT[kFarmT] == 400, "structures must never have their health scaled");
+
+        config::g.sightBonus[0x28] = 5;
+        datatweaks::OnNewMapTablesLoaded();
+        CHECK(sightT[0x28] == 9, "sight must clamp at 9 (%u)", sightT[0x28]);
+        config::g.sightBonus[0x28] = 0;
+        config::g.hpUnits = config::g.hpHeroes = 1.0;
+        resetCosts();
+        resetTables();  // what the later scenarios expect
     }
 
     // Hero regeneration: 1 HP per second of stepping time, heroes only, never past max, dead heroes stay dead.

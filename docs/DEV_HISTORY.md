@@ -3,6 +3,17 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.0.0-dev.16 - 2026-09-18 (UNTESTED in game)
+
+- `[costs]` is now a full set of price groups, all 1.0 by default: `units`, `buildings`, `building_upgrades`
+  (types 0x58-0x5B keep / stronghold / castle / fortress and 0x60-0x63 guard / cannon towers: a structure upgrade is
+  priced as the type it turns into, same pay path `FUN_004ac610`), and research by group: `melee_upgrades` (UGRD rows
+  0-3, 8-11), `ranged_upgrades` (4-7, 24-31), `siege_upgrades` (20-23), `paladin_ogre_mage_upgrades` (32-36, 43, 44,
+  50), `naval_upgrades` (12-19), `mage_death_knight_spells` (37-42, 45-49, 51).
+- Buildings and building upgrades scale gold, lumber and oil; units stay gold and lumber only. Free rows stay free.
+- Structure ids and prices checked against `Data\Rez\unitdata.dat` (tower flag 0x100000 on 0x60-0x63, hall flag on
+  0x4A, 0x4B, 0x58-0x5B).
+
 ## 1.0.0-dev.15 - 2026-09-18 (UNTESTED in game)
 
 - Health and price multipliers now default to 1.0 (the game's own numbers) and only ever touch units: the

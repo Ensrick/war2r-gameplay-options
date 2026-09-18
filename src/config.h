@@ -14,6 +14,20 @@ enum Spell {
     kSpellCount
 };
 
+// Price groups of [costs]. Same order as config::kCostKeys.
+enum CostGroup {
+    kCostUnits,                // gold + lumber of every unit
+    kCostBuildings,            // structures a worker places
+    kCostBuildingUpgrades,     // keep / stronghold, castle / fortress, guard and cannon towers
+    kCostMeleeUpgrades,        // swords, battle axes, shields
+    kCostRangedUpgrades,       // archer / ranger, axethrower / berserker research
+    kCostSiegeUpgrades,        // ballista, catapult
+    kCostPaladinOgreMage,      // paladin / ogre-mage upgrade and their spells
+    kCostNavalUpgrades,        // ship cannons and armor
+    kCostMageDeathKnightSpells,
+    kCostGroupCount
+};
+
 struct Config {
     // [general]
     bool enabled = true;
@@ -60,7 +74,7 @@ struct Config {
     // [health] [costs] [vision]: applied once when a NEW map starts (a savegame keeps the values it was made with)
     // Units only, never structures. 1.0 = the game's own numbers.
     double hpUnits = 1.0, hpHeroes = 1.0;
-    double costUnits = 1.0, costRangedUpgrades = 1.0, costSiegeUpgrades = 1.0;
+    double cost[kCostGroupCount] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
     uint8_t sightBonus[256] = {};   // extra sight range by unit type
 
     // [heroes]
@@ -73,6 +87,7 @@ namespace config {
 
 extern Config g;
 extern const char* const kSpellKeys[kSpellCount];
+extern const char* const kCostKeys[kCostGroupCount];
 
 // Loads <dir>\autocast.toml, writing the default file first if it is missing.
 // Returns false when the file has a syntax error (the previous / default settings stay in force).

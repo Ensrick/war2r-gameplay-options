@@ -42,7 +42,7 @@ The computer in Warcraft II has near perfect spell micro. Now your casters do to
 [*]Heroes regenerate 1 HP per second.
 [*]Health multipliers for units and for heroes (default 1.0 = unchanged). Set units to 2.0 and heroes to 4.0 for slower, weightier combat.
 [*]Dragons and gryphon riders see 2 tiles further.
-[*]Price multipliers for units, for troll and elf research and for catapult / ballista upgrades (default 1.0 = unchanged, 0.5 = half price). Multipliers only touch units, never structures.
+[*]Price multipliers (default 1.0 = unchanged, 0.5 = half price) for units, buildings, building upgrades, and research by group: melee, troll / elf, siege, paladin / ogre-mage, naval, mage / death knight spells.
 [/list]
 Every item above has its own switch and numbers in the config file.
 

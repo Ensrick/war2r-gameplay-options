@@ -17,6 +17,10 @@ Config g;
 const char* const kSpellKeys[kSpellCount] = {"heal",       "exorcism", "slow",         "polymorph", "bloodlust",
                                              "death_coil", "haste",    "unholy_armor", "raise_dead"};
 
+const char* const kCostKeys[kCostGroupCount] = {"units",          "buildings",      "building_upgrades",
+                                                "melee_upgrades", "ranged_upgrades", "siege_upgrades",
+                                                "paladin_ogre_mage_upgrades", "naval_upgrades", "mage_death_knight_spells"};
+
 static wchar_t g_path[MAX_PATH];
 static FILETIME g_mtime;
 
@@ -182,7 +186,8 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"eye_of_kilrogg", " cast cast_at_mana max_active auto_scout "},
         {"gold_mines", " unlimited "},
         {"health", " units heroes "},
-        {"costs", " units ranged_upgrades siege_upgrades "},
+        {"costs", " units buildings building_upgrades melee_upgrades ranged_upgrades siege_upgrades paladin_ogre_mage_upgrades "
+                  "naval_upgrades mage_death_knight_spells "},
         {"vision", nullptr},  // keys are unit names, checked in ReadVision
         {"workers", " auto_harvest harvest_idle_seconds harvest_radius auto_repair repair_idle_seconds repair_radius "},
     };
@@ -245,9 +250,7 @@ static bool Load() {
     ReadBool(root, "gold_mines", "unlimited", c.goldMinesUnlimited);
     ReadFactor(root, "health", "units", c.hpUnits);
     ReadFactor(root, "health", "heroes", c.hpHeroes);
-    ReadFactor(root, "costs", "units", c.costUnits);
-    ReadFactor(root, "costs", "ranged_upgrades", c.costRangedUpgrades);
-    ReadFactor(root, "costs", "siege_upgrades", c.costSiegeUpgrades);
+    for (int i = 0; i < kCostGroupCount; ++i) ReadFactor(root, "costs", kCostKeys[i], c.cost[i]);
     ReadVision(root, c);
     ReadBool(root, "workers", "auto_harvest", c.workerAutoHarvest);
     ReadInt(root, "workers", "harvest_idle_seconds", 0, 3600, c.workerHarvestIdleSeconds);

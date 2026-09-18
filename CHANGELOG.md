@@ -22,8 +22,8 @@ Tweaks (all configurable)
 - Heroes regenerate 1 HP per second.
 - Health multipliers for units and for heroes, 1.0 (unchanged) by default, capped at the engine's 65535.
 - Dragons and gryphon riders: +2 sight.
-- Price multipliers for units (cap 2550), for archer / axethrower research and for ballista / catapult upgrades
-  (cap 65535), 1.0 by default. Multipliers only touch units, never structures.
+- Price multipliers, 1.0 by default: units, buildings, building upgrades (cap 2550), and research by group: melee,
+  elf / troll, siege, paladin / ogre-mage, naval, mage / death knight spells (cap 65535).
 
 Config
 - `autocast.toml`, hot reloaded, with error reporting that never breaks a running game.

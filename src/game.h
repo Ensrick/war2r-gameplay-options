@@ -44,6 +44,7 @@ constexpr uint32_t kRvaRuleset = 0x51C178;           // uint32, nonzero enables 
 constexpr uint32_t kRvaSightByType = 0x517608;       // uint32[110]: range 0..9 until FinalizeTables, a function pointer after
 constexpr uint32_t kRvaGoldCostByType = 0x517980;    // uint8[110], price / 10
 constexpr uint32_t kRvaLumberCostByType = 0x5179F0;  // uint8[110], price / 10
+constexpr uint32_t kRvaOilCostByType = 0x517A60;     // uint8[110], price / 10
 constexpr uint32_t kRvaUpgradeGold = 0x5188E0;       // uint16[52], PUD UGRD order
 constexpr uint32_t kRvaUpgradeLumber = 0x518948;     // uint16[52]
 constexpr uint32_t kRvaUpgradeOil = 0x5189B0;        // uint16[52]

@@ -1,5 +1,7 @@
 #include "datatweaks.h"
 
+#include <cstdio>
+#include <cstring>
 #include <initializer_list>
 
 #include "config.h"
@@ -37,27 +39,55 @@ void ScaleHealth() {
     }
 }
 
-// Unit prices are bytes holding price / 10. A unit that cost something never becomes free.
-void ScaleUnitCosts() {
-    const double k = config::g.costUnits;
+// Unit and structure prices are bytes holding price / 10. Something that cost anything never becomes free.
+void ScaleTypeCost(int type, double k, bool withOil) {
     if (k == 1.0) return;
-    uint8_t* gold = At<uint8_t>(kRvaGoldCostByType);
-    uint8_t* lumber = At<uint8_t>(kRvaLumberCostByType);
-    for (int t = 0; t < units::kFirstBuilding; ++t)
-        for (uint8_t* table : {gold, lumber}) {
-            if (!table[t]) continue;
-            int scaled = Scale(table[t], k);
-            table[t] = static_cast<uint8_t>(scaled < 1 ? 1 : (scaled > kMaxUnitCost ? kMaxUnitCost : scaled));
-        }
+    uint8_t* tables[3] = {At<uint8_t>(kRvaGoldCostByType), At<uint8_t>(kRvaLumberCostByType), At<uint8_t>(kRvaOilCostByType)};
+    for (int r = 0; r < (withOil ? 3 : 2); ++r) {
+        uint8_t& cell = tables[r][type];
+        if (!cell) continue;
+        const int scaled = Scale(cell, k);
+        cell = static_cast<uint8_t>(scaled < 1 ? 1 : (scaled > kMaxUnitCost ? kMaxUnitCost : scaled));
+    }
 }
 
-void ScaleUpgradeCosts(const uint8_t* indices, int count, double k) {
-    if (k == 1.0) return;
-    for (uint32_t rva : {kRvaUpgradeGold, kRvaUpgradeLumber, kRvaUpgradeOil}) {
-        uint16_t* table = At<uint16_t>(rva);
-        for (int i = 0; i < count; ++i) {
-            const int scaled = Scale(table[indices[i]], k);
-            table[indices[i]] = static_cast<uint16_t>(scaled > kMaxUpgradeCost ? kMaxUpgradeCost : scaled);
+// A building upgrade (town hall -> keep, scout tower -> guard tower ...) is priced as the unit type it turns into:
+// the pay path FUN_004ac610 reads the same per-type tables for training, placement and building upgrades.
+bool IsBuildingUpgradeTarget(int type) { return (type >= 0x58 && type <= 0x5B) || (type >= 0x60 && type <= 0x63); }
+
+void ScaleTypeCosts() {
+    const Config& c = config::g;
+    for (int t = 0; t < kTypeCount; ++t) {
+        if (t < units::kFirstBuilding) ScaleTypeCost(t, c.cost[kCostUnits], false);  // units: gold and lumber, as asked for
+        else ScaleTypeCost(t, c.cost[IsBuildingUpgradeTarget(t) ? kCostBuildingUpgrades : kCostBuildings], true);
+    }
+}
+
+// Upgrade and spell research prices: 16-bit words in PUD UGRD order (index list: docs/research/data_tables.md).
+void ScaleUpgradeCosts() {
+    static const struct {
+        CostGroup group;
+        uint8_t indices[12];
+        int count;
+    } kGroups[] = {
+        {kCostMeleeUpgrades, {0, 1, 2, 3, 8, 9, 10, 11}, 8},                        // swords, battle axes, human / orc shields
+        {kCostRangedUpgrades, {4, 5, 6, 7, 24, 25, 26, 27, 28, 29, 30, 31}, 12},    // arrows, axes, ranger / berserker line
+        {kCostSiegeUpgrades, {20, 21, 22, 23}, 4},                                  // catapult 1-2, ballista 1-2
+        {kCostPaladinOgreMage, {32, 33, 34, 35, 36, 43, 44, 50}, 8},                // both upgrades, holy vision, healing, exorcism, eye, bloodlust, runes
+        {kCostNavalUpgrades, {12, 13, 14, 15, 16, 17, 18, 19}, 8},                  // ship cannons and armor, both races
+        {kCostMageDeathKnightSpells, {37, 38, 39, 40, 41, 42, 45, 46, 47, 48, 49, 51}, 12},
+    };
+    for (const auto& g : kGroups) {
+        const double k = config::g.cost[g.group];
+        if (k == 1.0) continue;
+        for (uint32_t rva : {kRvaUpgradeGold, kRvaUpgradeLumber, kRvaUpgradeOil}) {
+            uint16_t* table = At<uint16_t>(rva);
+            for (int i = 0; i < g.count; ++i) {
+                uint16_t& cell = table[g.indices[i]];
+                if (!cell) continue;
+                const int scaled = Scale(cell, k);
+                cell = static_cast<uint16_t>(scaled < 1 ? 1 : (scaled > kMaxUpgradeCost ? kMaxUpgradeCost : scaled));
+            }
         }
     }
 }
@@ -82,18 +112,18 @@ void OnNewMapTablesLoaded() {
         logx::Write("map load: multiplayer game, data tables left alone");
         return;
     }
-    // Arrows / throwing axes 1-2, ranger / berserker upgrade, longbow / lighter axes, scouting, marksmanship, regeneration.
-    static const uint8_t kRangedUpgrades[] = {4, 5, 6, 7, 24, 25, 26, 27, 28, 29, 30, 31};
-    static const uint8_t kSiegeUpgrades[] = {20, 21, 22, 23};  // catapult 1-2, ballista 1-2
     ScaleHealth();
-    ScaleUnitCosts();
-    ScaleUpgradeCosts(kRangedUpgrades, sizeof(kRangedUpgrades), config::g.costRangedUpgrades);
-    ScaleUpgradeCosts(kSiegeUpgrades, sizeof(kSiegeUpgrades), config::g.costSiegeUpgrades);
+    ScaleTypeCosts();
+    ScaleUpgradeCosts();
     AddSight();
-    logx::Write("map load: health x%.2f units / x%.2f heroes, unit cost x%.2f, ranged upgrades x%.2f, siege upgrades x%.2f, "
-                "sight bonuses applied",
-                config::g.hpUnits, config::g.hpHeroes, config::g.costUnits, config::g.costRangedUpgrades,
-                config::g.costSiegeUpgrades);
+    char costs[256] = "";
+    for (int i = 0; i < kCostGroupCount; ++i) {
+        char item[64];
+        sprintf_s(item, " %s x%.2f", config::kCostKeys[i], config::g.cost[i]);
+        strcat_s(costs, item);
+    }
+    logx::Write("map load: health units x%.2f heroes x%.2f; prices:%s; sight bonuses applied", config::g.hpUnits,
+                config::g.hpHeroes, costs);
 }
 
 }  // namespace datatweaks

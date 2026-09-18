@@ -54,10 +54,11 @@ TWEAKS (each has its own switch or number)
   - Unlimited gold mines: OFF by default.
   - Health multipliers for units and for heroes: 1.0 (unchanged) by default. Try units = 2.0, heroes = 4.0 for slower,
     weightier fights.
-  - Price multipliers for units, for archer / axethrower research and for ballista / catapult upgrades: 1.0 by
-    default. 0.5 = half price.
-  Multipliers only ever touch units, never structures. The engine's limits apply: 65535 hit points, 2550 gold or
-  lumber for a unit, 65535 for an upgrade.
+  - Price multipliers, all 1.0 by default (0.5 = half price): units, buildings, building upgrades (keep, castle,
+    guard / cannon tower), and research by group: melee (swords, axes, shields), elf / troll, siege, paladin /
+    ogre-mage, naval, mage / death knight spells.
+  Health multipliers only ever touch units, never structures. The engine's limits apply: 65535 hit points, 2550 for a
+  unit or structure price, 65535 for research.
 
   Health, prices and sight are applied when a NEW map starts (new mission, custom game, restart). A savegame keeps the
   numbers it was made with, so saves from before you installed the mod stay as they were. The computer plays by the

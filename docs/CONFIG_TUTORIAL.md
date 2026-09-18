@@ -164,8 +164,9 @@ unlimited = true
 These three sections change the game's unit data. They are read **when a new map starts** (new mission, custom game,
 restart), not in the middle of a game, and a savegame keeps the numbers it was made with.
 
-The health and price settings are multipliers: `1.0` is the game's own number (the default), `2.0` doubles it, `0.5`
-halves it. They only touch units, never structures. Slower, weightier fights with a kinder economy:
+The health and price settings are multipliers: `1.0` is the game's own number (the default for all of them), `2.0`
+doubles it, `0.5` halves it. Health multipliers only touch units, never structures. Slower, weightier fights with a
+kinder economy:
 
 ```toml
 [health]
@@ -174,7 +175,7 @@ heroes = 4.0       # the unit types listed under [heroes] units
 
 [costs]
 units = 0.5              # gold and lumber price of units
-ranged_upgrades = 0.5    # archer / ranger and axethrower / berserker research
+ranged_upgrades = 0.5    # elf / troll research
 siege_upgrades = 0.5     # ballista and catapult upgrades
 
 [vision]
@@ -182,15 +183,39 @@ dragon = 2               # unit_name = extra sight. Total sight tops out at 9
 gryphon_rider = 2
 ```
 
+Every price group in `[costs]`:
+
+| Setting | What it prices |
+|---|---|
+| `units` | every unit: gold and lumber (oil is untouched) |
+| `buildings` | structures your workers place: gold, lumber and oil |
+| `building_upgrades` | keep / stronghold, castle / fortress, guard tower, cannon tower |
+| `melee_upgrades` | swords, battle axes, shields |
+| `ranged_upgrades` | arrows, throwing axes, ranger / berserker upgrade, longbow, lighter axes, scouting, marksmanship, regeneration |
+| `siege_upgrades` | ballista and catapult upgrades |
+| `paladin_ogre_mage_upgrades` | paladin and ogre-mage upgrade plus their spells: holy vision, healing, exorcism, eye of kilrogg, bloodlust, runes |
+| `naval_upgrades` | ship cannons and ship armor |
+| `mage_death_knight_spells` | mage and death knight spell research |
+
+Expensive fortifications, cheap knights and paladins:
+
+```toml
+[costs]
+buildings = 1.5
+building_upgrades = 2.0
+melee_upgrades = 0.5
+paladin_ogre_mage_upgrades = 0.5
+```
+
 The engine's own limits cap the results:
 
 | What | Limit | Why |
 |---|---|---|
 | Unit hit points | 65535 | stored in 16 bits. From 10000 up the status panel stops printing the numbers; the health bar still works |
-| Unit gold / lumber price | 2550, in steps of 10 | the game stores a unit price as one byte of tens |
-| Upgrade price | 65535 | stored in 16 bits |
+| Unit or structure price | 2550, in steps of 10 | the game stores these prices as one byte of tens |
+| Research price | 65535 | stored in 16 bits |
 
-Any multiplier from 0.01 to 1000 is accepted. A unit that costs something never becomes free.
+Any multiplier from 0.01 to 1000 is accepted. Something that costs anything never becomes free, and what is free stays free.
 
 Give scouts better eyes too:
 
@@ -266,6 +291,6 @@ Every cast is then written to `x86\autocast.log` with the caster, the target and
 | workers | auto_repair / repair_idle_seconds / repair_radius | true / 1 / 10 | Idle workers repair your damaged buildings |
 | workers | auto_harvest / harvest_idle_seconds / harvest_radius | true / 10 / 5 | Idle workers go to the nearest mine or tree |
 | health | units / heroes | 1.0 / 1.0 | Max HP multipliers for units (never structures), cap 65535, applied at map start |
-| costs | units | 1.0 | Unit gold and lumber price multiplier, cap 2550, applied at map start |
-| costs | ranged_upgrades / siege_upgrades | 1.0 / 1.0 | Upgrade price multipliers, cap 65535, applied at map start |
+| costs | units / buildings / building_upgrades | 1.0 each | Price multipliers for units, structures and structure upgrades, cap 2550, applied at map start |
+| costs | melee_upgrades / ranged_upgrades / siege_upgrades / paladin_ogre_mage_upgrades / naval_upgrades / mage_death_knight_spells | 1.0 each | Research price multipliers by group, cap 65535, applied at map start |
 | vision | unit_name = bonus | dragon 2, gryphon_rider 2 | Extra sight range, applied at map start |

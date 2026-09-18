@@ -115,14 +115,31 @@ units = 1.0
 heroes = 1.0
 
 [costs]
-# Gold and lumber price multiplier for units (oil is untouched). 1.0 = the game's own prices, 0.5 = half.
-# The engine stores a unit price in steps of 10 with a ceiling of 2550, so results round to 10 and cap at 2550.
+# Price multipliers. 1.0 = the game's own prices, 0.5 = half, 2.0 = double. Something that costs anything never
+# becomes free. Engine limits: a unit or structure price is stored in steps of 10 with a ceiling of 2550,
+# an upgrade price tops out at 65535.
+
+# Units: gold and lumber (oil is untouched).
 units = 1.0
-# Archer / ranger and axethrower / berserker research: arrows, throwing axes, ranger and berserker upgrade, longbow,
-# lighter axes, scouting, marksmanship, regeneration. Capped at 65535.
+# Structures your workers place: gold, lumber and oil.
+buildings = 1.0
+# Upgrading a structure: keep / stronghold, castle / fortress, guard tower, cannon tower.
+building_upgrades = 1.0
+
+# Research, grouped by who benefits.
+# Footmen, knights, grunts, ogres: swords, battle axes, shields.
+melee_upgrades = 1.0
+# Elves and trolls: arrows, throwing axes, ranger / berserker upgrade, longbow, lighter axes, scouting,
+# marksmanship, regeneration.
 ranged_upgrades = 1.0
-# Ballista and catapult upgrades. Capped at 65535.
+# Ballista and catapult upgrades.
 siege_upgrades = 1.0
+# Paladin and ogre-mage upgrade, and their spells: holy vision, healing, exorcism, eye of kilrogg, bloodlust, runes.
+paladin_ogre_mage_upgrades = 1.0
+# Ship cannons and ship armor.
+naval_upgrades = 1.0
+# Mage and death knight spell research.
+mage_death_knight_spells = 1.0
 
 [vision]
 # Extra sight range per unit type: unit_name = bonus. Total sight tops out at 9 (the engine's limit).
