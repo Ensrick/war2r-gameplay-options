@@ -46,6 +46,17 @@ struct Config {
     int eyeMaxActive = 1;
     bool eyeAutoScout = true;
 
+    // [gold_mines]
+    bool goldMinesUnlimited = false;
+
+    // [workers]
+    bool workerAutoHarvest = true;
+    int workerHarvestIdleSeconds = 10;
+    int workerHarvestRadius = 5;
+    bool workerAutoRepair = true;
+    int workerRepairIdleSeconds = 1;
+    int workerRepairRadius = 10;
+
     // [heroes]
     bool isHero[256] = {};          // unit types listed in [heroes] units
     int heroRegenPerSecond = 1;     // 0 = off

@@ -148,6 +148,8 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"haste", " flyers_only "},
         {"heroes", " units regen_hp_per_second regen_for "},
         {"eye_of_kilrogg", " cast cast_at_mana max_active auto_scout "},
+        {"gold_mines", " unlimited "},
+        {"workers", " auto_harvest harvest_idle_seconds harvest_radius auto_repair repair_idle_seconds repair_radius "},
     };
     for (const auto& [sectionKey, sectionNode] : root) {
         const std::string section(sectionKey.str());
@@ -200,6 +202,13 @@ static bool Load() {
     ReadInt(root, "eye_of_kilrogg", "cast_at_mana", 1, 255, c.eyeCastAtMana);
     ReadInt(root, "eye_of_kilrogg", "max_active", 1, 50, c.eyeMaxActive);
     ReadBool(root, "eye_of_kilrogg", "auto_scout", c.eyeAutoScout);
+    ReadBool(root, "gold_mines", "unlimited", c.goldMinesUnlimited);
+    ReadBool(root, "workers", "auto_harvest", c.workerAutoHarvest);
+    ReadInt(root, "workers", "harvest_idle_seconds", 0, 3600, c.workerHarvestIdleSeconds);
+    ReadInt(root, "workers", "harvest_radius", 1, 64, c.workerHarvestRadius);
+    ReadBool(root, "workers", "auto_repair", c.workerAutoRepair);
+    ReadInt(root, "workers", "repair_idle_seconds", 0, 3600, c.workerRepairIdleSeconds);
+    ReadInt(root, "workers", "repair_radius", 1, 64, c.workerRepairRadius);
     ReadInt(root, "heroes", "regen_hp_per_second", 0, 1000, c.heroRegenPerSecond);
     ReadHeroes(root, c);
     g = c;

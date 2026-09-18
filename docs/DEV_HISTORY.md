@@ -3,6 +3,23 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.0.0-dev.10 - 2026-09-18 (UNTESTED in game)
+
+- Idle workers (#3, #4): a peasant / peon of yours that sits in STOP with nothing queued repairs the nearest damaged,
+  finished building of yours within `repair_radius` (10) after `repair_idle_seconds` (1), otherwise after
+  `harvest_idle_seconds` (10) walks to the nearest gold mine or reachable tree within `harvest_radius` (5). A loaded
+  worker returns its cargo instead (a harvest order would relabel carried gold as lumber). Stand Ground is respected.
+  Repair needs 1+ gold and 1+ lumber (the game stops the worker with a message otherwise); construction sites are
+  skipped (power-build exploit). Orders use the game's own handler table entries 23 / 24 / 27 and clear the Remastered
+  resume-order byte the way the player command path does. Research: docs/research/workers_and_gold.md.
+- selftest now verifies the handler table entries and the gold decrement instruction bytes in the real exe.
+
+## 1.0.0-dev.9 - 2026-09-18 (UNTESTED in game)
+
+- Unlimited gold mines (#2), `[gold_mines] unlimited = false` by default. No code patch: each pass the mine's
+  "gold left" word (+0x82, hundreds) is restored to the most it held while watched, never below 50 (5000 gold, which
+  also keeps the computer's expansion test satisfied). Applies to every mine on the map, the computer's included.
+
 ## 1.0.0-dev.8 - 2026-09-18 (UNTESTED in game)
 
 - Eye of Kilrogg (#1): idle ogre-magi (also Dentarg and Cho'gall) cast it at `cast_at_mana` (default 255, the

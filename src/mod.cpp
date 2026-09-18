@@ -7,6 +7,7 @@
 #include "eye.h"
 #include "log.h"
 #include "tweaks.h"
+#include "workers.h"
 #include "world.h"
 
 using namespace game;
@@ -83,6 +84,7 @@ void __cdecl OnTick() {
     World w;
     if (!BuildWorld(w)) return;
     tweaks::OnTick(w, elapsedMs);
+    workers::OnTick(w, elapsedMs);
     if (config::g.enabled && g_tick % static_cast<unsigned>(config::g.intervalTicks) == 0) {
         autocast::Pass(w);
         eye::Pass(w);

@@ -69,6 +69,25 @@ max_active = 1
 # Give an eye an order of your own and the mod leaves that eye to you.
 auto_scout = true
 
+[gold_mines]
+# true = gold mines never run dry (every mine on the map, the computer's too). Off by default: starving a mine
+# is a legitimate way to win some campaign missions, but a computer that runs out of gold can stall a long game.
+unlimited = false
+
+[workers]
+# Your idle peasants / peons go back to work by themselves. "Idle" means stopped with nothing queued.
+# Stand Ground is respected: a worker you told to stand ground is never taken over.
+# Idle this long -> walk to the nearest gold mine or tree within harvest_radius tiles (a loaded worker returns
+# its cargo first).
+auto_harvest = true
+harvest_idle_seconds = 10
+harvest_radius = 5
+# Idle this long -> repair the nearest damaged building of yours within repair_radius tiles. Needs at least
+# 1 gold and 1 lumber in the bank; buildings still under construction are left alone.
+auto_repair = true
+repair_idle_seconds = 1
+repair_radius = 10
+
 [heroes]
 # Which unit types count as heroes (used by hero regeneration and the hero health multiplier).
 units = [

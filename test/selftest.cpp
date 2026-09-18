@@ -32,8 +32,13 @@ static int g_unitCount = 0;
 
 static void __cdecl FakeIssueOrder(Unit* caster, int16_t x, int16_t y, Unit* target, void* handler) {
     // Like the real SetOrder (FUN_004ef080): the new order lands in the next-order slot, the current one stays.
-    const bool isMove = handler == reinterpret_cast<void*>(g_base + kRvaMoveHandler);
-    Field<uint8_t>(caster, kOffNextOrder) = isMove ? kOrderMove : static_cast<uint8_t>(*At<uint16_t>(kRvaPendingSpellOrder));
+    const uint32_t rva = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(handler) - g_base);
+    const uint8_t order = rva == kRvaMoveHandler      ? kOrderMove
+                          : rva == kRvaHarvestHandler ? kOrderHarvest
+                          : rva == kRvaReturnHandler  ? kOrderReturnGoods
+                          : rva == kRvaRepairHandler  ? kOrderRepair
+                                                      : static_cast<uint8_t>(*At<uint16_t>(kRvaPendingSpellOrder));
+    Field<uint8_t>(caster, kOffNextOrder) = order;
     Field<Unit*>(caster, kOffOrderTarget) = target;
     if (!target) {  // the real IssueOrder stores the destination tile only for positional orders
         Field<int16_t>(caster, kOffOrderX) = x;
@@ -132,6 +137,19 @@ int wmain(int argc, wchar_t** argv) {
     // Remastered 1.0.2 rebalanced heal 6 -> 5 and bloodlust 50 -> 60 versus the 1999 BNE table.
     CHECK(mana[0x27] == 5 && mana[0x29] == 4 && mana[0x2C] == 50 && mana[0x2E] == 200, "human mana costs");
     CHECK(mana[0x33] == 100 && mana[0x35] == 50 && mana[0x36] == 100, "orc mana costs");
+
+    // The order handlers the mod passes to IssueOrder must be the entries of the game's own handler table
+    // (VA 0x8C1498, indexed by order id), and the gold decrement the refill relies on must be where we found it.
+    {
+        const uint32_t* handlers = At<uint32_t>(0x4C1498);
+        CHECK(handlers[kOrderMove] == g_base + kRvaMoveHandler, "move handler is not table entry 3");
+        CHECK(handlers[kOrderHarvest] == g_base + kRvaHarvestHandler, "harvest handler is not table entry 23");
+        CHECK(handlers[kOrderReturnGoods] == g_base + kRvaReturnHandler, "return handler is not table entry 24");
+        CHECK(handlers[kOrderRepair] == g_base + kRvaRepairHandler, "repair handler is not table entry 27");
+        CHECK(handlers[kOrderSpellEye] == g_base + kRvaSpellOrderHandler, "spell handler is not table entry 0x30");
+        const uint8_t decrement[] = {0x66, 0x01, 0x88, 0x82, 0x00, 0x00, 0x00};  // add word [eax+0x82], cx
+        CHECK(memcmp(At<uint8_t>(0xC99C8), decrement, sizeof(decrement)) == 0, "gold decrement not at 0x4C99C8: +0x82 may be wrong");
+    }
 
     // 3. Fake world in the image's globals.
     PatchJump(kRvaIssueOrder, &FakeIssueOrder);
@@ -413,6 +431,88 @@ int wmain(int argc, wchar_t** argv) {
     mod::RunAutocastPass();
     CHECK(OrderOf(eyeUnit) == kOrderStop, "an eye the player took over must be left alone");
     memset(exploredMap, 0, sizeof(exploredMap));
+
+    // Unlimited gold mines: off by default; when on, a mine is put back to the most it held, never below 5000 gold.
+    ResetWorld();
+    defType(kTypeGoldMine, kTfBuilding | 0x400000, 25500);
+    Unit* richMine = AddUnit(kTypeGoldMine, kNeutralPlayer, 50, 50, 25500, 0, 0);
+    Unit* poorMine = AddUnit(kTypeGoldMine, kNeutralPlayer, 56, 50, 25500, 0, 0);
+    Field<uint16_t>(richMine, kOffResources) = 400;
+    Field<uint16_t>(poorMine, kOffResources) = 3;
+    mod::OnTick();
+    Field<uint16_t>(richMine, kOffResources) = 399;  // a worker took 100 gold
+    mod::OnTick();
+    CHECK(Field<uint16_t>(richMine, kOffResources) == 399 && Field<uint16_t>(poorMine, kOffResources) == 3, "mines refilled while the option is off");
+    config::g.goldMinesUnlimited = true;
+    mod::OnTick();
+    Field<uint16_t>(richMine, kOffResources) = 398;
+    mod::OnTick();
+    CHECK(Field<uint16_t>(richMine, kOffResources) == 399, "mine should return to the amount seen when the option came on (%u)", Field<uint16_t>(richMine, kOffResources));
+    CHECK(Field<uint16_t>(poorMine, kOffResources) == 50, "a nearly empty mine should be lifted to the 5000 gold floor (%u)", Field<uint16_t>(poorMine, kOffResources));
+    config::g.goldMinesUnlimited = false;
+
+    // Idle workers. Play time is fed in 100 ms steps; repair needs 1 s idle, harvest 10 s.
+    auto step = [&](int ms) { for (int t = 0; t < ms; t += 100) { Sleep(100); mod::OnTick(); } };
+    static uint16_t regionMap[kMap * kMap];
+    for (auto& r : regionMap) r = 1;
+    *At<uint16_t*>(kRvaRegionMap) = regionMap;
+    struct Sz { uint16_t w, h; };
+    At<Sz>(kRvaUnitSizeByType)[kTypeGoldMine] = {3, 3};
+    constexpr uint8_t kFarm = 0x3A;
+    At<Sz>(kRvaUnitSizeByType)[kFarm] = {2, 2};
+    defType(kFarm, kTfBuilding, 400);
+    defType(kPeon, kTfFleshy | kTfWorker, 30);
+    At<int32_t>(kRvaPlayerGold)[0] = 500;
+    At<int32_t>(kRvaPlayerLumber)[0] = 500;
+    config::g.workerHarvestIdleSeconds = 2;  // keep the test short; the 10 s default is checked above in "default config"
+
+    ResetWorld();
+    Unit* peon = AddUnit(kPeon, 0, 20, 20, 30, 0, kOrderStop);
+    Field<uint32_t>(peon, kOffSerial) = 1001;
+    Unit* farm = AddUnit(kFarm, 0, 25, 20, 200, 0, 0);  // damaged, 5 tiles away, complete
+    Field<uint16_t>(farm, kOffStateFlags) = kStateComplete;
+    AddUnit(kFarm, 0, 22, 20, 50, 0, 0);                 // closer but still under construction: must be skipped
+    mod::OnTick();
+    step(600);
+    CHECK(OrderOf(peon) == kOrderStop, "worker repaired before repair_idle_seconds");
+    step(900);
+    CHECK(OrderOf(peon) == kOrderRepair && TargetOf(peon) == farm, "idle worker should repair the finished farm, not the site (order %u)", OrderOf(peon));
+
+    ResetWorld();
+    peon = AddUnit(kPeon, 0, 20, 20, 30, 0, kOrderStop);
+    Field<uint32_t>(peon, kOffSerial) = 1002;
+    Unit* mine = AddUnit(kTypeGoldMine, kNeutralPlayer, 24, 19, 25500, 0, 0);  // footprint 24..26: 4 tiles away
+    Field<uint16_t>(mine, kOffResources) = 100;
+    regionMap[20 * kMap + 14] = kRegionTree;                                    // a tree 6 tiles west: out of radius 5
+    mod::OnTick();
+    step(1500);
+    CHECK(OrderOf(peon) == kOrderStop, "worker sent to harvest before harvest_idle_seconds");
+    step(1000);
+    CHECK(OrderOf(peon) == kOrderHarvest && TargetOf(peon) == mine, "idle worker should go to the gold mine (order %u)", OrderOf(peon));
+
+    ResetWorld();
+    peon = AddUnit(kPeon, 0, 20, 20, 30, 0, kOrderStop);
+    Field<uint32_t>(peon, kOffSerial) = 1003;
+    regionMap[20 * kMap + 14] = 1;
+    regionMap[22 * kMap + 23] = kRegionTree;  // 3 tiles away
+    regionMap[22 * kMap + 24] = kRegionTree;
+    mod::OnTick();
+    step(2600);
+    CHECK(OrderOf(peon) == kOrderHarvest && TargetOf(peon) == nullptr && Field<int16_t>(peon, kOffOrderX) == 23 && Field<int16_t>(peon, kOffOrderY) == 22,
+          "idle worker should chop the nearest reachable tree (order %u at %d,%d)", OrderOf(peon), Field<int16_t>(peon, kOffOrderX), Field<int16_t>(peon, kOffOrderY));
+
+    ResetWorld();
+    peon = AddUnit(kPeon, 0, 20, 20, 30, 0, kOrderStop);
+    Field<uint32_t>(peon, kOffSerial) = 1004;
+    Field<uint8_t>(peon, kOffWorkerFlags) = 0x80 | kWorkerCarrying;
+    Unit* standing = AddUnit(kPeon, 0, 21, 20, 30, 0, kOrderStand);  // Stand Ground: must be left alone
+    Field<uint32_t>(standing, kOffSerial) = 1005;
+    mod::OnTick();
+    step(2600);
+    CHECK(OrderOf(peon) == kOrderReturnGoods, "a loaded idle worker must return its cargo, never get a harvest order (order %u)", OrderOf(peon));
+    CHECK(OrderOf(standing) == kOrderStand, "a worker on Stand Ground was taken over");
+    regionMap[22 * kMap + 23] = regionMap[22 * kMap + 24] = 1;
+    config::g.workerAutoHarvest = config::g.workerAutoRepair = false;
 
     // Hero regeneration: 1 HP per second of stepping time, heroes only, never past max, dead heroes stay dead.
     ResetWorld();
