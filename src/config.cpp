@@ -47,8 +47,10 @@ static const char kDefaultIni[] =
     "raise_dead = 1\r\n"
     "\r\n"
     "[tuning]\r\n"
-    "; Heal units at or below this percent of max HP.\r\n"
-    "heal_below_pct = 80\r\n"
+    "; Heal only units missing at least this many hit points.\r\n"
+    "heal_min_missing_hp = 10\r\n"
+    "; Extra gate: also require the unit to be at or below this percent of max HP. 100 = off.\r\n"
+    "heal_below_pct = 100\r\n"
     "; Polymorph only ground unit types with at least this much max HP. Enemy flyers (dragons, gryphons, daemons)\r\n"
     "; and casters always qualify and are picked first.\r\n"
     "polymorph_min_hp = 90\r\n"
@@ -75,6 +77,7 @@ static void Load() {
         swprintf_s(key, L"%hs", kSpellKeys[i]);
         c.spell[i] = readInt(L"spells", key, c.spell[i] ? 1 : 0) != 0;
     }
+    c.healMinMissingHp = Clamp(readInt(L"tuning", L"heal_min_missing_hp", c.healMinMissingHp), 1, 65535);
     c.healBelowPct = Clamp(readInt(L"tuning", L"heal_below_pct", c.healBelowPct), 1, 100);
     c.polymorphMinHp = Clamp(readInt(L"tuning", L"polymorph_min_hp", c.polymorphMinHp), 0, 65535);
     c.hasteFlyersOnly = readInt(L"tuning", L"haste_flyers_only", 1) != 0;
@@ -86,9 +89,10 @@ static void Load() {
         strcat_s(spells, kSpellKeys[i]);
         strcat_s(spells, " ");
     }
-    logx::Write("config: enabled=%d interval=%d radius=%d combat=%d own_only=%d while_attacking=%d heal<=%d%% poly_hp>=%d spells: %s",
+    logx::Write("config: enabled=%d interval=%d radius=%d combat=%d own_only=%d while_attacking=%d heal_missing>=%d "
+                "heal<=%d%% poly_hp>=%d haste_flyers=%d spells: %s",
                 g.enabled, g.intervalTicks, g.searchRadius, g.combatRadius, g.ownUnitsOnly, g.castWhileAttacking,
-                g.healBelowPct, g.polymorphMinHp, spells);
+                g.healMinMissingHp, g.healBelowPct, g.polymorphMinHp, g.hasteFlyersOnly, spells);
 }
 
 static bool ReadMtime(FILETIME* out) {

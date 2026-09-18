@@ -154,7 +154,7 @@ int wmain(int argc, wchar_t** argv) {
     ResetWorld();
     Unit* pal = AddUnit(kTypePaladin, 0, 30, 30, 90, 255, kOrderStand);
     AddUnit(kFootman, 0, 31, 30, 60, 0, kOrderStand);             // full HP
-    AddUnit(kFootman, 0, 28, 30, 55, 0, kOrderStand);             // 91%, above heal_below_pct
+    AddUnit(kFootman, 0, 28, 30, 51, 0, kOrderStand);             // missing 9, under heal_min_missing_hp
     Unit* hurt = AddUnit(kFootman, 0, 33, 31, 20, 0, kOrderStand);
     AddUnit(kFootman, 0, 32, 32, 40, 0, kOrderStand);
     AddUnit(kFootman, 2, 30, 31, 5, 0, kOrderStand);              // ally's unit, own_units_only=1
@@ -165,6 +165,16 @@ int wmain(int argc, wchar_t** argv) {
     Unit* pal2 = AddUnit(kTypePaladin, 0, 31, 33, 90, 255, kOrderStand);
     autocast::RunPass();
     CHECK(OrderOf(pal2) == 0x27 && TargetOf(pal2) != hurt && TargetOf(pal2) != nullptr, "second paladin must not double-heal");
+
+    // The 10 HP floor is exact: missing 9 is ignored, missing 10 is healed.
+    ResetWorld();
+    pal = AddUnit(kTypePaladin, 0, 30, 30, 90, 255, kOrderStand);
+    Unit* scratched = AddUnit(kFootman, 0, 31, 30, 51, 0, kOrderStand);
+    autocast::RunPass();
+    CHECK(OrderOf(pal) == kOrderStand, "healed a unit missing only 9 HP");
+    Field<uint16_t>(scratched, kOffHp) = 50;
+    autocast::RunPass();
+    CHECK(OrderOf(pal) == 0x27 && TargetOf(pal) == scratched, "unit missing 10 HP should be healed");
 
     // A move order is never interrupted; no mana means no cast; unresearched means no cast.
     ResetWorld();

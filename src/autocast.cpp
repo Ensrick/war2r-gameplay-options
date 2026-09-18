@@ -167,7 +167,7 @@ int ScoreTarget(const World& w, Spell spell, Unit* caster, Unit* t) {
     case kSpellHeal: {
         if (!(tf & kTfFleshy)) return -1;
         const int hp = Field<uint16_t>(t, kOffHp), maxHp = MaxHp(w, t);
-        if (hp >= maxHp || hp * 100 > maxHp * config::g.healBelowPct) return -1;
+        if (maxHp - hp < config::g.healMinMissingHp || hp * 100 > maxHp * config::g.healBelowPct) return -1;
         return 1000 - hp * 1000 / maxHp;  // most hurt first
     }
     case kSpellExorcism:

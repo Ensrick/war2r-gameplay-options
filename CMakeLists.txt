@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(war2r_autocast VERSION 0.1.3 LANGUAGES CXX)
+project(war2r_autocast VERSION 0.1.4 LANGUAGES CXX)
 
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
     message(FATAL_ERROR "Warcraft II Remastered is a 32-bit exe: configure with -A Win32")

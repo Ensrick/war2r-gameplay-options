@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4 - 2026-09-18 (UNTESTED in game)
+
+- Heal only goes on units missing at least 10 HP (`heal_min_missing_hp = 10`), so paladins stop casting on scratches.
+  The percent gate stays as an option but now defaults to off (`heal_below_pct = 100`).
+
 ## 0.1.3 - 2026-09-18 (UNTESTED in game)
 
 - Raise Dead added for death knights (`raise_dead = 1`). Cast at the nearest corpse tile, the way the game AI does

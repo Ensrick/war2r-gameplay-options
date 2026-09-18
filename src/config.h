@@ -21,7 +21,8 @@ struct Config {
     int combatRadius = 6;         // an ally counts as fighting when an enemy is this close to it
     bool ownUnitsOnly = true;     // friendly spells skip allied players' units
     bool castWhileAttacking = true;
-    int healBelowPct = 80;
+    int healMinMissingHp = 10;    // a scratch is not worth a paladin's attention
+    int healBelowPct = 100;       // optional extra gate, 100 = off
     int polymorphMinHp = 90;      // max HP of the target's unit type; flyers and casters are always eligible
     bool hasteFlyersOnly = true;  // Haste only goes on air units (dragons, gryphon riders)
     int toggleKey = 0x78;         // VK_F9, pressed together with Ctrl
