@@ -11,6 +11,8 @@ constexpr uint32_t kPeTimestamp = 1771967463;
 // --- code ---
 constexpr uint32_t kRvaTickCallSite = 0xE89A6;   // `call 0x4ca440`, first call inside the per-step AI tick FUN_004e89a0
 constexpr uint32_t kRvaTickCallee = 0xCA440;     // original target of that call
+constexpr uint32_t kRvaMapLoadCallSite = 0xD2C46; // `call 0x4c4ba0` on the NEW-map path only (the savegame path calls it from 0x4C4602)
+constexpr uint32_t kRvaFinalizeTables = 0xC4BA0;  // turns raw sight ranges into reveal-function pointers, last step of a data load
 constexpr uint32_t kRvaIssueOrder = 0xEF210;     // void __cdecl (Unit*, int16 x, int16 y, Unit* target, void (__cdecl*)(Unit*))
 constexpr uint32_t kRvaSpellOrderHandler = 0xE2970;  // handler passed to IssueOrder for every spell cast
 constexpr uint32_t kRvaMoveHandler = 0xD8690;        // order 3 entry of the handler table at 0x8C1498; x,y MUST be on the map
@@ -39,6 +41,13 @@ constexpr uint32_t kRvaUnitSizeByType = 0x517AD0;    // {uint16 w, uint16 h}[uni
 constexpr uint32_t kRvaPlayerGold = 0x519128;        // int32[16]
 constexpr uint32_t kRvaPlayerLumber = 0x5190E8;      // int32[16]
 constexpr uint32_t kRvaRuleset = 0x51C178;           // uint32, nonzero enables the Remastered resume-order byte (+0x8D)
+constexpr uint32_t kRvaSightByType = 0x517608;       // uint32[110]: range 0..9 until FinalizeTables, a function pointer after
+constexpr uint32_t kRvaGoldCostByType = 0x517980;    // uint8[110], price / 10
+constexpr uint32_t kRvaLumberCostByType = 0x5179F0;  // uint8[110], price / 10
+constexpr uint32_t kRvaUpgradeGold = 0x5188E0;       // uint16[52], PUD UGRD order
+constexpr uint32_t kRvaUpgradeLumber = 0x518948;     // uint16[52]
+constexpr uint32_t kRvaUpgradeOil = 0x5189B0;        // uint16[52]
+constexpr uint32_t kRvaNetGameAtLoad = 0x522F5B;     // uint8, network flag that is already valid while a map loads
 constexpr uint32_t kRvaNetGame = 0x51C6F4;            // nonzero while the game loop runs DONETWORKTURN (multiplayer)
 
 constexpr int kUnitSize = 0x98;

@@ -8,6 +8,7 @@
 #include "../src/mod.h"
 #include "../src/world.h"
 #include "../src/config.h"
+#include "../src/datatweaks.h"
 #include "../src/game.h"
 #include "../src/hook.h"
 #include "../src/log.h"
@@ -513,6 +514,39 @@ int wmain(int argc, wchar_t** argv) {
     CHECK(OrderOf(standing) == kOrderStand, "a worker on Stand Ground was taken over");
     regionMap[22 * kMap + 23] = regionMap[22 * kMap + 24] = 1;
     config::g.workerAutoHarvest = config::g.workerAutoRepair = false;
+
+    // Map-start data tweaks, run against the real default data (Data\Rez\unitdata.dat values typed in here).
+    {
+        uint16_t* hpT = At<uint16_t>(kRvaMaxHpByType);
+        uint32_t* sightT = At<uint32_t>(kRvaSightByType);
+        uint8_t* goldT = At<uint8_t>(kRvaGoldCostByType);
+        uint8_t* lumberT = At<uint8_t>(kRvaLumberCostByType);
+        uint16_t* upGold = At<uint16_t>(kRvaUpgradeGold);
+        uint16_t* upLumber = At<uint16_t>(kRvaUpgradeLumber);
+        hpT[kFootman] = 60; hpT[0x19] = 240; hpT[0x23] = 800; hpT[0x3A] = 400; hpT[kTypeGoldMine] = 25500; hpT[0x4A] = 1200;
+        sightT[kDragon] = 6; sightT[0x2A] = 6; sightT[kFootman] = 4; sightT[0x28] = 9;
+        goldT[kFootman] = 60; lumberT[kFootman] = 0; goldT[8] = 50; lumberT[8] = 5; goldT[kDragon] = 225; goldT[0x3A] = 50; lumberT[0x3A] = 25;
+        upGold[4] = 200; upLumber[4] = 200; upGold[20] = 1500; upGold[0] = 800; upGold[31] = 1000;
+        const uint8_t callSite[] = {0xE8};
+        CHECK(*At<uint8_t>(kRvaMapLoadCallSite) == callSite[0], "map load call site is not a call");
+
+        *At<uint8_t>(kRvaNetGameAtLoad) = 1;
+        datatweaks::OnNewMapTablesLoaded();
+        CHECK(hpT[kFootman] == 60 && goldT[kFootman] == 60, "data tables were edited for a multiplayer map");
+        *At<uint8_t>(kRvaNetGameAtLoad) = 0;
+        datatweaks::OnNewMapTablesLoaded();
+        CHECK(hpT[kFootman] == 120 && hpT[0x19] == 960 && hpT[0x23] == 3200, "health: units x2, heroes x4 (footman %u grom %u deathwing %u)", hpT[kFootman], hpT[0x19], hpT[0x23]);
+        CHECK(hpT[0x3A] == 400 && hpT[0x4A] == 1200 && hpT[kTypeGoldMine] == 25500, "buildings and the gold mine must keep their health");
+        CHECK(goldT[kFootman] == 30 && goldT[8] == 25 && lumberT[8] == 3 && goldT[kDragon] == 113, "unit prices halved (archer lumber %u dragon %u)", lumberT[8], goldT[kDragon]);
+        CHECK(lumberT[kFootman] == 0 && goldT[0x3A] == 50 && lumberT[0x3A] == 25, "free stays free, buildings keep their price");
+        CHECK(upGold[4] == 100 && upLumber[4] == 100 && upGold[20] == 750 && upGold[31] == 500, "ranged and siege upgrades halved");
+        CHECK(upGold[0] == 800, "sword upgrade must keep its price");
+        CHECK(sightT[kDragon] == 8 && sightT[0x2A] == 8 && sightT[kFootman] == 4, "sight +2 for dragon and gryphon only");
+        config::g.sightBonus[0x28] = 5;
+        datatweaks::OnNewMapTablesLoaded();
+        CHECK(sightT[0x28] == 9 && sightT[kDragon] == 9, "sight must clamp at 9 (%u)", sightT[0x28]);
+        hpT[kFootman] = 60; hpT[0x19] = 240;  // what the later scenarios expect
+    }
 
     // Hero regeneration: 1 HP per second of stepping time, heroes only, never past max, dead heroes stay dead.
     ResetWorld();

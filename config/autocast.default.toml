@@ -98,3 +98,31 @@ units = [
 regen_hp_per_second = 1
 # "all" = every hero on the map (enemy heroes too), "mine" = only your own.
 regen_for = "all"
+
+# ---------------------------------------------------------------------------------------------------------------
+# The three sections below change the game's unit and upgrade data. They are applied once, when a NEW map starts
+# (new mission, custom game, restart). Editing them mid-game does nothing until the next map. A savegame keeps the
+# values it was made with: saves from before the mod stay unchanged, saves made with the mod keep their numbers.
+# The computer plays by the same numbers. Set a value to 1.0 to leave that part of the game alone.
+# ---------------------------------------------------------------------------------------------------------------
+
+[health]
+# Max hit points multiplier. Slower, weightier fights. Heroes are the unit types listed under [heroes].
+units = 2.0
+heroes = 4.0
+buildings = 1.0
+
+[costs]
+# Gold and lumber price of units (not buildings, not oil). Prices move in steps of 10.
+units = 0.5
+# Archer / ranger and axethrower / berserker research: arrows, throwing axes, ranger and berserker upgrade, longbow,
+# lighter axes, scouting, marksmanship, regeneration.
+ranged_upgrades = 0.5
+# Ballista and catapult upgrades.
+siege_upgrades = 0.5
+
+[vision]
+# Extra sight range per unit type: unit_name = bonus. Total sight tops out at 9 (the engine's limit).
+# Listing anything here replaces the default list, so keep the lines you still want.
+dragon = 2
+gryphon_rider = 2

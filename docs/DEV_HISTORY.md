@@ -3,6 +3,32 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.0.0-dev.14 - 2026-09-18 (UNTESTED in game)
+
+- Vision (#7): `[vision]` maps unit names to extra sight range, default `dragon = 2`, `gryphon_rider = 2` (6 -> 8).
+  Clamped at 9: the engine has reveal functions for sight 0..9 only, and a foreign pointer in the sight table would
+  crash the next savegame load.
+
+## 1.0.0-dev.13 - 2026-09-18 (UNTESTED in game)
+
+- Upgrade prices (#8): `[costs] ranged_upgrades = 0.5` (UGRD rows 4-7, 24-31: arrows, throwing axes, ranger / berserker
+  upgrade, longbow, lighter axes, scouting, marksmanship, regeneration) and `siege_upgrades = 0.5` (rows 20-23).
+
+## 1.0.0-dev.12 - 2026-09-18 (UNTESTED in game)
+
+- Unit prices (#9): `[costs] units = 0.5` scales the gold and lumber byte tables (price / 10) for unit types below
+  0x3A. Rounds to the nearest 10, a priced unit never becomes free, buildings and oil are untouched.
+
+## 1.0.0-dev.11 - 2026-09-18 (UNTESTED in game)
+
+- Second hook: the new-map-only `call FinalizeTables` at `0x4D2C46`. The mod edits the unit / upgrade tables there:
+  after the map's or the default data (and Blizzard's hard-coded overrides) are loaded, before any unit exists, and
+  never on a savegame load, so nothing can double-apply (saves store the tables). Gated on the load-time network
+  flag `0x922F5B`. Research: docs/research/data_tables.md. If this hook does not match, only these tweaks are lost.
+- Health (#5): `[health] units = 2.0`, `heroes = 4.0`, `buildings = 1.0`. Capped at 9999; gold mine, dark portal and
+  runestone are never scaled. Heroes are the `[heroes] units` list.
+- Config is now loaded by whichever hook fires first (the map-load hook runs before the first tick).
+
 ## 1.0.0-dev.10 - 2026-09-18 (UNTESTED in game)
 
 - Idle workers (#3, #4): a peasant / peon of yours that sits in STOP with nothing queued repairs the nearest damaged,

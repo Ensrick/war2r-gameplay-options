@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 project(war2r_autocast VERSION 1.0.0 LANGUAGES CXX RC)
 
 # Pre-release builds carry a -dev.N suffix; every change bumps N (docs/DEV_HISTORY.md). Empty for a release build.
-set(AUTOCAST_PRERELEASE "-dev.10")
+set(AUTOCAST_PRERELEASE "-dev.14")
 
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
     message(FATAL_ERROR "Warcraft II Remastered is a 32-bit exe: configure with -A Win32")
@@ -12,7 +12,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")  # static CRT, no redist needed
 
-set(CORE_SOURCES src/autocast.cpp src/config.cpp src/eye.cpp src/hook.cpp src/log.cpp src/mod.cpp src/tweaks.cpp src/units.cpp src/workers.cpp
+set(CORE_SOURCES src/autocast.cpp src/config.cpp src/datatweaks.cpp src/eye.cpp src/hook.cpp src/log.cpp src/mod.cpp src/tweaks.cpp src/units.cpp src/workers.cpp
     src/world.cpp src/resources.rc)
 # The .rc embeds the default config; rebuild the resource when the toml changes.
 set_source_files_properties(src/resources.rc PROPERTIES OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/config/autocast.default.toml)

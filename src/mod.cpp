@@ -18,6 +18,8 @@ namespace {
 
 wchar_t g_dllDir[MAX_PATH];
 bool g_initialised = false;
+bool g_configBroken = false;
+bool g_firstTickLogged = false;
 unsigned g_tick = 0;
 bool g_toggleKeyWasDown = false;
 bool g_netGameLogged = false;
@@ -56,10 +58,17 @@ void SetModuleBase(uintptr_t exeBase, const wchar_t* dllDir) {
     wcscpy_s(g_dllDir, dllDir);
 }
 
+void EnsureConfigLoaded() {
+    if (g_initialised) return;
+    g_initialised = true;
+    g_configBroken = !config::Init(g_dllDir);
+}
+
 void __cdecl OnTick() {
-    if (!g_initialised) {
-        g_initialised = true;
-        if (!config::Init(g_dllDir)) ShowMessage("Autocast: autocast.toml has an error, see autocast.log");
+    EnsureConfigLoaded();
+    if (!g_firstTickLogged) {
+        g_firstTickLogged = true;
+        if (g_configBroken) ShowMessage("Autocast: autocast.toml has an error, see autocast.log");
         logx::Write("first game tick, mod live");
     }
     ++g_tick;

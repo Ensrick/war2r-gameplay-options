@@ -53,6 +53,38 @@ static void ReadInt(const toml::table& root, const char* section, const char* ke
     }
 }
 
+static void ReadFactor(const toml::table& root, const char* section, const char* key, double& out) {
+    const auto node = root[section][key];
+    if (!node) return;
+    const auto v = node.value<double>();  // accepts 2 as well as 2.0
+    if (!v || *v < 0.1 || *v > 10.0) {
+        logx::Write("config: [%s] %s must be a number from 0.1 to 10, keeping %.2f", section, key, out);
+        return;
+    }
+    out = *v;
+}
+
+static void SetDefaultSight(Config& c) {
+    memset(c.sightBonus, 0, sizeof(c.sightBonus));
+    c.sightBonus[0x2B] = 2;  // dragon
+    c.sightBonus[0x2A] = 2;  // gryphon rider
+}
+
+// [vision]: every key is a unit name, the value is the extra sight range. The section replaces the default list.
+static void ReadVision(const toml::table& root, Config& c) {
+    const toml::table* tbl = root["vision"].as_table();
+    if (!tbl) return;
+    memset(c.sightBonus, 0, sizeof(c.sightBonus));
+    for (const auto& [key, node] : *tbl) {
+        const std::string name(key.str());
+        const units::Entry* e = units::FindByName(name.c_str());
+        const auto v = node.value<int64_t>();
+        if (!e) logx::Write("config: [vision] unknown unit \"%s\" ignored", name.c_str());
+        else if (!v || *v < 0 || *v > 9) logx::Write("config: [vision] %s must be a whole number from 0 to 9", name.c_str());
+        else c.sightBonus[e->id] = static_cast<uint8_t>(*v);
+    }
+}
+
 static void ReadToggleKey(const toml::table& root, int& out) {
     const auto node = root["general"]["toggle_key"];
     if (!node) return;
@@ -149,6 +181,9 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"heroes", " units regen_hp_per_second regen_for "},
         {"eye_of_kilrogg", " cast cast_at_mana max_active auto_scout "},
         {"gold_mines", " unlimited "},
+        {"health", " units heroes buildings "},
+        {"costs", " units ranged_upgrades siege_upgrades "},
+        {"vision", nullptr},  // keys are unit names, checked in ReadVision
         {"workers", " auto_harvest harvest_idle_seconds harvest_radius auto_repair repair_idle_seconds repair_radius "},
     };
     for (const auto& [sectionKey, sectionNode] : root) {
@@ -156,10 +191,14 @@ static void WarnUnknownKeys(const toml::table& root) {
         const char* keys = nullptr;
         for (const auto& k : kKnown)
             if (section == k.section) keys = k.keys;
-        if (!keys) {
+        bool known = false;
+        for (const auto& k : kKnown)
+            if (section == k.section) known = true;
+        if (!known) {
             logx::Write("config: unknown section [%s] ignored", section.c_str());
             continue;
         }
+        if (!keys) continue;
         const toml::table* tbl = sectionNode.as_table();
         if (!tbl) continue;
         for (const auto& [key, unused] : *tbl) {
@@ -184,6 +223,7 @@ static bool Load() {
     Config c;
     SetPolymorphTargets(c, kDefaultPolymorphTargets, sizeof(kDefaultPolymorphTargets) / sizeof(kDefaultPolymorphTargets[0]));
     SetDefaultHeroes(c);
+    SetDefaultSight(c);
     WarnUnknownKeys(root);
     ReadBool(root, "general", "enabled", c.enabled);
     ReadToggleKey(root, c.toggleKey);
@@ -203,6 +243,13 @@ static bool Load() {
     ReadInt(root, "eye_of_kilrogg", "max_active", 1, 50, c.eyeMaxActive);
     ReadBool(root, "eye_of_kilrogg", "auto_scout", c.eyeAutoScout);
     ReadBool(root, "gold_mines", "unlimited", c.goldMinesUnlimited);
+    ReadFactor(root, "health", "units", c.hpUnits);
+    ReadFactor(root, "health", "heroes", c.hpHeroes);
+    ReadFactor(root, "health", "buildings", c.hpBuildings);
+    ReadFactor(root, "costs", "units", c.costUnits);
+    ReadFactor(root, "costs", "ranged_upgrades", c.costRangedUpgrades);
+    ReadFactor(root, "costs", "siege_upgrades", c.costSiegeUpgrades);
+    ReadVision(root, c);
     ReadBool(root, "workers", "auto_harvest", c.workerAutoHarvest);
     ReadInt(root, "workers", "harvest_idle_seconds", 0, 3600, c.workerHarvestIdleSeconds);
     ReadInt(root, "workers", "harvest_radius", 1, 64, c.workerHarvestRadius);
@@ -258,6 +305,7 @@ bool Init(const wchar_t* dllDir) {
         defaultsSet = true;
         SetPolymorphTargets(g, kDefaultPolymorphTargets, sizeof(kDefaultPolymorphTargets) / sizeof(kDefaultPolymorphTargets[0]));
         SetDefaultHeroes(g);
+        SetDefaultSight(g);
     }
     return Load();
 }
