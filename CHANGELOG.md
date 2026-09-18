@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 - 2026-09-18 (UNTESTED in game)
+
+- Polymorph: flying attackers (dragon, gryphon rider, daemon, Deathwing) always qualify and are picked first, then
+  enemy casters, then big ground units. Before this a daemon was skipped: its max HP in `Data\Rez\unitdata.dat` is 60,
+  under the default `polymorph_min_hp = 90`. Dragons (100 HP) already qualified.
+
 ## 0.1.0 - 2026-09-18 (UNTESTED in game)
 
 - First build. `version.dll` proxy for Warcraft II Remastered 1.0.2.2818, hooks the per-step AI tick.

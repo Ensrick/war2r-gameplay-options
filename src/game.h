@@ -50,7 +50,8 @@ constexpr int kOffHasteTimer = 0x4A;    // int16, > 0 haste, < 0 slow
 constexpr int kOffFlameTimer = 0x4E;    // uint16
 constexpr int kOffOrderTarget = 0x88;   // Unit*
 
-// Unit type flags.
+// Unit type flags (PUD UDTA layout; defaults ship in Data\Rez\unitdata.dat at file offset 0x1486).
+constexpr uint32_t kTfFlyer = 0x00000002;
 constexpr uint32_t kTfBuilding = 0x00000020;
 constexpr uint32_t kTfUndead = 0x00008000;
 constexpr uint32_t kTfCaster = 0x00020000;

@@ -75,7 +75,7 @@ static uint8_t OrderOf(Unit* u) { return Field<uint8_t>(u, kOffOrder); }
 static Unit* TargetOf(Unit* u) { return Field<Unit*>(u, kOffOrderTarget); }
 
 // Fake unit types used by the scenarios.
-constexpr uint8_t kFootman = 0, kGrunt = 1, kOgre = 5, kSkeleton = 0x39, kPeon = 3;
+constexpr uint8_t kFootman = 0, kGrunt = 1, kOgre = 7, kSkeleton = 0x37, kPeon = 3, kDragon = 0x2B, kDaemon = 0x38;
 
 int wmain(int argc, wchar_t** argv) {
     const wchar_t* exe = argc > 1 ? argv[1] : L"C:\\Program Files (x86)\\Warcraft II Remastered\\x86\\Warcraft II.exe";
@@ -135,6 +135,8 @@ int wmain(int argc, wchar_t** argv) {
     defType(kOgre, kTfFleshy | kTfAttacker, 90);
     defType(kPeon, kTfFleshy, 30);
     defType(kSkeleton, kTfUndead | kTfAttacker, 40);
+    defType(kDragon, kTfFleshy | kTfAttacker | kTfFlyer, 100);
+    defType(kDaemon, kTfFleshy | kTfAttacker | kTfFlyer, 60);
     defType(kTypePaladin, kTfFleshy | kTfAttacker | kTfCaster, 90);
     defType(kTypeOgreMage, kTfFleshy | kTfAttacker | kTfCaster, 90);
     defType(kTypeMage, kTfFleshy | kTfCaster, 60);
@@ -218,6 +220,21 @@ int wmain(int argc, wchar_t** argv) {
     autocast::RunPass();
     CHECK(OrderOf(mage) == 0x2C, "slow when polymorph is disabled (order %u)", OrderOf(mage));
     config::g.spell[kSpellPolymorph] = true;
+
+    // Flying attackers outrank everything; a daemon qualifies despite 60 max HP (real unitdata.dat value).
+    ResetWorld();
+    mage = AddUnit(kTypeMage, 0, 40, 40, 60, 255, kOrderStand);
+    AddUnit(kOgre, 1, 41, 40, 90, 0, kOrderAttack);
+    AddUnit(kTypeMage, 1, 42, 40, 60, 0, kOrderStand);
+    Unit* daemon = AddUnit(kDaemon, 1, 46, 44, 60, 0, kOrderAttack);
+    autocast::RunPass();
+    CHECK(OrderOf(mage) == 0x2E && TargetOf(mage) == daemon, "polymorph should pick the daemon first");
+    ResetWorld();
+    mage = AddUnit(kTypeMage, 0, 40, 40, 60, 255, kOrderStand);
+    AddUnit(kDaemon, 1, 41, 40, 60, 0, kOrderAttack);
+    Unit* dragon = AddUnit(kDragon, 1, 45, 45, 100, 0, kOrderAttack);
+    autocast::RunPass();
+    CHECK(OrderOf(mage) == 0x2E && TargetOf(mage) == dragon, "dragon (100 HP) outranks daemon (60 HP)");
 
     // Death knight: coil an enemy; peons and buildings are not slow targets but are coil targets if fleshy.
     ResetWorld();

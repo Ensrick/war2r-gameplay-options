@@ -156,6 +156,8 @@ int ScoreTarget(const World& w, Spell spell, Unit* caster, Unit* t) {
         return closeness;
     case kSpellPolymorph:
         if (!(tf & kTfFleshy)) return -1;
+        // Dragons, gryphons, daemons, Deathwing. Always eligible: a daemon's 60 max HP would fail polymorph_min_hp.
+        if ((tf & kTfFlyer) && (tf & kTfAttacker)) return 200000 + MaxHp(w, t) * 100 + closeness;
         if (tf & kTfCaster) return 100000 + closeness;
         if (!(tf & kTfAttacker) || MaxHp(w, t) < config::g.polymorphMinHp) return -1;
         return MaxHp(w, t) * 100 + closeness;  // biggest unit first
