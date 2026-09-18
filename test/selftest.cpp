@@ -33,9 +33,13 @@ static T* At(uint32_t rva) { return reinterpret_cast<T*>(g_base + rva); }
         }                                \
     } while (0)
 
-static void __cdecl FakeIssueOrder(Unit* caster, int16_t, int16_t, Unit* target, void*) {
+static void __cdecl FakeIssueOrder(Unit* caster, int16_t x, int16_t y, Unit* target, void*) {
     Field<uint8_t>(caster, kOffOrder) = static_cast<uint8_t>(*At<uint16_t>(kRvaPendingSpellOrder));
     Field<Unit*>(caster, kOffOrderTarget) = target;
+    if (!target) {  // the real IssueOrder stores the destination tile only for positional orders
+        Field<int16_t>(caster, kOffOrderX) = x;
+        Field<int16_t>(caster, kOffOrderY) = y;
+    }
 }
 
 static void PatchJump(uint32_t rva, void* dest) {
@@ -260,6 +264,22 @@ int wmain(int argc, wchar_t** argv) {
     autocast::RunPass();
     CHECK(OrderOf(dk) == 0x35 && TargetOf(dk) == fighter, "haste_flyers_only=0 should haste the defending grunt");
     config::g.hasteFlyersOnly = true;
+
+    // Raise Dead: at the nearest corpse tile, only with an enemy around, one death knight per corpse.
+    ResetWorld();
+    dk = AddUnit(kTypeDeathKnight, 0, 10, 10, 60, 255, kOrderStand);
+    Unit* corpse = AddUnit(kTypeCorpse, 1, 12, 11, 0, 0, 0);
+    Field<uint8_t>(corpse, kOffStateFlags) = kStateDying;
+    autocast::RunPass();
+    CHECK(OrderOf(dk) == kOrderStand, "raised dead with no enemy around");
+    AddUnit(kFootman, 1, 16, 10, 60, 0, kOrderAttack);
+    autocast::RunPass();
+    CHECK(OrderOf(dk) == 0x32 && TargetOf(dk) == nullptr && Field<int16_t>(dk, kOffOrderX) == 12 &&
+              Field<int16_t>(dk, kOffOrderY) == 11,
+          "raise dead at the corpse tile (order %u)", OrderOf(dk));
+    Unit* dk2 = AddUnit(kTypeDeathKnight, 0, 11, 12, 60, 255, kOrderStand);
+    autocast::RunPass();
+    CHECK(OrderOf(dk2) == 0x33, "second death knight should coil, the corpse is taken (order %u)", OrderOf(dk2));
 
     // Neutral units are never enemies. Targets outside search_radius are ignored.
     ResetWorld();

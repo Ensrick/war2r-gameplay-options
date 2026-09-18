@@ -9,12 +9,13 @@ enum Spell {
     kSpellDeathCoil,
     kSpellHaste,
     kSpellUnholyArmor,
+    kSpellRaiseDead,
     kSpellCount
 };
 
 struct Config {
     bool enabled = true;
-    bool spell[kSpellCount] = {true, true, true, true, true, true, true, false};
+    bool spell[kSpellCount] = {true, true, true, true, true, true, true, false, true};
     int intervalTicks = 10;       // game steps between autocast passes
     int searchRadius = 8;         // tiles around the caster
     int combatRadius = 6;         // an ally counts as fighting when an enemy is this close to it

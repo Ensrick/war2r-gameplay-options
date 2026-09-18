@@ -8,8 +8,8 @@
 namespace config {
 
 Config g;
-const char* const kSpellKeys[kSpellCount] = {"heal",      "exorcism",   "slow",  "polymorph",
-                                             "bloodlust", "death_coil", "haste", "unholy_armor"};
+const char* const kSpellKeys[kSpellCount] = {"heal",       "exorcism", "slow",         "polymorph", "bloodlust",
+                                             "death_coil", "haste",    "unholy_armor", "raise_dead"};
 
 static wchar_t g_path[MAX_PATH];
 static FILETIME g_mtime;
@@ -43,6 +43,8 @@ static const char kDefaultIni[] =
     "death_coil = 1\r\n"
     "haste = 1\r\n"
     "unholy_armor = 0\r\n"
+    "; Raise Dead is only cast while an enemy is within search_radius, so skeletons are not wasted.\r\n"
+    "raise_dead = 1\r\n"
     "\r\n"
     "[tuning]\r\n"
     "; Heal units at or below this percent of max HP.\r\n"

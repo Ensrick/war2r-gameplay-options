@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.3 - 2026-09-18 (UNTESTED in game)
+
+- Raise Dead added for death knights (`raise_dead = 1`). Cast at the nearest corpse tile, the way the game AI does
+  it (order 0x32 at x/y, no target unit), and only while an enemy is within `search_radius`. It runs first in the
+  death knight's priority list, matching the AI: raise dead, unholy armor, death coil, haste.
+- Fireball, Flame Shield, Invisibility, Blizzard, Death and Decay, Whirlwind and Runes are deliberately left manual.
+
 ## 0.1.2 - 2026-09-18 (UNTESTED in game)
 
 - Haste only goes on your flying units (`haste_flyers_only = 1`, new default), when they have an attack order or

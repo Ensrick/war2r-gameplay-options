@@ -44,11 +44,13 @@ const SpellDef kSpells[kSpellCount] = {
     {0x33, 0x04000, false},  // death coil
     {0x35, 0x10000, true},   // haste
     {0x36, 0x20000, true},   // unholy armor
+    {0x32, 0x02000, false},  // raise dead (cast at a tile, not at a unit)
 };
 
 struct Claim {
     uint8_t order;
-    Unit* target;
+    Unit* target;  // null for a positional cast, then x/y identify it
+    int16_t x, y;
 };
 constexpr int kMaxClaims = 64;
 Claim g_claims[kMaxClaims];
@@ -85,19 +87,25 @@ int Distance(Unit* a, Unit* b) {
     return dx > dy ? dx : dy;
 }
 
-// Calls fn(unit) for every distinct-tile unit within `radius` tiles of `centre`; stops early when fn returns true.
+// Calls fn(unit) for every grid entry within `radius` tiles of `centre`, corpses included; stops when fn returns true.
 template <typename Fn>
-bool ScanGrid(const World& w, Unit* centre, int radius, Fn fn) {
+bool ScanGridRaw(const World& w, Unit* centre, int radius, Fn fn) {
     const int cx = Field<int16_t>(centre, kOffX), cy = Field<int16_t>(centre, kOffY);
     for (int y = cy - radius; y <= cy + radius; ++y) {
         if (y < 0 || y >= w.mapSize) continue;
         for (int x = cx - radius; x <= cx + radius; ++x) {
             if (x < 0 || x >= w.mapSize) continue;
             Unit* u = w.grid[y * w.mapSize + x];
-            if (u && u != centre && IsActive(u) && fn(u)) return true;
+            if (u && u != centre && fn(u)) return true;
         }
     }
     return false;
+}
+
+// Same, live units only.
+template <typename Fn>
+bool ScanGrid(const World& w, Unit* centre, int radius, Fn fn) {
+    return ScanGridRaw(w, centre, radius, [&](Unit* u) { return IsActive(u) && fn(u); });
 }
 
 bool EnemyNear(const World& w, Unit* unit, uint8_t me, int radius) {
@@ -126,6 +134,20 @@ bool IsClaimed(uint8_t order, Unit* target) {
     for (int i = 0; i < g_claimCount; ++i)
         if (g_claims[i].order == order && g_claims[i].target == target) return true;
     return false;
+}
+
+bool IsTileClaimed(uint8_t order, int16_t x, int16_t y) {
+    for (int i = 0; i < g_claimCount; ++i)
+        if (g_claims[i].order == order && !g_claims[i].target && g_claims[i].x == x && g_claims[i].y == y) return true;
+    return false;
+}
+
+void IssueSpell(Unit* caster, uint8_t order, int16_t x, int16_t y, Unit* target) {
+    // Same sequence the game's AI cast helpers (FUN_004cb0e0 for units, FUN_004cac80 for raise dead) use.
+    *At<uint16_t>(kRvaPendingSpellOrder) = order;
+    reinterpret_cast<IssueOrderFn>(g_base + kRvaIssueOrder)(
+        caster, x, y, target, reinterpret_cast<OrderHandlerFn>(g_base + kRvaSpellOrderHandler));
+    *At<uint16_t>(kRvaPendingSpellOrder) = 0;
 }
 
 // Higher score wins, negative = not eligible.
@@ -204,20 +226,49 @@ bool TryCast(const World& w, Unit* caster, Spell spell) {
     });
     if (!best) return false;
 
-    // Same sequence the game's AI cast helper (FUN_004cb0e0) uses.
-    *At<uint16_t>(kRvaPendingSpellOrder) = def.order;
-    reinterpret_cast<IssueOrderFn>(g_base + kRvaIssueOrder)(
-        caster, 0, 0, best, reinterpret_cast<OrderHandlerFn>(g_base + kRvaSpellOrderHandler));
-    *At<uint16_t>(kRvaPendingSpellOrder) = 0;
-
+    IssueSpell(caster, def.order, 0, 0, best);
     if (Field<uint8_t>(caster, kOffOrder) != def.order) return false;  // order was not interruptible
-    if (g_claimCount < kMaxClaims) g_claims[g_claimCount++] = {def.order, best};
+    if (g_claimCount < kMaxClaims) g_claims[g_claimCount++] = {def.order, best, 0, 0};
     ++g_castCount;
     if (config::g.logCasts)
         logx::Write("cast %s: caster type %u at %d,%d -> target type %u owner %u at %d,%d", config::kSpellKeys[spell],
                     Field<uint8_t>(caster, kOffType), Field<int16_t>(caster, kOffX), Field<int16_t>(caster, kOffY),
                     Field<uint8_t>(best, kOffType), Field<uint8_t>(best, kOffOwner), Field<int16_t>(best, kOffX),
                     Field<int16_t>(best, kOffY));
+    return true;
+}
+
+// Raise Dead is cast at a corpse's tile. Only while an enemy is around, so the short-lived skeletons get used.
+bool TryRaiseDead(const World& w, Unit* caster) {
+    if (!config::g.spell[kSpellRaiseDead]) return false;
+    const SpellDef& def = kSpells[kSpellRaiseDead];
+    const uint8_t me = Field<uint8_t>(caster, kOffOwner);
+    if (!(At<uint32_t>(kRvaSpellsResearched)[me] & def.researchBit)) return false;
+    if (Field<uint8_t>(caster, kOffMana) < At<uint16_t>(kRvaManaCostByOrder)[def.order]) return false;
+    if (!EnemyNear(w, caster, me, config::g.searchRadius)) return false;
+
+    Unit* best = nullptr;
+    int bestDistance = 1 << 30;
+    ScanGridRaw(w, caster, config::g.searchRadius, [&](Unit* t) {
+        if (Field<uint8_t>(t, kOffType) != kTypeCorpse || (Field<uint8_t>(t, kOffStateFlags) & 0x0F) != kStateDying) return false;
+        if (IsTileClaimed(def.order, Field<int16_t>(t, kOffX), Field<int16_t>(t, kOffY))) return false;
+        const int d = Distance(caster, t);
+        if (d < bestDistance) {
+            bestDistance = d;
+            best = t;
+        }
+        return false;
+    });
+    if (!best) return false;
+
+    const int16_t x = Field<int16_t>(best, kOffX), y = Field<int16_t>(best, kOffY);
+    IssueSpell(caster, def.order, x, y, nullptr);
+    if (Field<uint8_t>(caster, kOffOrder) != def.order) return false;
+    if (g_claimCount < kMaxClaims) g_claims[g_claimCount++] = {def.order, nullptr, x, y};
+    ++g_castCount;
+    if (config::g.logCasts)
+        logx::Write("cast raise_dead: caster at %d,%d -> corpse at %d,%d", Field<int16_t>(caster, kOffX),
+                    Field<int16_t>(caster, kOffY), x, y);
     return true;
 }
 
@@ -258,7 +309,9 @@ void CasterThink(const World& w, Unit* caster) {
         break;
     case kTypeDeathKnight:
     case kTypeDeathKnightHero:
-        TryCast(w, caster, kSpellUnholyArmor) || TryCast(w, caster, kSpellDeathCoil) || TryCast(w, caster, kSpellHaste);
+        // The game AI's own priority: raise dead, unholy armor, death coil, haste.
+        TryRaiseDead(w, caster) || TryCast(w, caster, kSpellUnholyArmor) || TryCast(w, caster, kSpellDeathCoil) ||
+            TryCast(w, caster, kSpellHaste);
         break;
     }
 }
@@ -308,7 +361,8 @@ void Pass() {
         Unit* u = unitAt(i);
         const uint8_t order = Field<uint8_t>(u, kOffOrder);
         if (Field<uint8_t>(u, kOffOwner) != w.localPlayer || !IsActive(u) || order < kOrderSpellFirst) continue;
-        if (Unit* target = Field<Unit*>(u, kOffOrderTarget)) g_claims[g_claimCount++] = {order, target};
+        g_claims[g_claimCount++] = {order, Field<Unit*>(u, kOffOrderTarget), Field<int16_t>(u, kOffOrderX),
+                                    Field<int16_t>(u, kOffOrderY)};
     }
 
     for (unsigned i = 0; i < w.unitCount; ++i) {

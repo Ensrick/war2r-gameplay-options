@@ -48,7 +48,12 @@ constexpr int kOffArmorTimer = 0x46;    // uint16 (unholy armor)
 constexpr int kOffBloodTimer = 0x48;    // uint16
 constexpr int kOffHasteTimer = 0x4A;    // int16, > 0 haste, < 0 slow
 constexpr int kOffFlameTimer = 0x4E;    // uint16
+constexpr int kOffOrderX = 0x84;        // int16, order destination when there is no target unit
+constexpr int kOffOrderY = 0x86;        // int16
 constexpr int kOffOrderTarget = 0x88;   // Unit*
+
+constexpr uint8_t kStateDying = 2;      // low nibble of kOffStateFlags; a raisable corpse is type kTypeCorpse in this state
+constexpr uint8_t kTypeCorpse = 0x69;   // what the game AI's raise-dead filter (FUN_004ca8d0) looks for
 
 // Unit type flags (PUD UDTA layout; defaults ship in Data\Rez\unitdata.dat at file offset 0x1486).
 constexpr uint32_t kTfFlyer = 0x00000002;
