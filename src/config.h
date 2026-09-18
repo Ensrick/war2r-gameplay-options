@@ -39,6 +39,11 @@ struct Config {
 
     // [haste]
     bool hasteFlyersOnly = true;
+
+    // [heroes]
+    bool isHero[256] = {};          // unit types listed in [heroes] units
+    int heroRegenPerSecond = 1;     // 0 = off
+    bool heroRegenMineOnly = false; // regen_for = "mine"
 };
 
 namespace config {

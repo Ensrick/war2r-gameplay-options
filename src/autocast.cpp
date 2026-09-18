@@ -4,8 +4,8 @@
 #include <cstdlib>
 
 #include "config.h"
-#include "game.h"
 #include "log.h"
+#include "world.h"
 
 using namespace game;
 
@@ -15,18 +15,9 @@ namespace {
 
 using OrderHandlerFn = void(__cdecl*)(Unit*);
 using IssueOrderFn = void(__cdecl*)(Unit*, int16_t, int16_t, Unit*, OrderHandlerFn);
-using ShowMessageFn = void(__cdecl*)(const char*, int, int, int);
 
-uintptr_t g_base = 0;
-wchar_t g_dllDir[MAX_PATH];
-bool g_initialised = false;
-unsigned g_tick = 0;
-bool g_toggleKeyWasDown = false;
-bool g_netGameLogged = false;
+
 unsigned g_castCount = 0;
-
-template <typename T>
-T* At(uint32_t rva) { return reinterpret_cast<T*>(g_base + rva); }
 
 struct SpellDef {
     uint8_t order;
@@ -55,61 +46,6 @@ struct Claim {
 constexpr int kMaxClaims = 64;
 Claim g_claims[kMaxClaims];
 int g_claimCount = 0;
-
-struct World {
-    Unit* units;
-    unsigned unitCount;
-    Unit** grid;
-    int mapSize;
-    uint8_t localPlayer;
-    const uint8_t* alliance;
-    const uint32_t* typeFlags;
-    const uint16_t* maxHpByType;
-};
-
-// Current-or-pending order, see game::EffectiveOrder.
-uint8_t OrderOf(Unit* u) { return EffectiveOrder(reinterpret_cast<const uint8_t*>(u)); }
-
-bool IsActive(Unit* u) { return (Field<uint8_t>(u, kOffStateFlags) & 0x0F) == 0; }
-
-bool Allied(const World& w, uint8_t a, uint8_t b) { return w.alliance[a * kMaxPlayers + b] != 0; }
-
-bool IsEnemy(const World& w, uint8_t me, Unit* u) {
-    const uint8_t owner = Field<uint8_t>(u, kOffOwner);
-    return owner < kNeutralPlayer && !Allied(w, me, owner);
-}
-
-int MaxHp(const World& w, Unit* u) {
-    const int hp = w.maxHpByType[Field<uint8_t>(u, kOffType)];
-    return hp ? hp : 1;
-}
-
-int Distance(Unit* a, Unit* b) {
-    const int dx = abs(Field<int16_t>(a, kOffX) - Field<int16_t>(b, kOffX));
-    const int dy = abs(Field<int16_t>(a, kOffY) - Field<int16_t>(b, kOffY));
-    return dx > dy ? dx : dy;
-}
-
-// Calls fn(unit) for every grid entry within `radius` tiles of `centre`, corpses included; stops when fn returns true.
-template <typename Fn>
-bool ScanGridRaw(const World& w, Unit* centre, int radius, Fn fn) {
-    const int cx = Field<int16_t>(centre, kOffX), cy = Field<int16_t>(centre, kOffY);
-    for (int y = cy - radius; y <= cy + radius; ++y) {
-        if (y < 0 || y >= w.mapSize) continue;
-        for (int x = cx - radius; x <= cx + radius; ++x) {
-            if (x < 0 || x >= w.mapSize) continue;
-            Unit* u = w.grid[y * w.mapSize + x];
-            if (u && u != centre && fn(u)) return true;
-        }
-    }
-    return false;
-}
-
-// Same, live units only.
-template <typename Fn>
-bool ScanGrid(const World& w, Unit* centre, int radius, Fn fn) {
-    return ScanGridRaw(w, centre, radius, [&](Unit* u) { return IsActive(u) && fn(u); });
-}
 
 bool EnemyNear(const World& w, Unit* unit, uint8_t me, int radius) {
     return ScanGrid(w, unit, radius, [&](Unit* u) {
@@ -318,49 +254,11 @@ void CasterThink(const World& w, Unit* caster) {
     }
 }
 
-void ShowMessage(const char* text) {
-    reinterpret_cast<ShowMessageFn>(g_base + kRvaShowMessage)(text, 8, 100, 0);
-}
-
-bool GameWindowFocused() {
-    DWORD pid = 0;
-    GetWindowThreadProcessId(GetForegroundWindow(), &pid);
-    return pid == GetCurrentProcessId();
-}
-
-void PollToggleKey() {
-    const int vk = config::g.toggleKey;
-    if (!vk) return;
-    const bool down = (GetAsyncKeyState(vk) & 0x8000) && (GetAsyncKeyState(VK_CONTROL) & 0x8000) && GameWindowFocused();
-    if (down && !g_toggleKeyWasDown) {
-        config::g.enabled = !config::g.enabled;
-        logx::Write("toggle key: autocast %s", config::g.enabled ? "on" : "off");
-        ShowMessage(config::g.enabled ? "Autocast ON" : "Autocast OFF");
-    }
-    g_toggleKeyWasDown = down;
-}
-
-void Pass() {
-    World w;
-    w.units = *At<Unit*>(kRvaUnitArray);
-    w.unitCount = *At<uint32_t>(kRvaUnitCount) & 0xFFFF;
-    w.grid = *At<Unit**>(kRvaUnitGrid);
-    w.mapSize = *At<uint16_t>(kRvaMapSize);
-    w.localPlayer = *At<uint8_t>(kRvaLocalPlayer);
-    w.alliance = At<uint8_t>(kRvaAlliance);
-    w.typeFlags = At<uint32_t>(kRvaTypeFlags);
-    w.maxHpByType = At<uint16_t>(kRvaMaxHpByType);
-    if (!w.units || !w.grid || w.mapSize <= 0 || w.mapSize > 256 || w.unitCount == 0) return;
-    if (w.localPlayer >= kMaxPlayers || At<uint8_t>(kRvaController)[w.localPlayer] != 0) return;  // 0 = human
-
-    auto unitAt = [&](unsigned i) {
-        return reinterpret_cast<Unit*>(reinterpret_cast<uint8_t*>(w.units) + i * kUnitSize);
-    };
-
+void PassImpl(const World& w) {
     // Casts already under way, so two casters never pick the same target for the same spell.
     g_claimCount = 0;
     for (unsigned i = 0; i < w.unitCount && g_claimCount < kMaxClaims; ++i) {
-        Unit* u = unitAt(i);
+        Unit* u = UnitAt(w, i);
         const uint8_t order = OrderOf(u);
         if (Field<uint8_t>(u, kOffOwner) != w.localPlayer || !IsActive(u) || order < kOrderSpellFirst) continue;
         g_claims[g_claimCount++] = {order, Field<Unit*>(u, kOffOrderTarget), Field<int16_t>(u, kOffOrderX),
@@ -368,7 +266,7 @@ void Pass() {
     }
 
     for (unsigned i = 0; i < w.unitCount; ++i) {
-        Unit* u = unitAt(i);
+        Unit* u = UnitAt(w, i);
         if (Field<uint8_t>(u, kOffOwner) != w.localPlayer || !IsActive(u)) continue;
         if (!(w.typeFlags[Field<uint8_t>(u, kOffType)] & kTfCaster)) continue;
         if (Field<uint16_t>(u, kOffInvisTimer) != 0) continue;  // casting would break the player's invisibility
@@ -379,38 +277,6 @@ void Pass() {
 
 }  // namespace
 
-void SetModuleBase(uintptr_t exeBase, const wchar_t* dllDir) {
-    g_base = exeBase;
-    wcscpy_s(g_dllDir, dllDir);
-}
-
-void __cdecl OnTick() {
-    if (!g_initialised) {
-        g_initialised = true;
-        if (!config::Init(g_dllDir)) ShowMessage("Autocast: autocast.toml has an error, see autocast.log");
-        logx::Write("first game tick, autocast live");
-    }
-    ++g_tick;
-    if (g_tick % 64 == 0) {
-        const int reloaded = config::ReloadIfChanged();
-        if (reloaded > 0) ShowMessage("Autocast: settings reloaded");
-        if (reloaded < 0) ShowMessage("Autocast: autocast.toml has an error, see autocast.log");
-    }
-    PollToggleKey();
-    if (!config::g.enabled || g_tick % static_cast<unsigned>(config::g.intervalTicks) != 0) return;
-
-    // Orders issued here bypass the network command queue, which would desync a multiplayer game.
-    if (*At<uint32_t>(kRvaNetGame) != 0) {
-        if (!g_netGameLogged) {
-            g_netGameLogged = true;
-            logx::Write("multiplayer game detected, autocast stays off");
-        }
-        return;
-    }
-    g_netGameLogged = false;
-    Pass();
-}
-
-void RunPass() { Pass(); }
+void Pass(const game::World& w) { PassImpl(w); }
 
 }  // namespace autocast

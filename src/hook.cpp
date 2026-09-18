@@ -3,11 +3,14 @@
 #include <windows.h>
 #include <cstring>
 
-#include "autocast.h"
+#include "mod.h"
 #include "game.h"
 #include "log.h"
 
 static void* g_origTickCallee = nullptr;
+
+// "mod" is an operator in MSVC inline assembly, so the stub cannot name mod::OnTick directly.
+static void __cdecl TickThunk() { mod::OnTick(); }
 
 // Runs our pass, then continues into the function the game meant to call. Every register and flag is preserved
 // because the exe is built with link-time codegen and nothing guarantees a standard clobber set at this site.
@@ -16,7 +19,7 @@ static __declspec(naked) void TickHookStub() {
         pushad
         pushfd
         cld
-        call autocast::OnTick
+        call TickThunk
         popfd
         popad
         jmp dword ptr [g_origTickCallee]

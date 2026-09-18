@@ -5,7 +5,8 @@
 #include <cstdio>
 #include <cstring>
 
-#include "../src/autocast.h"
+#include "../src/mod.h"
+#include "../src/world.h"
 #include "../src/config.h"
 #include "../src/game.h"
 #include "../src/hook.h"
@@ -13,15 +14,11 @@
 
 using namespace game;
 
-static uintptr_t g_base;
 static int g_failures = 0;
 static uint8_t g_units[64 * kUnitSize];
 static Unit* g_grid[64 * 64];
 constexpr int kMap = 64;
 static int g_unitCount = 0;
-
-template <typename T>
-static T* At(uint32_t rva) { return reinterpret_cast<T*>(g_base + rva); }
 
 #define CHECK(cond, ...)                 \
     do {                                 \
@@ -88,7 +85,6 @@ static Unit* AddUnit(uint8_t type, uint8_t owner, int x, int y, int hp, int mana
     return u;
 }
 
-static uint8_t OrderOf(Unit* u) { return EffectiveOrder(reinterpret_cast<const uint8_t*>(u)); }
 static void Idle(Unit* u) {  // back to standing with nothing pending
     Field<uint8_t>(u, kOffOrder) = kOrderStand;
     Field<uint8_t>(u, kOffNextOrder) = kOrderNone;
@@ -117,7 +113,7 @@ int wmain(int argc, wchar_t** argv) {
     swprintf_s(ini, L"%s\\autocast.toml", dir);
     DeleteFileW(ini);  // always start from the shipped defaults
     logx::Open(dir);
-    autocast::SetModuleBase(g_base, dir);
+    mod::SetModuleBase(g_base, dir);
 
     // 1. Hook install against the real bytes.
     CHECK(hook::Install(g_base), "hook::Install rejected the supported exe");
@@ -166,7 +162,7 @@ int wmain(int argc, wchar_t** argv) {
     defType(kTypeDeathKnight, kTfCaster, 60);
     At<uint32_t>(kRvaSpellsResearched)[0] = 0xFFFFFFFF;
 
-    autocast::OnTick();  // first tick writes the embedded default config and loads it
+    mod::OnTick();  // first tick writes the embedded default config and loads it
     CHECK(config::g.enabled && config::g.spell[kSpellHeal] && !config::g.spell[kSpellUnholyArmor], "default config");
     CHECK(GetFileAttributesW(ini) != INVALID_FILE_ATTRIBUTES, "default autocast.toml was not written");
     {
@@ -185,22 +181,22 @@ int wmain(int argc, wchar_t** argv) {
     Unit* hurt = AddUnit(kFootman, 0, 33, 31, 20, 0, kOrderStand);
     AddUnit(kFootman, 0, 32, 32, 40, 0, kOrderStand);
     AddUnit(kFootman, 2, 30, 31, 5, 0, kOrderStand);              // ally's unit, own_units_only=1
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(pal) == 0x27 && TargetOf(pal) == hurt, "heal should pick the 20 HP footman (order %u)", OrderOf(pal));
 
     // Claims: a second paladin must take the next most hurt unit, not the same one.
     Unit* pal2 = AddUnit(kTypePaladin, 0, 31, 33, 90, 255, kOrderStand);
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(pal2) == 0x27 && TargetOf(pal2) != hurt && TargetOf(pal2) != nullptr, "second paladin must not double-heal");
 
     // The 10 HP floor is exact: missing 9 is ignored, missing 10 is healed.
     ResetWorld();
     pal = AddUnit(kTypePaladin, 0, 30, 30, 90, 255, kOrderStand);
     Unit* scratched = AddUnit(kFootman, 0, 31, 30, 51, 0, kOrderStand);
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(pal) == kOrderStand, "healed a unit missing only 9 HP");
     Field<uint16_t>(scratched, kOffHp) = 50;
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(pal) == 0x27 && TargetOf(pal) == scratched, "unit missing 10 HP should be healed");
 
     // Regression (0.1.5): the real IssueOrder only fills the NEXT-order slot. A heal that is pending must count as
@@ -209,12 +205,12 @@ int wmain(int argc, wchar_t** argv) {
     pal = AddUnit(kTypePaladin, 0, 30, 30, 90, 255, kOrderStand);
     Unit* wounded = AddUnit(kFootman, 0, 31, 30, 20, 0, kOrderStand);
     AddUnit(kSkeleton, 1, 33, 30, 40, 0, kOrderAttack);
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(Field<uint8_t>(pal, kOffOrder) == kOrderStand && Field<uint8_t>(pal, kOffNextOrder) == 0x27 &&
               TargetOf(pal) == wounded,
           "pending heal was overwritten (next order %u)", Field<uint8_t>(pal, kOffNextOrder));
     Field<Unit*>(pal, kOffOrderTarget) = nullptr;  // would be re-filled if a second pass re-issued anything
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(TargetOf(pal) == nullptr, "caster with a pending spell was given another order");
 
     // A move the player just queued (still in the next-order slot) is as untouchable as one under way.
@@ -222,22 +218,22 @@ int wmain(int argc, wchar_t** argv) {
     pal = AddUnit(kTypePaladin, 0, 30, 30, 90, 255, kOrderAttackTarget);
     Field<uint8_t>(pal, kOffNextOrder) = 3;  // ORDER_MOVE
     AddUnit(kFootman, 0, 31, 30, 10, 0, kOrderStand);
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(Field<uint8_t>(pal, kOffNextOrder) == 3, "queued move was overwritten");
 
     // A move order is never interrupted; no mana means no cast; unresearched means no cast.
     ResetWorld();
     pal = AddUnit(kTypePaladin, 0, 30, 30, 90, 255, 3 /* ORDER_MOVE */);
     AddUnit(kFootman, 0, 31, 30, 10, 0, kOrderStand);
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(pal) == 3, "moving caster was interrupted");
     Field<uint8_t>(pal, kOffOrder) = kOrderStand;
     Field<uint8_t>(pal, kOffMana) = 3;
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(pal) == kOrderStand, "cast without mana");
     Field<uint8_t>(pal, kOffMana) = 255;
     At<uint32_t>(kRvaSpellsResearched)[0] = 0xFFFFFFFF & ~0x2u;
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(pal) == kOrderStand, "cast an unresearched spell");
     At<uint32_t>(kRvaSpellsResearched)[0] = 0xFFFFFFFF;
 
@@ -246,27 +242,27 @@ int wmain(int argc, wchar_t** argv) {
     pal = AddUnit(kTypePaladin, 0, 30, 30, 90, 255, kOrderStand);
     Unit* skel = AddUnit(kSkeleton, 1, 34, 30, 40, 0, kOrderAttack);
     Field<uint16_t>(skel, kOffInvisTimer) = 100;
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(pal) == kOrderStand, "targeted an invisible enemy");
     Field<uint16_t>(skel, kOffInvisTimer) = 0;
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(pal) == 0x29 && TargetOf(pal) == skel, "exorcism on skeleton");
 
     // Bloodlust only on fighting units without bloodlust.
     ResetWorld();
     Unit* om = AddUnit(kTypeOgreMage, 0, 20, 20, 90, 255, kOrderStand);
     Unit* idle = AddUnit(kGrunt, 0, 21, 20, 60, 0, kOrderStand);
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(om) == kOrderStand, "bloodlust on an idle grunt");
     Field<uint8_t>(idle, kOffOrder) = kOrderAttackTarget;  // attacking but no enemy anywhere near
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(om) == kOrderStand, "bloodlust with no enemy near");
     AddUnit(kFootman, 1, 23, 21, 60, 0, kOrderAttack);
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(om) == 0x31 && TargetOf(om) == idle, "bloodlust on the fighting grunt");
     Idle(om);
     Field<uint16_t>(idle, kOffBloodTimer) = 500;
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(om) == kOrderStand, "re-bloodlusted a lusted grunt");
 
     // Mage: polymorph the ogre, not the grunt; with polymorph off, slow instead.
@@ -274,11 +270,11 @@ int wmain(int argc, wchar_t** argv) {
     Unit* mage = AddUnit(kTypeMage, 0, 40, 40, 60, 255, kOrderStand);
     AddUnit(kGrunt, 1, 42, 40, 60, 0, kOrderAttack);
     Unit* ogre = AddUnit(kOgre, 1, 45, 41, 90, 0, kOrderAttack);
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(mage) == 0x2E && TargetOf(mage) == ogre, "polymorph should pick the ogre");
     Idle(mage);
     config::g.spell[kSpellPolymorph] = false;
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(mage) == 0x2C, "slow when polymorph is disabled (order %u)", OrderOf(mage));
     config::g.spell[kSpellPolymorph] = true;
 
@@ -288,20 +284,20 @@ int wmain(int argc, wchar_t** argv) {
     AddUnit(kOgre, 1, 41, 40, 90, 0, kOrderAttack);
     AddUnit(kTypeMage, 1, 42, 40, 60, 0, kOrderStand);
     Unit* daemon = AddUnit(kDaemon, 1, 46, 44, 60, 0, kOrderAttack);
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(mage) == 0x2E && TargetOf(mage) == daemon, "polymorph should pick the daemon first");
     ResetWorld();
     mage = AddUnit(kTypeMage, 0, 40, 40, 60, 255, kOrderStand);
     AddUnit(kDaemon, 1, 41, 40, 60, 0, kOrderAttack);
     Unit* dragon = AddUnit(kDragon, 1, 45, 45, 100, 0, kOrderAttack);
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(mage) == 0x2E && TargetOf(mage) == dragon, "dragon (100 HP) outranks daemon (60 HP)");
 
     // Death knight: coil an enemy; peons and buildings are not slow targets but are coil targets if fleshy.
     ResetWorld();
     Unit* dk = AddUnit(kTypeDeathKnight, 0, 10, 10, 60, 255, kOrderStand);
     Unit* enemy = AddUnit(kFootman, 1, 13, 12, 60, 0, kOrderAttack);
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(dk) == 0x33 && TargetOf(dk) == enemy, "death coil on footman");
 
     // Haste (flyers only by default): never a ground unit, never an idle flyer, yes a flyer sent to attack.
@@ -309,15 +305,15 @@ int wmain(int argc, wchar_t** argv) {
     dk = AddUnit(kTypeDeathKnight, 0, 10, 10, 60, 255, kOrderStand);
     Unit* fighter = AddUnit(kGrunt, 0, 11, 10, 60, 0, kOrderDefend);
     Unit* ownDragon = AddUnit(kDragon, 0, 12, 12, 100, 0, kOrderStand);
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(dk) == kOrderStand, "haste went on a ground unit or an idle dragon (order %u)", OrderOf(dk));
     Field<uint8_t>(ownDragon, kOffOrder) = kOrderAttackArea;
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(dk) == 0x35 && TargetOf(dk) == ownDragon, "haste on the attacking dragon");
     Idle(dk);
     Field<int16_t>(ownDragon, kOffHasteTimer) = 300;
     config::g.hasteFlyersOnly = false;
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(dk) == 0x35 && TargetOf(dk) == fighter, "haste_flyers_only=0 should haste the defending grunt");
     config::g.hasteFlyersOnly = true;
 
@@ -326,15 +322,15 @@ int wmain(int argc, wchar_t** argv) {
     dk = AddUnit(kTypeDeathKnight, 0, 10, 10, 60, 255, kOrderStand);
     Unit* corpse = AddUnit(kTypeCorpse, 1, 12, 11, 0, 0, 0);
     Field<uint8_t>(corpse, kOffStateFlags) = kStateDying;
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(dk) == kOrderStand, "raised dead with no enemy around");
     AddUnit(kFootman, 1, 16, 10, 60, 0, kOrderAttack);
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(dk) == 0x32 && TargetOf(dk) == nullptr && Field<int16_t>(dk, kOffOrderX) == 12 &&
               Field<int16_t>(dk, kOffOrderY) == 11,
           "raise dead at the corpse tile (order %u)", OrderOf(dk));
     Unit* dk2 = AddUnit(kTypeDeathKnight, 0, 11, 12, 60, 255, kOrderStand);
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(dk2) == 0x33, "second death knight should coil, the corpse is taken (order %u)", OrderOf(dk2));
 
     // Neutral units are never enemies. Targets outside search_radius are ignored.
@@ -342,7 +338,7 @@ int wmain(int argc, wchar_t** argv) {
     dk = AddUnit(kTypeDeathKnight, 0, 10, 10, 60, 255, kOrderStand);
     AddUnit(kFootman, kNeutralPlayer, 11, 10, 60, 0, kOrderStand);
     AddUnit(kFootman, 1, 10 + config::g.searchRadius + 1, 10, 60, 0, kOrderAttack);
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(dk) == kOrderStand, "cast on neutral or out-of-range unit");
 
     // Multiplayer and the master switch gate OnTick.
@@ -350,14 +346,14 @@ int wmain(int argc, wchar_t** argv) {
     dk = AddUnit(kTypeDeathKnight, 0, 10, 10, 60, 255, kOrderStand);
     AddUnit(kFootman, 1, 12, 10, 60, 0, kOrderAttack);
     *At<uint32_t>(kRvaNetGame) = 1;
-    for (int i = 0; i < 40; ++i) autocast::OnTick();
+    for (int i = 0; i < 40; ++i) mod::OnTick();
     CHECK(OrderOf(dk) == kOrderStand, "autocast ran in a network game");
     *At<uint32_t>(kRvaNetGame) = 0;
     config::g.enabled = false;
-    for (int i = 0; i < 40; ++i) autocast::OnTick();
+    for (int i = 0; i < 40; ++i) mod::OnTick();
     CHECK(OrderOf(dk) == kOrderStand, "autocast ran while disabled");
     config::g.enabled = true;
-    for (int i = 0; i < 40; ++i) autocast::OnTick();
+    for (int i = 0; i < 40; ++i) mod::OnTick();
     CHECK(OrderOf(dk) == 0x33, "OnTick never reached the pass");
 
     // A computer-controlled "local player" (attract mode / observer) must do nothing.
@@ -365,9 +361,31 @@ int wmain(int argc, wchar_t** argv) {
     dk = AddUnit(kTypeDeathKnight, 0, 10, 10, 60, 255, kOrderStand);
     AddUnit(kFootman, 1, 12, 10, 60, 0, kOrderAttack);
     controller[0] = 1;
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(dk) == kOrderStand, "cast for a non-human local player");
     controller[0] = 0;
+
+    // Hero regeneration: 1 HP per second of stepping time, heroes only, never past max, dead heroes stay dead.
+    ResetWorld();
+    defType(0x19 /* grom_hellscream */, kTfFleshy | kTfAttacker, 240);
+    Unit* grom = AddUnit(0x19, 1, 5, 5, 100, 0, kOrderStand);
+    Unit* nearFull = AddUnit(0x19, 0, 6, 5, 239, 0, kOrderStand);
+    Unit* plainGrunt = AddUnit(kGrunt, 0, 7, 5, 10, 0, kOrderStand);
+    Unit* deadHero = AddUnit(0x19, 0, 8, 5, 50, 0, kOrderStand);
+    Field<uint8_t>(deadHero, kOffStateFlags) = kStateDying;
+    CHECK(config::g.heroRegenPerSecond == 1 && config::g.isHero[0x19] && !config::g.isHero[kGrunt], "default [heroes]");
+    mod::OnTick();  // establishes the time base
+    for (int i = 0; i < 25; ++i) {  // ~2.5 s of 100 ms steps
+        Sleep(100);
+        mod::OnTick();
+    }
+    const int gromHp = Field<uint16_t>(grom, kOffHp);
+    CHECK(gromHp >= 101 && gromHp <= 103, "hero regen should be ~2 HP after ~2.5 s (hp %d)", gromHp);
+    CHECK(Field<uint16_t>(nearFull, kOffHp) == 240, "regen must stop at max HP (%u)", Field<uint16_t>(nearFull, kOffHp));
+    CHECK(Field<uint16_t>(plainGrunt, kOffHp) == 10 && Field<uint16_t>(deadHero, kOffHp) == 50, "regen touched a non-hero or a dying hero");
+    Sleep(700);  // a pause: the long gap must not be credited as play time
+    mod::OnTick();
+    CHECK(Field<uint16_t>(grom, kOffHp) <= gromHp + 1, "a pause was credited as regeneration time");
 
     // TOML config: a custom file is honoured, typos and bad values are survivable, a syntax error keeps old settings.
     WriteFileText(ini,
@@ -387,7 +405,7 @@ int wmain(int argc, wchar_t** argv) {
     mage = AddUnit(kTypeMage, 0, 40, 40, 60, 255, kOrderStand);
     AddUnit(kOgre, 1, 41, 40, 90, 0, kOrderAttack);
     Unit* listedGrunt = AddUnit(kGrunt, 1, 44, 40, 60, 0, kOrderAttack);
-    autocast::RunPass();
+    mod::RunAutocastPass();
     CHECK(OrderOf(mage) == 0x2E && TargetOf(mage) == listedGrunt, "custom polymorph list should sheep the grunt, not the ogre");
     WriteFileText(ini, "[general\nenabled = maybe\n");
     CHECK(!config::Init(dir), "syntax error must be reported");

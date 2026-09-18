@@ -88,6 +88,34 @@ static void SetPolymorphTargets(Config& c, const char* const* names, size_t coun
     }
 }
 
+static void SetDefaultHeroes(Config& c) {
+    memset(c.isHero, 0, sizeof(c.isHero));
+    for (const units::Entry& e : units::kUnits)
+        if (e.hero) c.isHero[e.id] = true;
+}
+
+static void ReadHeroes(const toml::table& root, Config& c) {
+    if (const auto node = root["heroes"]["units"]) {
+        if (const toml::array* arr = node.as_array()) {
+            memset(c.isHero, 0, sizeof(c.isHero));
+            for (const auto& el : *arr) {
+                const auto s = el.value<std::string>();
+                const units::Entry* e = s ? units::FindByName(s->c_str()) : nullptr;
+                if (e) c.isHero[e->id] = true;
+                else logx::Write("config: [heroes] units: unknown unit \"%s\" ignored", s ? s->c_str() : "(not text)");
+            }
+        } else {
+            logx::Write("config: [heroes] units must be a list of unit names, keeping the default list");
+        }
+    }
+    if (const auto node = root["heroes"]["regen_for"]) {
+        const auto s = node.value<std::string>();
+        if (s && _stricmp(s->c_str(), "mine") == 0) c.heroRegenMineOnly = true;
+        else if (s && _stricmp(s->c_str(), "all") == 0) c.heroRegenMineOnly = false;
+        else logx::Write("config: [heroes] regen_for must be \"all\" or \"mine\", keeping \"%s\"", c.heroRegenMineOnly ? "mine" : "all");
+    }
+}
+
 static void ReadPolymorphTargets(const toml::table& root, Config& c) {
     const auto node = root["polymorph"]["targets"];
     if (!node) return;
@@ -118,6 +146,7 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"heal", " min_missing_hp below_percent "},
         {"polymorph", " targets "},
         {"haste", " flyers_only "},
+        {"heroes", " units regen_hp_per_second regen_for "},
     };
     for (const auto& [sectionKey, sectionNode] : root) {
         const std::string section(sectionKey.str());
@@ -151,6 +180,7 @@ static bool Load() {
 
     Config c;
     SetPolymorphTargets(c, kDefaultPolymorphTargets, sizeof(kDefaultPolymorphTargets) / sizeof(kDefaultPolymorphTargets[0]));
+    SetDefaultHeroes(c);
     WarnUnknownKeys(root);
     ReadBool(root, "general", "enabled", c.enabled);
     ReadToggleKey(root, c.toggleKey);
@@ -165,6 +195,8 @@ static bool Load() {
     ReadInt(root, "heal", "below_percent", 1, 100, c.healBelowPct);
     ReadPolymorphTargets(root, c);
     ReadBool(root, "haste", "flyers_only", c.hasteFlyersOnly);
+    ReadInt(root, "heroes", "regen_hp_per_second", 0, 1000, c.heroRegenPerSecond);
+    ReadHeroes(root, c);
     g = c;
 
     char spells[200] = "";
@@ -211,6 +243,7 @@ bool Init(const wchar_t* dllDir) {
     if (!defaultsSet) {
         defaultsSet = true;
         SetPolymorphTargets(g, kDefaultPolymorphTargets, sizeof(kDefaultPolymorphTargets) / sizeof(kDefaultPolymorphTargets[0]));
+        SetDefaultHeroes(g);
     }
     return Load();
 }

@@ -56,3 +56,14 @@ targets = [
 [haste]
 # true = Haste only on your flying units, when they are sent to attack or are fighting. false = any fighting unit.
 flyers_only = true
+
+[heroes]
+# Which unit types count as heroes (used by hero regeneration and the hero health multiplier).
+units = [
+    "alleria", "teron_gorefiend", "kurdran", "dentarg", "khadgar", "grom_hellscream", "deathwing", "turalyon",
+    "danath", "korgath_bladefist", "chogall", "lothar", "guldan", "uther_lightbringer", "zuljin",
+]
+# Hit points every hero regenerates per second of play. 0 = off.
+regen_hp_per_second = 1
+# "all" = every hero on the map (enemy heroes too), "mine" = only your own.
+regen_for = "all"

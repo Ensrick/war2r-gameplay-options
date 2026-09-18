@@ -3,6 +3,14 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.0.0-dev.7 - 2026-09-18 (UNTESTED in game)
+
+- Hero regeneration (#6): `[heroes] regen_hp_per_second = 1`, `regen_for = "all" | "mine"`, and a configurable
+  `units` list that defines what a hero is (only 5 of the 15 hero types carry the game's own hero flag). Paced by real
+  time while the simulation is stepping; pauses and loads are not credited.
+- Internal split: `world.*` (game snapshot + unit helpers), `mod.*` (tick orchestration, multiplayer gate),
+  `tweaks.*` (non-spell features). The multiplayer gate now covers every feature, not only casting.
+
 ## 1.0.0-dev.6 - 2026-09-18 (UNTESTED in game)
 
 - Config moved from `autocast.ini` to `autocast.toml` (toml++ 3.4.0 vendored). New `[polymorph] targets` list is the

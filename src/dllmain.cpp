@@ -3,7 +3,7 @@
 #include <windows.h>
 #include <cstdint>
 
-#include "autocast.h"
+#include "mod.h"
 #include "game.h"
 #include "hook.h"
 #include "log.h"
@@ -71,7 +71,7 @@ BOOL APIENTRY DllMain(HMODULE self, DWORD reason, LPVOID) {
     logx::Open(dllDir);
     logx::Write("war2r-autocast " AUTOCAST_VERSION " loaded into %ls", exeName);
     const uintptr_t base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
-    autocast::SetModuleBase(base, dllDir);
+    mod::SetModuleBase(base, dllDir);
     if (hook::Install(base)) logx::Write("tick hook installed at %p", reinterpret_cast<void*>(base + game::kRvaTickCallSite));
     return TRUE;
 }
