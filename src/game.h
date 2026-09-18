@@ -42,7 +42,8 @@ constexpr int kOffHp = 0x22;            // uint16
 constexpr int kOffMana = 0x26;          // uint8
 constexpr int kOffType = 0x27;          // uint8
 constexpr int kOffOwner = 0x2C;         // uint8
-constexpr int kOffOrder = 0x2E;         // uint8
+constexpr int kOffOrder = 0x2E;         // uint8, the order being executed
+constexpr int kOffNextOrder = 0x2F;     // uint8, written by SetOrder (FUN_004ef080); promoted at 0x4ED9C3, then reset to kOrderNone
 constexpr int kOffInvisTimer = 0x44;    // uint16
 constexpr int kOffArmorTimer = 0x46;    // uint16 (unholy armor)
 constexpr int kOffBloodTimer = 0x48;    // uint16
@@ -74,6 +75,13 @@ constexpr uint8_t kOrderStop = 2, kOrderMovePatrol = 4, kOrderPatrol = 5;
 constexpr uint8_t kOrderAttack = 8, kOrderAttackTarget = 9, kOrderAttackArea = 10, kOrderAttackWall = 11;
 constexpr uint8_t kOrderDefend = 12, kOrderStand = 13, kOrderStandAttack = 14, kOrderDefendGround = 15, kOrderDefendStopped = 16;
 constexpr uint8_t kOrderSpellFirst = 38;  // spell order id = kOrderSpellFirst + spell index
+constexpr uint8_t kOrderNone = 60;        // "no next order"
+
+// What the unit is doing or about to do: a freshly issued order sits in the next-order slot until the unit's
+// current action step ends (the game's own UI reads it the same way at 0x4E85B2).
+inline uint8_t EffectiveOrder(const uint8_t* unit) {
+    return unit[kOffNextOrder] != kOrderNone ? unit[kOffNextOrder] : unit[kOffOrder];
+}
 
 struct Unit;  // opaque, accessed through the offsets above
 

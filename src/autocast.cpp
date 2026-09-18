@@ -67,6 +67,9 @@ struct World {
     const uint16_t* maxHpByType;
 };
 
+// Current-or-pending order, see game::EffectiveOrder.
+uint8_t OrderOf(Unit* u) { return EffectiveOrder(reinterpret_cast<const uint8_t*>(u)); }
+
 bool IsActive(Unit* u) { return (Field<uint8_t>(u, kOffStateFlags) & 0x0F) == 0; }
 
 bool Allied(const World& w, uint8_t a, uint8_t b) { return w.alliance[a * kMaxPlayers + b] != 0; }
@@ -115,7 +118,7 @@ bool EnemyNear(const World& w, Unit* unit, uint8_t me, int radius) {
 }
 
 bool IsFighting(const World& w, Unit* u, uint8_t me) {
-    switch (Field<uint8_t>(u, kOffOrder)) {
+    switch (OrderOf(u)) {
     case kOrderDefend:  // the game's own bloodlust / haste criterion
         return true;
     case kOrderAttack:
@@ -174,7 +177,7 @@ int ScoreTarget(const World& w, Spell spell, Unit* caster, Unit* t) {
         return (tf & kTfUndead) ? closeness : -1;
     case kSpellSlow:
         if ((tf & kTfBuilding) || !(tf & (kTfAttacker | kTfCaster))) return -1;
-        if (Field<int16_t>(t, kOffHasteTimer) < 0 || Field<uint8_t>(t, kOffOrder) == kOrderStop) return -1;
+        if (Field<int16_t>(t, kOffHasteTimer) < 0 || OrderOf(t) == kOrderStop) return -1;
         return closeness;
     case kSpellPolymorph:
         if (!(tf & kTfFleshy)) return -1;
@@ -193,7 +196,7 @@ int ScoreTarget(const World& w, Spell spell, Unit* caster, Unit* t) {
         if (!config::g.hasteFlyersOnly) return IsFighting(w, t, me) ? closeness : -1;
         if (!(tf & kTfFlyer)) return -1;
         // A flyer sent to attack is hasted on the way in, not only once it is already trading blows.
-        const uint8_t order = Field<uint8_t>(t, kOffOrder);
+        const uint8_t order = OrderOf(t);
         const bool sentToAttack = order >= kOrderAttack && order <= kOrderAttackWall;
         return (sentToAttack || IsFighting(w, t, me)) ? closeness : -1;
     }
@@ -227,7 +230,7 @@ bool TryCast(const World& w, Unit* caster, Spell spell) {
     if (!best) return false;
 
     IssueSpell(caster, def.order, 0, 0, best);
-    if (Field<uint8_t>(caster, kOffOrder) != def.order) return false;  // order was not interruptible
+    if (OrderOf(caster) != def.order) return false;  // order was not interruptible
     if (g_claimCount < kMaxClaims) g_claims[g_claimCount++] = {def.order, best, 0, 0};
     ++g_castCount;
     if (config::g.logCasts)
@@ -263,7 +266,7 @@ bool TryRaiseDead(const World& w, Unit* caster) {
 
     const int16_t x = Field<int16_t>(best, kOffX), y = Field<int16_t>(best, kOffY);
     IssueSpell(caster, def.order, x, y, nullptr);
-    if (Field<uint8_t>(caster, kOffOrder) != def.order) return false;
+    if (OrderOf(caster) != def.order) return false;
     if (g_claimCount < kMaxClaims) g_claims[g_claimCount++] = {def.order, nullptr, x, y};
     ++g_castCount;
     if (config::g.logCasts)
@@ -359,7 +362,7 @@ void Pass() {
     g_claimCount = 0;
     for (unsigned i = 0; i < w.unitCount && g_claimCount < kMaxClaims; ++i) {
         Unit* u = unitAt(i);
-        const uint8_t order = Field<uint8_t>(u, kOffOrder);
+        const uint8_t order = OrderOf(u);
         if (Field<uint8_t>(u, kOffOwner) != w.localPlayer || !IsActive(u) || order < kOrderSpellFirst) continue;
         g_claims[g_claimCount++] = {order, Field<Unit*>(u, kOffOrderTarget), Field<int16_t>(u, kOffOrderX),
                                     Field<int16_t>(u, kOffOrderY)};
@@ -370,7 +373,7 @@ void Pass() {
         if (Field<uint8_t>(u, kOffOwner) != w.localPlayer || !IsActive(u)) continue;
         if (!(w.typeFlags[Field<uint8_t>(u, kOffType)] & kTfCaster)) continue;
         if (Field<uint16_t>(u, kOffInvisTimer) != 0) continue;  // casting would break the player's invisibility
-        if (!OrderAllowsAutocast(Field<uint8_t>(u, kOffOrder))) continue;
+        if (!OrderAllowsAutocast(OrderOf(u))) continue;
         CasterThink(w, u);
     }
 }

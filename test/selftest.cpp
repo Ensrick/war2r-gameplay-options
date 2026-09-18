@@ -34,7 +34,8 @@ static T* At(uint32_t rva) { return reinterpret_cast<T*>(g_base + rva); }
     } while (0)
 
 static void __cdecl FakeIssueOrder(Unit* caster, int16_t x, int16_t y, Unit* target, void*) {
-    Field<uint8_t>(caster, kOffOrder) = static_cast<uint8_t>(*At<uint16_t>(kRvaPendingSpellOrder));
+    // Like the real SetOrder (FUN_004ef080): the new order lands in the next-order slot, the current one stays.
+    Field<uint8_t>(caster, kOffNextOrder) = static_cast<uint8_t>(*At<uint16_t>(kRvaPendingSpellOrder));
     Field<Unit*>(caster, kOffOrderTarget) = target;
     if (!target) {  // the real IssueOrder stores the destination tile only for positional orders
         Field<int16_t>(caster, kOffOrderX) = x;
@@ -70,12 +71,18 @@ static Unit* AddUnit(uint8_t type, uint8_t owner, int x, int y, int hp, int mana
     Field<uint8_t>(u, kOffType) = type;
     Field<uint8_t>(u, kOffOwner) = owner;
     Field<uint8_t>(u, kOffOrder) = order;
+    Field<uint8_t>(u, kOffNextOrder) = kOrderNone;
     g_grid[y * kMap + x] = u;
     *At<uint32_t>(kRvaUnitCount) = g_unitCount;
     return u;
 }
 
-static uint8_t OrderOf(Unit* u) { return Field<uint8_t>(u, kOffOrder); }
+static uint8_t OrderOf(Unit* u) { return EffectiveOrder(reinterpret_cast<const uint8_t*>(u)); }
+static void Idle(Unit* u) {  // back to standing with nothing pending
+    Field<uint8_t>(u, kOffOrder) = kOrderStand;
+    Field<uint8_t>(u, kOffNextOrder) = kOrderNone;
+    Field<Unit*>(u, kOffOrderTarget) = nullptr;
+}
 static Unit* TargetOf(Unit* u) { return Field<Unit*>(u, kOffOrderTarget); }
 
 // Fake unit types used by the scenarios.
@@ -176,6 +183,28 @@ int wmain(int argc, wchar_t** argv) {
     autocast::RunPass();
     CHECK(OrderOf(pal) == 0x27 && TargetOf(pal) == scratched, "unit missing 10 HP should be healed");
 
+    // Regression (0.1.5): the real IssueOrder only fills the NEXT-order slot. A heal that is pending must count as
+    // cast, otherwise the same pass falls through to exorcism and overwrites it, and later passes re-issue it.
+    ResetWorld();
+    pal = AddUnit(kTypePaladin, 0, 30, 30, 90, 255, kOrderStand);
+    Unit* wounded = AddUnit(kFootman, 0, 31, 30, 20, 0, kOrderStand);
+    AddUnit(kSkeleton, 1, 33, 30, 40, 0, kOrderAttack);
+    autocast::RunPass();
+    CHECK(Field<uint8_t>(pal, kOffOrder) == kOrderStand && Field<uint8_t>(pal, kOffNextOrder) == 0x27 &&
+              TargetOf(pal) == wounded,
+          "pending heal was overwritten (next order %u)", Field<uint8_t>(pal, kOffNextOrder));
+    Field<Unit*>(pal, kOffOrderTarget) = nullptr;  // would be re-filled if a second pass re-issued anything
+    autocast::RunPass();
+    CHECK(TargetOf(pal) == nullptr, "caster with a pending spell was given another order");
+
+    // A move the player just queued (still in the next-order slot) is as untouchable as one under way.
+    ResetWorld();
+    pal = AddUnit(kTypePaladin, 0, 30, 30, 90, 255, kOrderAttackTarget);
+    Field<uint8_t>(pal, kOffNextOrder) = 3;  // ORDER_MOVE
+    AddUnit(kFootman, 0, 31, 30, 10, 0, kOrderStand);
+    autocast::RunPass();
+    CHECK(Field<uint8_t>(pal, kOffNextOrder) == 3, "queued move was overwritten");
+
     // A move order is never interrupted; no mana means no cast; unresearched means no cast.
     ResetWorld();
     pal = AddUnit(kTypePaladin, 0, 30, 30, 90, 255, 3 /* ORDER_MOVE */);
@@ -215,8 +244,7 @@ int wmain(int argc, wchar_t** argv) {
     AddUnit(kFootman, 1, 23, 21, 60, 0, kOrderAttack);
     autocast::RunPass();
     CHECK(OrderOf(om) == 0x31 && TargetOf(om) == idle, "bloodlust on the fighting grunt");
-    Field<uint8_t>(om, kOffOrder) = kOrderStand;
-    Field<Unit*>(om, kOffOrderTarget) = nullptr;
+    Idle(om);
     Field<uint16_t>(idle, kOffBloodTimer) = 500;
     autocast::RunPass();
     CHECK(OrderOf(om) == kOrderStand, "re-bloodlusted a lusted grunt");
@@ -228,8 +256,7 @@ int wmain(int argc, wchar_t** argv) {
     Unit* ogre = AddUnit(kOgre, 1, 45, 41, 90, 0, kOrderAttack);
     autocast::RunPass();
     CHECK(OrderOf(mage) == 0x2E && TargetOf(mage) == ogre, "polymorph should pick the ogre");
-    Field<uint8_t>(mage, kOffOrder) = kOrderStand;
-    Field<Unit*>(mage, kOffOrderTarget) = nullptr;
+    Idle(mage);
     config::g.spell[kSpellPolymorph] = false;
     autocast::RunPass();
     CHECK(OrderOf(mage) == 0x2C, "slow when polymorph is disabled (order %u)", OrderOf(mage));
@@ -267,8 +294,7 @@ int wmain(int argc, wchar_t** argv) {
     Field<uint8_t>(ownDragon, kOffOrder) = kOrderAttackArea;
     autocast::RunPass();
     CHECK(OrderOf(dk) == 0x35 && TargetOf(dk) == ownDragon, "haste on the attacking dragon");
-    Field<uint8_t>(dk, kOffOrder) = kOrderStand;
-    Field<Unit*>(dk, kOffOrderTarget) = nullptr;
+    Idle(dk);
     Field<int16_t>(ownDragon, kOffHasteTimer) = 300;
     config::g.hasteFlyersOnly = false;
     autocast::RunPass();

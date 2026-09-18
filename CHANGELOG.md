@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.5 - 2026-09-18 (UNTESTED in game)
+
+- Fix (found by decompile review before any in-game run): the game's SetOrder (`FUN_004ef080`) writes a new order to
+  the unit's NEXT-order slot (+0x2F); it only becomes the current order (+0x2E) when the running action step ends
+  (`0x4ED9C3`). The mod checked +0x2E, so every cast looked like a failure: a paladin's heal fell through to exorcism
+  in the same pass, no target was ever claimed, and casts were re-issued every pass. All order reads now use the
+  effective order (next if set, else current), the same rule the game's UI uses at `0x4E85B2`.
+- A move the player has just queued is protected exactly like a move under way.
+
 ## 0.1.4 - 2026-09-18 (UNTESTED in game)
 
 - Heal only goes on units missing at least 10 HP (`heal_min_missing_hp = 10`), so paladins stop casting on scratches.
