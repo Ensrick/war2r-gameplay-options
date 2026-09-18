@@ -19,9 +19,11 @@ Workers
 
 Tweaks (all configurable)
 - Unlimited gold mines, off by default.
-- Health x2 for units and x4 for heroes; heroes regenerate 1 HP per second.
+- Heroes regenerate 1 HP per second.
+- Health multipliers for units and for heroes, 1.0 (unchanged) by default, capped at the engine's 65535.
 - Dragons and gryphon riders: +2 sight.
-- Units cost half the gold and lumber; archer / axethrower research and ballista / catapult upgrades cost half.
+- Price multipliers for units (cap 2550), for archer / axethrower research and for ballista / catapult upgrades
+  (cap 65535), 1.0 by default. Multipliers only touch units, never structures.
 
 Config
 - `autocast.toml`, hot reloaded, with error reporting that never breaks a running game.

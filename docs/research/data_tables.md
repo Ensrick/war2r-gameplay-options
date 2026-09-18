@@ -523,3 +523,20 @@ Risks:
   only edited at load.
 - **Game patch:** every address here is for PE timestamp 1771967463. Fast re-derivation: find the strings
   `rez\unitdata.dat` / `rez\upgrades.dat`, xref to the loader, read the two descriptor lists.
+
+## Addendum 2026-09-18: the HP ceiling is 65535, not 9999
+
+Checked after the report, because the user wanted the real engine cap:
+
+- Capstone scan of game code 0x4A0000..0x530000 for 16-bit loads of `[reg+0x22]`: 50 `movzx`, 0 `movsx`. Every direct
+  read of a unit's HP is unsigned.
+- The damage function `FUN_004bd8f0(attacker, target, damage)`:
+  `if (*(ushort*)(target+0x22) <= (ushort)damage) kill; else *(ushort*)(target+0x22) -= (ushort)damage;` - unsigned
+  compare and subtract. (Its damage argument is a single byte, so one hit never exceeds 255.)
+- `FUN_004ee1f0` (GetMaxHp) ends in `movzx edx, word [...]` and returns the zero-extended value; the `short` in the
+  decompile is Ghidra's typing, not a sign extension.
+
+So the table word and the unit word both hold 0..65535 correctly in combat. What remains above 9999 is cosmetic: the
+status panels skip the "%d/%d" numbers when hp or max >= 10000, and the overhead bar renderer takes `short` arguments,
+so a bar above 32767 may draw wrong [unverified, not decompiled]. The mod therefore clamps health at 65535 and only
+scales unit types (< 0x3A), which also keeps the construction maths (the one real signed-16 path) out of play.

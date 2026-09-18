@@ -103,23 +103,26 @@ regen_for = "all"
 # The three sections below change the game's unit and upgrade data. They are applied once, when a NEW map starts
 # (new mission, custom game, restart). Editing them mid-game does nothing until the next map. A savegame keeps the
 # values it was made with: saves from before the mod stay unchanged, saves made with the mod keep their numbers.
-# The computer plays by the same numbers. Set a value to 1.0 to leave that part of the game alone.
+# The computer plays by the same numbers. Only units are affected, never structures.
 # ---------------------------------------------------------------------------------------------------------------
 
 [health]
-# Max hit points multiplier. Slower, weightier fights. Heroes are the unit types listed under [heroes].
-units = 2.0
-heroes = 4.0
-buildings = 1.0
+# Max hit points multiplier for units. 1.0 = the game's own numbers, 2.0 = double, 0.5 = half.
+# Heroes are the unit types listed under [heroes] and use their own multiplier instead of "units".
+# The engine stores hit points in 16 bits: results are capped at 65535. From 10000 up the status panel stops
+# printing the numbers (the health bar still works).
+units = 1.0
+heroes = 1.0
 
 [costs]
-# Gold and lumber price of units (not buildings, not oil). Prices move in steps of 10.
-units = 0.5
+# Gold and lumber price multiplier for units (oil is untouched). 1.0 = the game's own prices, 0.5 = half.
+# The engine stores a unit price in steps of 10 with a ceiling of 2550, so results round to 10 and cap at 2550.
+units = 1.0
 # Archer / ranger and axethrower / berserker research: arrows, throwing axes, ranger and berserker upgrade, longbow,
-# lighter axes, scouting, marksmanship, regeneration.
-ranged_upgrades = 0.5
-# Ballista and catapult upgrades.
-siege_upgrades = 0.5
+# lighter axes, scouting, marksmanship, regeneration. Capped at 65535.
+ranged_upgrades = 1.0
+# Ballista and catapult upgrades. Capped at 65535.
+siege_upgrades = 1.0
 
 [vision]
 # Extra sight range per unit type: unit_name = bonus. Total sight tops out at 9 (the engine's limit).

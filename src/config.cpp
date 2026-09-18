@@ -57,8 +57,8 @@ static void ReadFactor(const toml::table& root, const char* section, const char*
     const auto node = root[section][key];
     if (!node) return;
     const auto v = node.value<double>();  // accepts 2 as well as 2.0
-    if (!v || *v < 0.1 || *v > 10.0) {
-        logx::Write("config: [%s] %s must be a number from 0.1 to 10, keeping %.2f", section, key, out);
+    if (!v || *v < 0.01 || *v > 1000.0) {  // results are clamped to what the engine can store
+        logx::Write("config: [%s] %s must be a number from 0.01 to 1000, keeping %.2f", section, key, out);
         return;
     }
     out = *v;
@@ -181,7 +181,7 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"heroes", " units regen_hp_per_second regen_for "},
         {"eye_of_kilrogg", " cast cast_at_mana max_active auto_scout "},
         {"gold_mines", " unlimited "},
-        {"health", " units heroes buildings "},
+        {"health", " units heroes "},
         {"costs", " units ranged_upgrades siege_upgrades "},
         {"vision", nullptr},  // keys are unit names, checked in ReadVision
         {"workers", " auto_harvest harvest_idle_seconds harvest_radius auto_repair repair_idle_seconds repair_radius "},
@@ -245,7 +245,6 @@ static bool Load() {
     ReadBool(root, "gold_mines", "unlimited", c.goldMinesUnlimited);
     ReadFactor(root, "health", "units", c.hpUnits);
     ReadFactor(root, "health", "heroes", c.hpHeroes);
-    ReadFactor(root, "health", "buildings", c.hpBuildings);
     ReadFactor(root, "costs", "units", c.costUnits);
     ReadFactor(root, "costs", "ranged_upgrades", c.costRangedUpgrades);
     ReadFactor(root, "costs", "siege_upgrades", c.costSiegeUpgrades);

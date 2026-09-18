@@ -17,7 +17,7 @@ one `autocast.toml` for every setting.
 | Workers | idle workers repair nearby damage, then return to the nearest mine or tree | `[workers]` |
 | Gold mines | optional unlimited mines, off by default | `[gold_mines]` |
 | Heroes | 1 HP per second regeneration | `[heroes]` |
-| Map-start data | health x2 units / x4 heroes, unit and selected upgrade prices x0.5, +2 sight for dragon and gryphon rider | `[health] [costs] [vision]` |
+| Map-start data | health multipliers (units, heroes) and price multipliers (units, ranged research, siege upgrades), all 1.0 by default, units only; +2 sight for dragon and gryphon rider | `[health] [costs] [vision]` |
 
 Everything is gated off in network games (local state changes and direct orders would desync a match) and on any exe
 other than build 1.0.2.2818 (PE timestamp check, then per-hook byte checks).

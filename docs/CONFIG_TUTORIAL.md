@@ -162,16 +162,18 @@ unlimited = true
 ### Health, prices and sight
 
 These three sections change the game's unit data. They are read **when a new map starts** (new mission, custom game,
-restart), not in the middle of a game, and a savegame keeps the numbers it was made with. `1.0` means "leave it alone".
+restart), not in the middle of a game, and a savegame keeps the numbers it was made with.
+
+The health and price settings are multipliers: `1.0` is the game's own number (the default), `2.0` doubles it, `0.5`
+halves it. They only touch units, never structures. Slower, weightier fights with a kinder economy:
 
 ```toml
 [health]
-units = 2.0        # every non-building unit
+units = 2.0        # every unit that is not a hero
 heroes = 4.0       # the unit types listed under [heroes] units
-buildings = 1.0
 
 [costs]
-units = 0.5              # gold and lumber price of units. Prices move in steps of 10
+units = 0.5              # gold and lumber price of units
 ranged_upgrades = 0.5    # archer / ranger and axethrower / berserker research
 siege_upgrades = 0.5     # ballista and catapult upgrades
 
@@ -179,6 +181,16 @@ siege_upgrades = 0.5     # ballista and catapult upgrades
 dragon = 2               # unit_name = extra sight. Total sight tops out at 9
 gryphon_rider = 2
 ```
+
+The engine's own limits cap the results:
+
+| What | Limit | Why |
+|---|---|---|
+| Unit hit points | 65535 | stored in 16 bits. From 10000 up the status panel stops printing the numbers; the health bar still works |
+| Unit gold / lumber price | 2550, in steps of 10 | the game stores a unit price as one byte of tens |
+| Upgrade price | 65535 | stored in 16 bits |
+
+Any multiplier from 0.01 to 1000 is accepted. A unit that costs something never becomes free.
 
 Give scouts better eyes too:
 
@@ -193,18 +205,9 @@ zeppelin = 1
 Writing a `[vision]` section replaces the default list, so keep the lines you still want. An empty `[vision]` section
 means no sight bonus for anyone.
 
-Vanilla numbers, autocast only:
+Vanilla numbers, autocast only (health and prices are already 1.0 by default):
 
 ```toml
-[health]
-units = 1.0
-heroes = 1.0
-
-[costs]
-units = 1.0
-ranged_upgrades = 1.0
-siege_upgrades = 1.0
-
 [vision]
 
 [heroes]
@@ -262,7 +265,7 @@ Every cast is then written to `x86\autocast.log` with the caster, the target and
 | gold_mines | unlimited | false | Mines never run dry (all mines) |
 | workers | auto_repair / repair_idle_seconds / repair_radius | true / 1 / 10 | Idle workers repair your damaged buildings |
 | workers | auto_harvest / harvest_idle_seconds / harvest_radius | true / 10 / 5 | Idle workers go to the nearest mine or tree |
-| health | units / heroes / buildings | 2.0 / 4.0 / 1.0 | Max HP multipliers, applied at map start |
-| costs | units | 0.5 | Unit gold and lumber price multiplier, applied at map start |
-| costs | ranged_upgrades / siege_upgrades | 0.5 / 0.5 | Upgrade price multipliers, applied at map start |
+| health | units / heroes | 1.0 / 1.0 | Max HP multipliers for units (never structures), cap 65535, applied at map start |
+| costs | units | 1.0 | Unit gold and lumber price multiplier, cap 2550, applied at map start |
+| costs | ranged_upgrades / siege_upgrades | 1.0 / 1.0 | Upgrade price multipliers, cap 65535, applied at map start |
 | vision | unit_name = bonus | dragon 2, gryphon_rider 2 | Extra sight range, applied at map start |

@@ -3,6 +3,13 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.0.0-dev.15 - 2026-09-18 (UNTESTED in game)
+
+- Health and price multipliers now default to 1.0 (the game's own numbers) and only ever touch units: the
+  `[health] buildings` key is gone and structure rows are never read or written. Accepted range 0.01 to 1000.
+- Caps are the engine's storage limits instead of a cautious 9999: health 65535 (16-bit word; damage code verified
+  unsigned, see the addendum in docs/research/data_tables.md), unit price 2550 (one byte of tens), upgrade price 65535.
+
 ## 1.0.0-dev.14 - 2026-09-18 (UNTESTED in game)
 
 - Vision (#7): `[vision]` maps unit names to extra sight range, default `dragon = 2`, `gryphon_rider = 2` (6 -> 8).

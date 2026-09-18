@@ -58,8 +58,9 @@ struct Config {
     int workerRepairRadius = 10;
 
     // [health] [costs] [vision]: applied once when a NEW map starts (a savegame keeps the values it was made with)
-    double hpUnits = 2.0, hpHeroes = 4.0, hpBuildings = 1.0;
-    double costUnits = 0.5, costRangedUpgrades = 0.5, costSiegeUpgrades = 0.5;
+    // Units only, never structures. 1.0 = the game's own numbers.
+    double hpUnits = 1.0, hpHeroes = 1.0;
+    double costUnits = 1.0, costRangedUpgrades = 1.0, costSiegeUpgrades = 1.0;
     uint8_t sightBonus[256] = {};   // extra sight range by unit type
 
     // [heroes]

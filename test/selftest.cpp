@@ -534,9 +534,17 @@ int wmain(int argc, wchar_t** argv) {
         datatweaks::OnNewMapTablesLoaded();
         CHECK(hpT[kFootman] == 60 && goldT[kFootman] == 60, "data tables were edited for a multiplayer map");
         *At<uint8_t>(kRvaNetGameAtLoad) = 0;
+        CHECK(config::g.hpUnits == 1.0 && config::g.hpHeroes == 1.0 && config::g.costUnits == 1.0 &&
+                  config::g.costRangedUpgrades == 1.0 && config::g.costSiegeUpgrades == 1.0,
+              "every multiplier must default to 1.0");
+        datatweaks::OnNewMapTablesLoaded();
+        CHECK(hpT[kFootman] == 60 && hpT[0x19] == 240 && goldT[kFootman] == 60 && upGold[4] == 200, "defaults must leave health and prices alone");
+        sightT[kDragon] = sightT[0x2A] = 6;  // the default run already added the sight bonus: start the next run fresh
+        config::g.hpUnits = 2.0; config::g.hpHeroes = 4.0;
+        config::g.costUnits = config::g.costRangedUpgrades = config::g.costSiegeUpgrades = 0.5;
         datatweaks::OnNewMapTablesLoaded();
         CHECK(hpT[kFootman] == 120 && hpT[0x19] == 960 && hpT[0x23] == 3200, "health: units x2, heroes x4 (footman %u grom %u deathwing %u)", hpT[kFootman], hpT[0x19], hpT[0x23]);
-        CHECK(hpT[0x3A] == 400 && hpT[0x4A] == 1200 && hpT[kTypeGoldMine] == 25500, "buildings and the gold mine must keep their health");
+        CHECK(hpT[0x3A] == 400 && hpT[0x4A] == 1200 && hpT[kTypeGoldMine] == 25500, "structures and the gold mine must keep their health");
         CHECK(goldT[kFootman] == 30 && goldT[8] == 25 && lumberT[8] == 3 && goldT[kDragon] == 113, "unit prices halved (archer lumber %u dragon %u)", lumberT[8], goldT[kDragon]);
         CHECK(lumberT[kFootman] == 0 && goldT[0x3A] == 50 && lumberT[0x3A] == 25, "free stays free, buildings keep their price");
         CHECK(upGold[4] == 100 && upLumber[4] == 100 && upGold[20] == 750 && upGold[31] == 500, "ranged and siege upgrades halved");
@@ -545,6 +553,14 @@ int wmain(int argc, wchar_t** argv) {
         config::g.sightBonus[0x28] = 5;
         datatweaks::OnNewMapTablesLoaded();
         CHECK(sightT[0x28] == 9 && sightT[kDragon] == 9, "sight must clamp at 9 (%u)", sightT[0x28]);
+        // Engine caps: 16-bit health, byte-of-tens unit price, 16-bit upgrade price. Structures still untouched.
+        hpT[kFootman] = 60; hpT[0x23] = 800; goldT[kDragon] = 225; upGold[20] = 1500;
+        config::g.hpUnits = 1000.0; config::g.hpHeroes = 1000.0; config::g.costUnits = 2.0; config::g.costSiegeUpgrades = 1000.0;
+        datatweaks::OnNewMapTablesLoaded();
+        CHECK(hpT[kFootman] == 60000 && hpT[0x23] == 65535, "health cap is 65535 (footman %u deathwing %u)", hpT[kFootman], hpT[0x23]);
+        CHECK(goldT[kDragon] == 255 && upGold[20] == 65535, "unit price caps at 2550, upgrade price at 65535 (%u, %u)", goldT[kDragon], upGold[20]);
+        CHECK(hpT[0x3A] == 400 && goldT[0x3A] == 50, "structures must never be scaled");
+        config::g.hpUnits = config::g.hpHeroes = config::g.costUnits = config::g.costRangedUpgrades = config::g.costSiegeUpgrades = 1.0;
         hpT[kFootman] = 60; hpT[0x19] = 240;  // what the later scenarios expect
     }
 

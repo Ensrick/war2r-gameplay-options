@@ -39,9 +39,10 @@ The computer in Warcraft II has near perfect spell micro. Now your casters do to
 [size=4][b]Optional tweaks[/b][/size]
 [list]
 [*]Unlimited gold mines (OFF by default). A computer opponent that runs out of gold can stall a long game; starving a mine is also a real campaign tactic, so this one is your call.
-[*]Slower, weightier combat: units have double health, heroes quadruple, and heroes regenerate 1 HP per second.
+[*]Heroes regenerate 1 HP per second.
+[*]Health multipliers for units and for heroes (default 1.0 = unchanged). Set units to 2.0 and heroes to 4.0 for slower, weightier combat.
 [*]Dragons and gryphon riders see 2 tiles further.
-[*]Units cost half the gold and lumber. Troll and elf upgrades and catapult / ballista upgrades cost half.
+[*]Price multipliers for units, for troll and elf research and for catapult / ballista upgrades (default 1.0 = unchanged, 0.5 = half price). Multipliers only touch units, never structures.
 [/list]
 Every item above has its own switch and numbers in the config file.
 

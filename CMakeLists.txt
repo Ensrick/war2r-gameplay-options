@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 project(war2r_autocast VERSION 1.0.0 LANGUAGES CXX RC)
 
 # Pre-release builds carry a -dev.N suffix; every change bumps N (docs/DEV_HISTORY.md). Empty for a release build.
-set(AUTOCAST_PRERELEASE "-dev.14")
+set(AUTOCAST_PRERELEASE "-dev.15")
 
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
     message(FATAL_ERROR "Warcraft II Remastered is a 32-bit exe: configure with -A Win32")

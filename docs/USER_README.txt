@@ -49,10 +49,15 @@ WORKERS
   - "Idle" means stopped with nothing queued. Stand Ground is respected, so that is how you park a worker.
 
 TWEAKS (each has its own switch or number)
-  - Unlimited gold mines: OFF by default.
-  - Health: units x2, heroes x4. Heroes regenerate 1 HP per second.
+  - Heroes regenerate 1 HP per second.
   - Dragons and gryphon riders see 2 tiles further.
-  - Units cost half the gold and lumber. Archer / axethrower research and ballista / catapult upgrades cost half.
+  - Unlimited gold mines: OFF by default.
+  - Health multipliers for units and for heroes: 1.0 (unchanged) by default. Try units = 2.0, heroes = 4.0 for slower,
+    weightier fights.
+  - Price multipliers for units, for archer / axethrower research and for ballista / catapult upgrades: 1.0 by
+    default. 0.5 = half price.
+  Multipliers only ever touch units, never structures. The engine's limits apply: 65535 hit points, 2550 gold or
+  lumber for a unit, 65535 for an upgrade.
 
   Health, prices and sight are applied when a NEW map starts (new mission, custom game, restart). A savegame keeps the
   numbers it was made with, so saves from before you installed the mod stay as they were. The computer plays by the
@@ -66,8 +71,8 @@ copy-paste recipes. Save the file while the game is running
 and the change applies within a few seconds (a banner confirms it). If you make a typo the mod keeps your previous
 settings and tells you the line number in x86\autocast.log.
 
-Want the mod to do nothing but autocast? Set units / heroes / buildings under [health] and everything under [costs]
-to 1.0, delete the lines under [vision], set regen_hp_per_second = 0, and switch the [workers] options to false.
+Want the mod to do nothing but autocast? Delete the lines under [vision], set regen_hp_per_second = 0, and switch
+the [workers] options to false. The health and price multipliers are already 1.0 out of the box.
 
 Lost your settings file? Delete it; a fresh one with the defaults is written the next time you start a game.
 
