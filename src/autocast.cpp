@@ -13,10 +13,6 @@ namespace autocast {
 
 namespace {
 
-using OrderHandlerFn = void(__cdecl*)(Unit*);
-using IssueOrderFn = void(__cdecl*)(Unit*, int16_t, int16_t, Unit*, OrderHandlerFn);
-
-
 unsigned g_castCount = 0;
 
 struct SpellDef {
@@ -79,14 +75,6 @@ bool IsTileClaimed(uint8_t order, int16_t x, int16_t y) {
     for (int i = 0; i < g_claimCount; ++i)
         if (g_claims[i].order == order && !g_claims[i].target && g_claims[i].x == x && g_claims[i].y == y) return true;
     return false;
-}
-
-void IssueSpell(Unit* caster, uint8_t order, int16_t x, int16_t y, Unit* target) {
-    // Same sequence the game's AI cast helpers (FUN_004cb0e0 for units, FUN_004cac80 for raise dead) use.
-    *At<uint16_t>(kRvaPendingSpellOrder) = order;
-    reinterpret_cast<IssueOrderFn>(g_base + kRvaIssueOrder)(
-        caster, x, y, target, reinterpret_cast<OrderHandlerFn>(g_base + kRvaSpellOrderHandler));
-    *At<uint16_t>(kRvaPendingSpellOrder) = 0;
 }
 
 // Higher score wins, negative = not eligible.

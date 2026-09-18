@@ -147,6 +147,7 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"polymorph", " targets "},
         {"haste", " flyers_only "},
         {"heroes", " units regen_hp_per_second regen_for "},
+        {"eye_of_kilrogg", " cast cast_at_mana max_active auto_scout "},
     };
     for (const auto& [sectionKey, sectionNode] : root) {
         const std::string section(sectionKey.str());
@@ -195,6 +196,10 @@ static bool Load() {
     ReadInt(root, "heal", "below_percent", 1, 100, c.healBelowPct);
     ReadPolymorphTargets(root, c);
     ReadBool(root, "haste", "flyers_only", c.hasteFlyersOnly);
+    ReadBool(root, "eye_of_kilrogg", "cast", c.eyeCast);
+    ReadInt(root, "eye_of_kilrogg", "cast_at_mana", 1, 255, c.eyeCastAtMana);
+    ReadInt(root, "eye_of_kilrogg", "max_active", 1, 50, c.eyeMaxActive);
+    ReadBool(root, "eye_of_kilrogg", "auto_scout", c.eyeAutoScout);
     ReadInt(root, "heroes", "regen_hp_per_second", 0, 1000, c.heroRegenPerSecond);
     ReadHeroes(root, c);
     g = c;

@@ -17,6 +17,19 @@ bool BuildWorld(World& w) {
     return w.localPlayer < kMaxPlayers && At<uint8_t>(kRvaController)[w.localPlayer] == 0;  // 0 = human
 }
 
+void IssueOrder(Unit* unit, int16_t x, int16_t y, Unit* target, uint32_t handlerRva) {
+    using OrderHandlerFn = void(__cdecl*)(Unit*);
+    using IssueOrderFn = void(__cdecl*)(Unit*, int16_t, int16_t, Unit*, OrderHandlerFn);
+    reinterpret_cast<IssueOrderFn>(g_base + kRvaIssueOrder)(unit, x, y, target,
+                                                             reinterpret_cast<OrderHandlerFn>(g_base + handlerRva));
+}
+
+void IssueSpell(Unit* caster, uint8_t order, int16_t x, int16_t y, Unit* target) {
+    *At<uint16_t>(kRvaPendingSpellOrder) = order;
+    IssueOrder(caster, x, y, target, kRvaSpellOrderHandler);
+    *At<uint16_t>(kRvaPendingSpellOrder) = 0;
+}
+
 void ShowMessage(const char* text) {
     using ShowMessageFn = void(__cdecl*)(const char*, int, int, int);
     reinterpret_cast<ShowMessageFn>(g_base + kRvaShowMessage)(text, 8, 100, 0);

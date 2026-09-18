@@ -13,6 +13,7 @@ constexpr uint32_t kRvaTickCallSite = 0xE89A6;   // `call 0x4ca440`, first call 
 constexpr uint32_t kRvaTickCallee = 0xCA440;     // original target of that call
 constexpr uint32_t kRvaIssueOrder = 0xEF210;     // void __cdecl (Unit*, int16 x, int16 y, Unit* target, void (__cdecl*)(Unit*))
 constexpr uint32_t kRvaSpellOrderHandler = 0xE2970;  // handler passed to IssueOrder for every spell cast
+constexpr uint32_t kRvaMoveHandler = 0xD8690;        // order 3 entry of the handler table at 0x8C1498; x,y MUST be on the map
 constexpr uint32_t kRvaShowMessage = 0xD3160;    // void __cdecl (const char* text, int 8, int duration, int 0), the cheat-toggle banner
 
 // --- data ---
@@ -28,6 +29,8 @@ constexpr uint32_t kRvaAlliance = 0x519578;           // uint8[16*16], [caster*1
 constexpr uint32_t kRvaTypeFlags = 0x5185F0;          // uint32[unit type]
 constexpr uint32_t kRvaSpellsResearched = 0x519250;   // uint32[16], PUD ALOW bit layout
 constexpr uint32_t kRvaManaCostByOrder = 0x4C5EB8;    // uint16[order id]
+constexpr uint32_t kRvaExploredMap = 0x51AD60;       // uint8_t* [mapSize*mapSize] for the LOCAL player, 0x10 = never explored
+constexpr uint32_t kRvaVisibleMap = 0x51AD5C;        // uint8_t* same layout, 0x10 = currently fogged
 constexpr uint32_t kRvaNetGame = 0x51C6F4;            // nonzero while the game loop runs DONETWORKTURN (multiplayer)
 
 constexpr int kUnitSize = 0x98;
@@ -35,6 +38,7 @@ constexpr int kMaxPlayers = 16;
 constexpr uint8_t kNeutralPlayer = 15;
 
 // Unit field offsets (identical to the 1999 BNE layout).
+constexpr int kOffSerial = 0x14;        // uint32 creation serial, unique per created unit
 constexpr int kOffX = 0x18;             // int16 tile x
 constexpr int kOffY = 0x1A;             // int16 tile y
 constexpr int kOffStateFlags = 0x1E;    // low nibble: free/dying/dead/hidden
@@ -69,11 +73,15 @@ constexpr uint8_t kTypeMage = 0x0A, kTypeMageHero = 0x18;
 constexpr uint8_t kTypeDeathKnight = 0x0B, kTypeDeathKnightHero = 0x15;
 constexpr uint8_t kTypePaladin = 0x0C, kTypePaladinHero = 0x2C;
 constexpr uint8_t kTypeOgreMage = 0x0D, kTypeOgreMageHero = 0x17;
+constexpr uint8_t kTypeChogall = 0x31;  // caster flag set in unitdata.dat, but the game's own caster AI skips it
+constexpr uint8_t kTypeEye = 0x2D;
+constexpr uint8_t kTileUnexplored = 0x10;
 
 // Orders.
-constexpr uint8_t kOrderStop = 2, kOrderMovePatrol = 4, kOrderPatrol = 5;
+constexpr uint8_t kOrderStop = 2, kOrderMove = 3, kOrderMovePatrol = 4, kOrderPatrol = 5;
 constexpr uint8_t kOrderAttack = 8, kOrderAttackTarget = 9, kOrderAttackArea = 10, kOrderAttackWall = 11;
 constexpr uint8_t kOrderDefend = 12, kOrderStand = 13, kOrderStandAttack = 14, kOrderDefendGround = 15, kOrderDefendStopped = 16;
+constexpr uint8_t kOrderSpellEye = 0x30;
 constexpr uint8_t kOrderSpellFirst = 38;  // spell order id = kOrderSpellFirst + spell index
 constexpr uint8_t kOrderNone = 60;        // "no next order"
 

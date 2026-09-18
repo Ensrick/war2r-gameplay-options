@@ -74,6 +74,11 @@ inline bool ScanGrid(const World& w, Unit* centre, int radius, Fn fn) {
     return ScanGridRaw(w, centre, radius, [&](Unit* u) { return IsActive(u) && fn(u); });
 }
 
+// The game's own IssueOrder (FUN_004ef210). handlerRva is an entry of the order handler table (0x8C1498).
+void IssueOrder(Unit* unit, int16_t x, int16_t y, Unit* target, uint32_t handlerRva);
+// Spell cast the way the AI helpers and the player command path both do it: pending spell id around IssueOrder.
+void IssueSpell(Unit* caster, uint8_t order, int16_t x, int16_t y, Unit* target);
+
 void ShowMessage(const char* text);  // the game's own banner line (cheat-toggle style)
 
 }  // namespace game

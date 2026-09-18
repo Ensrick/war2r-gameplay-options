@@ -57,6 +57,18 @@ targets = [
 # true = Haste only on your flying units, when they are sent to attack or are fighting. false = any fighting unit.
 flyers_only = true
 
+[eye_of_kilrogg]
+# Ogre-magi cast Eye of Kilrogg on their own. Only an idle ogre-mage does it (the cast makes it stop).
+cast = true
+# Mana the ogre-mage must have before it casts. 255 = only when full, which is the computer's own rule,
+# so Bloodlust always gets first call on the mana.
+cast_at_mana = 255
+# How many of your eyes may be out at the same time.
+max_active = 1
+# Your eyes fly to unexplored ground by themselves (then to fogged ground once everything is explored).
+# Give an eye an order of your own and the mod leaves that eye to you.
+auto_scout = true
+
 [heroes]
 # Which unit types count as heroes (used by hero regeneration and the hero health multiplier).
 units = [

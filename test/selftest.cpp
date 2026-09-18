@@ -30,9 +30,10 @@ static int g_unitCount = 0;
         }                                \
     } while (0)
 
-static void __cdecl FakeIssueOrder(Unit* caster, int16_t x, int16_t y, Unit* target, void*) {
+static void __cdecl FakeIssueOrder(Unit* caster, int16_t x, int16_t y, Unit* target, void* handler) {
     // Like the real SetOrder (FUN_004ef080): the new order lands in the next-order slot, the current one stays.
-    Field<uint8_t>(caster, kOffNextOrder) = static_cast<uint8_t>(*At<uint16_t>(kRvaPendingSpellOrder));
+    const bool isMove = handler == reinterpret_cast<void*>(g_base + kRvaMoveHandler);
+    Field<uint8_t>(caster, kOffNextOrder) = isMove ? kOrderMove : static_cast<uint8_t>(*At<uint16_t>(kRvaPendingSpellOrder));
     Field<Unit*>(caster, kOffOrderTarget) = target;
     if (!target) {  // the real IssueOrder stores the destination tile only for positional orders
         Field<int16_t>(caster, kOffOrderX) = x;
@@ -250,7 +251,7 @@ int wmain(int argc, wchar_t** argv) {
 
     // Bloodlust only on fighting units without bloodlust.
     ResetWorld();
-    Unit* om = AddUnit(kTypeOgreMage, 0, 20, 20, 90, 255, kOrderStand);
+    Unit* om = AddUnit(kTypeOgreMage, 0, 20, 20, 90, 200, kOrderStand);  // not full mana: no Eye of Kilrogg
     Unit* idle = AddUnit(kGrunt, 0, 21, 20, 60, 0, kOrderStand);
     mod::RunAutocastPass();
     CHECK(OrderOf(om) == kOrderStand, "bloodlust on an idle grunt");
@@ -364,6 +365,54 @@ int wmain(int argc, wchar_t** argv) {
     mod::RunAutocastPass();
     CHECK(OrderOf(dk) == kOrderStand, "cast for a non-human local player");
     controller[0] = 0;
+
+    // Eye of Kilrogg: an idle ogre-mage at full mana casts it, never a second one while an eye is out.
+    static uint8_t exploredMap[kMap * kMap], visibleMap[kMap * kMap];
+    *At<uint8_t*>(kRvaExploredMap) = exploredMap;
+    *At<uint8_t*>(kRvaVisibleMap) = visibleMap;
+    defType(kTypeEye, kTfFlyer, 100);
+    ResetWorld();
+    om = AddUnit(kTypeOgreMage, 0, 20, 20, 90, 254, kOrderStand);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(om) == kOrderStand, "eye cast below cast_at_mana");
+    Field<uint8_t>(om, kOffMana) = 255;
+    Field<uint8_t>(om, kOffOrder) = kOrderAttackTarget;
+    mod::RunAutocastPass();
+    CHECK(OrderOf(om) == kOrderAttackTarget, "eye cast by a busy ogre-mage");
+    Idle(om);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(om) == kOrderSpellEye && TargetOf(om) == nullptr, "idle full-mana ogre-mage should cast the eye (order %u)", OrderOf(om));
+    Unit* om2 = AddUnit(kTypeOgreMage, 0, 22, 20, 90, 255, kOrderStand);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(om2) == kOrderStand, "second eye cast while one is pending (max_active = 1)");
+
+    // Auto-scout: toward unexplored ground, again after arriving, hands off once the player flies it elsewhere.
+    ResetWorld();
+    memset(exploredMap, 0, sizeof(exploredMap));
+    for (int y = 0; y < kMap; ++y)
+        for (int x = 40; x < kMap; ++x) exploredMap[y * kMap + x] = kTileUnexplored;
+    Unit* eyeUnit = AddUnit(kTypeEye, 0, 10, 10, 100, 255, kOrderStop);
+    Field<uint32_t>(eyeUnit, kOffSerial) = 777;
+    mod::RunAutocastPass();
+    int destX = Field<int16_t>(eyeUnit, kOffOrderX), destY = Field<int16_t>(eyeUnit, kOffOrderY);
+    CHECK(OrderOf(eyeUnit) == kOrderMove && destX >= 37 && destX < kMap && destY >= 0 && destY < kMap,
+          "eye should head for the unexplored east (order %u dest %d,%d)", OrderOf(eyeUnit), destX, destY);
+    Field<int16_t>(eyeUnit, kOffX) = static_cast<int16_t>(destX);  // arrived
+    Field<int16_t>(eyeUnit, kOffY) = static_cast<int16_t>(destY);
+    Field<uint8_t>(eyeUnit, kOffOrder) = kOrderStop;
+    Field<uint8_t>(eyeUnit, kOffNextOrder) = kOrderNone;
+    for (int y = 0; y < kMap; ++y)  // what it has seen so far is explored now
+        for (int x = 40; x < 52; ++x) exploredMap[y * kMap + x] = 0;
+    mod::RunAutocastPass();
+    CHECK(OrderOf(eyeUnit) == kOrderMove && Field<int16_t>(eyeUnit, kOffOrderX) >= 49, "eye should keep scouting after arriving (dest x %d)",
+          Field<int16_t>(eyeUnit, kOffOrderX));
+    Field<int16_t>(eyeUnit, kOffX) = 5;  // the player flew it somewhere else and it stopped there
+    Field<int16_t>(eyeUnit, kOffY) = 60;
+    Field<uint8_t>(eyeUnit, kOffOrder) = kOrderStop;
+    Field<uint8_t>(eyeUnit, kOffNextOrder) = kOrderNone;
+    mod::RunAutocastPass();
+    CHECK(OrderOf(eyeUnit) == kOrderStop, "an eye the player took over must be left alone");
+    memset(exploredMap, 0, sizeof(exploredMap));
 
     // Hero regeneration: 1 HP per second of stepping time, heroes only, never past max, dead heroes stay dead.
     ResetWorld();

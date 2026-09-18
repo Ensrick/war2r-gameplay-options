@@ -3,6 +3,16 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.0.0-dev.8 - 2026-09-18 (UNTESTED in game)
+
+- Eye of Kilrogg (#1): idle ogre-magi (also Dentarg and Cho'gall) cast it at `cast_at_mana` (default 255, the
+  computer's own rule), at most `max_active` eyes at a time. Cast through the same IssueOrder + pending-spell path the
+  player's own button uses (research: docs/research/eye_of_kilrogg.md).
+- Auto-scout: the computer's eye only random-walks (AI order 4). The mod steers the player's eyes with the move
+  handler toward tiles the local explored map (`0x91AD60`) marks as never seen, then toward fogged tiles, then wanders.
+  An eye that comes to rest more than 2 tiles from where the mod sent it is treated as player-controlled and released.
+- IssueOrder / IssueSpell moved into `world.*` for every feature to share.
+
 ## 1.0.0-dev.7 - 2026-09-18 (UNTESTED in game)
 
 - Hero regeneration (#6): `[heroes] regen_hp_per_second = 1`, `regen_for = "all" | "mine"`, and a configurable

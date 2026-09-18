@@ -40,6 +40,12 @@ struct Config {
     // [haste]
     bool hasteFlyersOnly = true;
 
+    // [eye_of_kilrogg]
+    bool eyeCast = true;
+    int eyeCastAtMana = 255;        // the computer only casts it at full mana
+    int eyeMaxActive = 1;
+    bool eyeAutoScout = true;
+
     // [heroes]
     bool isHero[256] = {};          // unit types listed in [heroes] units
     int heroRegenPerSecond = 1;     // 0 = off

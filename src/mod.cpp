@@ -4,6 +4,7 @@
 
 #include "autocast.h"
 #include "config.h"
+#include "eye.h"
 #include "log.h"
 #include "tweaks.h"
 #include "world.h"
@@ -82,12 +83,17 @@ void __cdecl OnTick() {
     World w;
     if (!BuildWorld(w)) return;
     tweaks::OnTick(w, elapsedMs);
-    if (config::g.enabled && g_tick % static_cast<unsigned>(config::g.intervalTicks) == 0) autocast::Pass(w);
+    if (config::g.enabled && g_tick % static_cast<unsigned>(config::g.intervalTicks) == 0) {
+        autocast::Pass(w);
+        eye::Pass(w);
+    }
 }
 
 void RunAutocastPass() {
     World w;
-    if (BuildWorld(w)) autocast::Pass(w);
+    if (!BuildWorld(w)) return;
+    autocast::Pass(w);
+    eye::Pass(w);
 }
 
 }  // namespace mod
