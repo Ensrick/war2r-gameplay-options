@@ -43,6 +43,17 @@ static void __cdecl FakeIssueOrder(Unit* caster, int16_t x, int16_t y, Unit* tar
     }
 }
 
+static int g_messages = 0;
+static void __cdecl FakeShowMessage(const char*, int, int, int) { ++g_messages; }
+
+static void WriteFileText(const wchar_t* path, const char* text) {
+    FILE* f = nullptr;
+    _wfopen_s(&f, path, L"wb");
+    if (!f) return;
+    fwrite(text, 1, strlen(text), f);
+    fclose(f);
+}
+
 static void PatchJump(uint32_t rva, void* dest) {
     auto* p = reinterpret_cast<uint8_t*>(g_base + rva);
     DWORD old;
@@ -103,7 +114,7 @@ int wmain(int argc, wchar_t** argv) {
     wcscat_s(dir, L"war2r_autocast_selftest");
     CreateDirectoryW(dir, nullptr);
     wchar_t ini[MAX_PATH];
-    swprintf_s(ini, L"%s\\autocast.ini", dir);
+    swprintf_s(ini, L"%s\\autocast.toml", dir);
     DeleteFileW(ini);  // always start from the shipped defaults
     logx::Open(dir);
     autocast::SetModuleBase(g_base, dir);
@@ -127,6 +138,7 @@ int wmain(int argc, wchar_t** argv) {
 
     // 3. Fake world in the image's globals.
     PatchJump(kRvaIssueOrder, &FakeIssueOrder);
+    PatchJump(kRvaShowMessage, &FakeShowMessage);
     *At<Unit*>(kRvaUnitArray) = reinterpret_cast<Unit*>(g_units);
     *At<Unit**>(kRvaUnitGrid) = g_grid;
     *At<uint16_t>(kRvaMapSize) = kMap;
@@ -154,8 +166,16 @@ int wmain(int argc, wchar_t** argv) {
     defType(kTypeDeathKnight, kTfCaster, 60);
     At<uint32_t>(kRvaSpellsResearched)[0] = 0xFFFFFFFF;
 
-    autocast::OnTick();  // first tick loads the default config
+    autocast::OnTick();  // first tick writes the embedded default config and loads it
     CHECK(config::g.enabled && config::g.spell[kSpellHeal] && !config::g.spell[kSpellUnholyArmor], "default config");
+    CHECK(GetFileAttributesW(ini) != INVALID_FILE_ATTRIBUTES, "default autocast.toml was not written");
+    {
+        WIN32_FILE_ATTRIBUTE_DATA fad{};
+        GetFileAttributesExW(ini, GetFileExInfoStandard, &fad);
+        CHECK(fad.nFileSizeLow > 1000, "default autocast.toml is empty: the embedded resource was not found");
+    }
+    CHECK(config::g.polymorphRank[kDragon] && config::g.polymorphRank[kDaemon] && !config::g.polymorphRank[kGrunt],
+          "default polymorph list");
 
     // Heal: most hurt own unit wins; healthy, allied-player and out-of-threshold units are skipped.
     ResetWorld();
@@ -348,6 +368,31 @@ int wmain(int argc, wchar_t** argv) {
     autocast::RunPass();
     CHECK(OrderOf(dk) == kOrderStand, "cast for a non-human local player");
     controller[0] = 0;
+
+    // TOML config: a custom file is honoured, typos and bad values are survivable, a syntax error keeps old settings.
+    WriteFileText(ini,
+                  "[general]\ntoggle_key = \"F7\"\ninterval_ticks = 3\nbogus_key = 1\n"
+                  "[spells]\nheal = false\nunholy_armor = true\n"
+                  "[heal]\nmin_missing_hp = 25\n"
+                  "[polymorph]\ntargets = [\"grunt\", \"not_a_unit\", \"dragon\"]\n"
+                  "[haste]\nflyers_only = false\n");
+    CHECK(config::Init(dir), "valid custom toml rejected");
+    CHECK(config::g.toggleKey == VK_F7 && config::g.intervalTicks == 3, "general section not applied");
+    CHECK(!config::g.spell[kSpellHeal] && config::g.spell[kSpellUnholyArmor] && config::g.spell[kSpellSlow], "spells section");
+    CHECK(config::g.healMinMissingHp == 25 && config::g.healBelowPct == 100 && !config::g.hasteFlyersOnly, "tuning values");
+    CHECK(config::g.polymorphRank[kGrunt] == 1 && config::g.polymorphRank[kDragon] == 2 && config::g.polymorphRank[kOgre] == 0,
+          "polymorph target list (grunt %u dragon %u ogre %u)", config::g.polymorphRank[kGrunt],
+          config::g.polymorphRank[kDragon], config::g.polymorphRank[kOgre]);
+    ResetWorld();
+    mage = AddUnit(kTypeMage, 0, 40, 40, 60, 255, kOrderStand);
+    AddUnit(kOgre, 1, 41, 40, 90, 0, kOrderAttack);
+    Unit* listedGrunt = AddUnit(kGrunt, 1, 44, 40, 60, 0, kOrderAttack);
+    autocast::RunPass();
+    CHECK(OrderOf(mage) == 0x2E && TargetOf(mage) == listedGrunt, "custom polymorph list should sheep the grunt, not the ogre");
+    WriteFileText(ini, "[general\nenabled = maybe\n");
+    CHECK(!config::Init(dir), "syntax error must be reported");
+    CHECK(config::g.healMinMissingHp == 25, "syntax error must keep the previous settings");
+    DeleteFileW(ini);
 
     printf(g_failures ? "%d FAILURE(S)\n" : "ALL CHECKS PASSED\n", g_failures);
     return g_failures ? 1 : 0;

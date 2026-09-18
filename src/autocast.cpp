@@ -179,13 +179,12 @@ int ScoreTarget(const World& w, Spell spell, Unit* caster, Unit* t) {
         if ((tf & kTfBuilding) || !(tf & (kTfAttacker | kTfCaster))) return -1;
         if (Field<int16_t>(t, kOffHasteTimer) < 0 || OrderOf(t) == kOrderStop) return -1;
         return closeness;
-    case kSpellPolymorph:
-        if (!(tf & kTfFleshy)) return -1;
-        // Dragons, gryphons, daemons, Deathwing. Always eligible: a daemon's 60 max HP would fail polymorph_min_hp.
-        if ((tf & kTfFlyer) && (tf & kTfAttacker)) return 200000 + MaxHp(w, t) * 100 + closeness;
-        if (tf & kTfCaster) return 100000 + closeness;
-        if (!(tf & kTfAttacker) || MaxHp(w, t) < config::g.polymorphMinHp) return -1;
-        return MaxHp(w, t) * 100 + closeness;  // biggest unit first
+    case kSpellPolymorph: {
+        // [polymorph] targets in the config is the whole rule: listed types only, earlier in the list wins.
+        const uint8_t rank = config::g.polymorphRank[Field<uint8_t>(t, kOffType)];
+        if (!rank || !(tf & kTfFleshy)) return -1;
+        return (256 - rank) * 1000 + closeness;
+    }
     case kSpellDeathCoil:
         return (tf & kTfFleshy) ? closeness : -1;
     case kSpellBloodlust:
@@ -388,11 +387,15 @@ void SetModuleBase(uintptr_t exeBase, const wchar_t* dllDir) {
 void __cdecl OnTick() {
     if (!g_initialised) {
         g_initialised = true;
-        config::Init(g_dllDir);
+        if (!config::Init(g_dllDir)) ShowMessage("Autocast: autocast.toml has an error, see autocast.log");
         logx::Write("first game tick, autocast live");
     }
     ++g_tick;
-    if (g_tick % 64 == 0) config::ReloadIfChanged();
+    if (g_tick % 64 == 0) {
+        const int reloaded = config::ReloadIfChanged();
+        if (reloaded > 0) ShowMessage("Autocast: settings reloaded");
+        if (reloaded < 0) ShowMessage("Autocast: autocast.toml has an error, see autocast.log");
+    }
     PollToggleKey();
     if (!config::g.enabled || g_tick % static_cast<unsigned>(config::g.intervalTicks) != 0) return;
 

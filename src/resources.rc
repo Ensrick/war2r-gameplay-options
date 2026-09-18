@@ -1,0 +1,2 @@
+// The default config is a resource so the file shipped in the zip and the one the DLL writes are the same bytes.
+DEFAULT_TOML RCDATA "../config/autocast.default.toml"

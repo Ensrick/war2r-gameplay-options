@@ -21,7 +21,15 @@ if (-not (Test-Path $built)) { throw "build first: $built is missing" }
 Copy-Item $built $target -Force
 $hash = (Get-FileHash $target -Algorithm SHA256).Hash
 if ($hash -ne (Get-FileHash $built -Algorithm SHA256).Hash) { throw 'deployed file does not match the build' }
+
+# Pre-TOML builds used autocast.ini; it is no longer read.
+$legacyIni = Join-Path $GameDir 'autocast.ini'
+if (Test-Path $legacyIni) {
+    Move-Item $legacyIni "$legacyIni.bak" -Force
+    'legacy autocast.ini renamed to autocast.ini.bak (settings now live in autocast.toml)'
+}
+
 "installed $target"
 "sha256 $hash"
-"config  $(Join-Path $GameDir 'autocast.ini') (created on first game start)"
+"config  $(Join-Path $GameDir 'autocast.toml') (created on first game start if missing)"
 "log     $(Join-Path $GameDir 'autocast.log')"

@@ -1,0 +1,58 @@
+# Warcraft II Remastered Autocast
+# Edits are picked up while the game runs (within a few seconds). A syntax error keeps the previous settings
+# and is reported in autocast.log. Single-player only: everything here switches itself off in multiplayer.
+
+[general]
+enabled = true
+# Ctrl + this key toggles autocast in game. "F1".."F12", or a Windows virtual-key number.
+toggle_key = "F9"
+# Game steps between autocast passes. Lower = snappier; the computer AI itself uses 50.
+interval_ticks = 10
+# true = write every cast to autocast.log
+log_casts = false
+
+[autocast]
+# How far (tiles) a caster looks for targets. It walks into range if needed.
+search_radius = 8
+# Bloodlust / Haste / Unholy Armor only go on units that are fighting: attacking with an enemy this close.
+combat_radius = 6
+# true = Heal / Bloodlust / Haste only on your own units, false = allies too.
+own_units_only = true
+# true = casters may interrupt their own attack to cast. Move orders are never interrupted.
+cast_while_attacking = true
+
+[spells]
+heal = true
+exorcism = true
+slow = true
+polymorph = true
+bloodlust = true
+death_coil = true
+haste = true
+unholy_armor = false
+# Raise Dead is only cast while an enemy is within search_radius, so skeletons are not wasted.
+raise_dead = true
+
+[heal]
+# Heal only units missing at least this many hit points.
+min_missing_hp = 10
+# Extra gate: also require the unit to be at or below this percent of max HP. 100 = off.
+below_percent = 100
+
+[polymorph]
+# Valid Polymorph targets in priority order: the first type in this list that is in range gets sheeped,
+# nearest one first. Anything not listed is never polymorphed. Only living (organic) units can be affected.
+# Names: footman grunt peasant peon knight ogre archer axethrower mage death_knight paladin ogre_mage dwarves
+#   goblin_sappers ranger berserker gryphon_rider dragon daemon skeleton critter
+#   heroes: alleria teron_gorefiend kurdran dentarg khadgar grom_hellscream deathwing turalyon danath
+#   korgath_bladefist chogall lothar guldan uther_lightbringer zuljin
+targets = [
+    "deathwing", "kurdran", "dragon", "gryphon_rider", "daemon",
+    "death_knight", "mage", "ogre_mage", "paladin",
+    "teron_gorefiend", "guldan", "khadgar", "dentarg", "chogall", "turalyon", "uther_lightbringer",
+    "grom_hellscream", "korgath_bladefist", "danath", "alleria", "knight", "ogre", "lothar",
+]
+
+[haste]
+# true = Haste only on your flying units, when they are sent to attack or are fighting. false = any fighting unit.
+flyers_only = true
