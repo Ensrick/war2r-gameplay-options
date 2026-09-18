@@ -1,6 +1,6 @@
 # Builds the drag-and-drop release zip: dist\<name>-<version>.zip
 # Zip layout mirrors the game folder, so the user extracts it straight into "Warcraft II Remastered":
-#   x86\version.dll, x86\autocast.toml, x86\autocast_readme.txt
+#   x86\version.dll, x86\autocast.toml, x86\autocast_readme.txt, x86\autocast_config_tutorial.txt
 param([string] $Name = 'War2R-Autocast')
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
@@ -24,6 +24,7 @@ $x86 = New-Item -ItemType Directory -Force (Join-Path $stage 'x86')
 Copy-Item (Join-Path $root 'build\Release\version.dll') $x86
 Copy-Item (Join-Path $root 'config\autocast.default.toml') (Join-Path $x86 'autocast.toml')
 Copy-Item (Join-Path $root 'docs\USER_README.txt') (Join-Path $x86 'autocast_readme.txt')
+Copy-Item (Join-Path $root 'docs\CONFIG_TUTORIAL.md') (Join-Path $x86 'autocast_config_tutorial.txt')
 
 $zip = Join-Path $root "dist\$Name-$version.zip"
 if (Test-Path $zip) { Rename-Item $zip "$Name-$version.zip.bak.$(Get-Date -Format yyyyMMddHHmmss)" }

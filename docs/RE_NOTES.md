@@ -64,3 +64,17 @@ and widens "fighting" to explicit attack orders with an enemy nearby, because a 
 The AI issues orders by calling IssueOrder directly because it runs identically on every peer. A human player's
 commands travel through the network turn queue. Calling IssueOrder for the local human in a network game would
 change state on one peer only, so the mod refuses to run when `0x91C6F4 != 0`.
+
+## Correction: orders land in the next-order slot
+
+SetOrder (`0x4EF080`) writes the NEXT-order byte (+0x2F); it becomes the current order (+0x2E) at `0x4ED9C3` when the
+running action step ends, and +0x2F goes back to 0x3C ("none"). The game's UI reads "next if set, else current" at
+`0x4E85B2`, and so does every order check in the mod (`game::EffectiveOrder`).
+
+## Later research (one report per feature)
+
+| Report | Covers |
+|---|---|
+| `research/eye_of_kilrogg.md` | spell action table `0x8C1590`, unit creation, AI order table `0x8C3E10`, explored / fog maps `0x91AD60` / `0x91AD5C`, player command path, Remastered resume-order byte +0x8D |
+| `research/workers_and_gold.md` | order handler table `0x8C1498` and action table `0x8C13A0`, gold left at unit+0x82, region map `0x91AD7C` (0xFFFE = tree), worker flags +0x75, repair rules, idle detection, IssueOrder lock table |
+| `research/data_tables.md` | every UDTA / UGRD runtime table, loaders, the new-map-only `call FinalizeTables` at `0x4D2C46` vs the savegame one at `0x4C4602`, sight function pointers, HP readers, game speed table |

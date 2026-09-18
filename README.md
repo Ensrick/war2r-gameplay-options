@@ -1,54 +1,59 @@
 # war2r-autocast (working name)
 
-Autocast for **Warcraft II: Remastered** single-player. Your own casters pick targets and cast the spells you enable,
-using the same order path the computer AI uses.
+Autocast and gameplay tweaks for **Warcraft II: Remastered**, single-player. One `version.dll` next to the game exe,
+one `autocast.toml` for every setting.
 
-| Caster | Spells (default) |
-|---|---|
-| Paladin | Heal (on), Exorcism (on) |
-| Mage | Polymorph (on), Slow (on) |
-| Ogre-Mage | Bloodlust (on) |
-| Death Knight | Death Coil (on), Haste (on), Unholy Armor (off) |
+- Player docs: [docs/USER_README.txt](docs/USER_README.txt) (ships in the zip), [docs/CONFIG_TUTORIAL.md](docs/CONFIG_TUTORIAL.md)
+- Nexus page draft: [docs/NEXUS_DESCRIPTION.md](docs/NEXUS_DESCRIPTION.md)
+- Reverse engineering: [docs/RE_NOTES.md](docs/RE_NOTES.md) and [docs/research/](docs/research)
+- History: [CHANGELOG.md](CHANGELOG.md) (public, starts at 1.0.0), [docs/DEV_HISTORY.md](docs/DEV_HISTORY.md) (pre-release builds)
 
-Hero casters (Turalyon/Uther, Khadgar, Cho'gall, Teron/Gul'dan class units) follow their class.
+## Features
 
-## Install / remove
+| Area | What | Config section |
+|---|---|---|
+| Autocast | Heal, Exorcism, Slow, Polymorph, Bloodlust, Death Coil, Haste, Raise Dead, Unholy Armor (off) | `[spells] [autocast] [heal] [polymorph] [haste]` |
+| Eye of Kilrogg | idle ogre-magi cast it, the eye scouts unexplored ground by itself | `[eye_of_kilrogg]` |
+| Workers | idle workers repair nearby damage, then return to the nearest mine or tree | `[workers]` |
+| Gold mines | optional unlimited mines, off by default | `[gold_mines]` |
+| Heroes | 1 HP per second regeneration | `[heroes]` |
+| Map-start data | health x2 units / x4 heroes, unit and selected upgrade prices x0.5, +2 sight for dragon and gryphon rider | `[health] [costs] [vision]` |
 
-```powershell
-.\build.ps1          # needs VS 2022 with the x86 C++ toolchain
-.\deploy.ps1         # copies version.dll into <game>\x86\
-.\deploy.ps1 -Disable
-```
+Everything is gated off in network games (local state changes and direct orders would desync a match) and on any exe
+other than build 1.0.2.2818 (PE timestamp check, then per-hook byte checks).
 
-The mod is a `version.dll` proxy next to `Warcraft II.exe`. It only activates in the exact supported build
-(1.0.2.2818, PE timestamp 1771967463); after a game patch it logs "staying inert" and the game runs unmodified.
-
-## Use
-
-- `Ctrl+F9` toggles autocast in game (banner text confirms).
-- `<game>\x86\autocast.ini` is created on first start. Edits apply within a few seconds, no restart.
-- `<game>\x86\autocast.log` records load, hook status, config, and (with `log_casts = 1`) every cast.
-
-Behaviour rules:
-
-- Single-player only. In a network game the mod does nothing: its orders bypass the network command queue and
-  would desync the match.
-- A caster is only taken over while idle, guarding, patrolling or attacking. Move / follow / board orders are
-  never interrupted. An invisible caster is left alone.
-- Two casters never pick the same target for the same spell.
-- Heal goes to the most hurt unit at or below `heal_below_pct`. Bloodlust / Haste / Unholy Armor go only to units that
-  are fighting. Polymorph prefers enemy casters, then the biggest unit type at or above `polymorph_min_hp`.
-- Mana costs and researched spells are read live from the game, so campaign restrictions and Remastered's
-  rebalanced costs (Heal 5, Bloodlust 60) are respected.
-
-Known limits: area spells (Blizzard, Death and Decay, Whirlwind, Runes) and Fireball / Flame Shield / Invisibility /
-Raise Dead are not automated yet. Enemies inside `search_radius` are targeted even if fog hides them from you.
-
-## Verify without the game
+## Build, test, deploy, package
 
 ```powershell
+.\build.ps1          # VS 2022 with the x86 C++ toolchain. Output: build\Release\version.dll + selftest.exe
 .\build\Release\selftest.exe "C:\Program Files (x86)\Warcraft II Remastered\x86\Warcraft II.exe"
 .\test\proxy_load_test.ps1
+.\deploy.ps1         # copies version.dll into <game>\x86\   (-Disable renames it away)
+.\package.ps1        # dist\War2R-Autocast-<version>.zip, drag-and-drop layout (x86\...)
 ```
 
-`selftest` maps the real exe as an image, checks the hook site bytes, and runs the targeting logic over a fake world.
+`selftest` maps the real exe as an image (none of its code runs), checks every hook site and table entry the mod relies
+on, and drives all features over a fake world built inside the image's own globals.
+
+## How it works
+
+- `version.dll` proxy: the game imports VERSION.dll, which is not a KnownDLL, so Windows loads ours from the game
+  folder; all 17 exports forward to the system DLL.
+- Hook 1, `call` at `0x4E89A6` inside the per-step AI tick: runs the mod once per simulation step on the game thread.
+- Hook 2, `call FinalizeTables` at `0x4D2C46`: new-map-only moment where unit / upgrade data is loaded but no unit
+  exists yet. Savegame loads go through a different call site and are never touched, so nothing double-applies.
+- Orders are issued through the game's own `IssueOrder` with the entries of its order handler table, the same path the
+  computer AI and the player's command executor use.
+
+## Layout
+
+```
+src/dllmain.cpp     proxy exports, attach
+src/hook.cpp        the two call-site hooks
+src/mod.cpp         per-tick orchestration, multiplayer gate, hotkey, config reload
+src/autocast.cpp    spell targeting        src/eye.cpp        Eye of Kilrogg
+src/workers.cpp     idle workers           src/tweaks.cpp     hero regen, gold mines
+src/datatweaks.cpp  map-start table edits  src/config.cpp     TOML (toml++ vendored in third_party/)
+src/game.h          every address (RVA) with its meaning; evidence in docs/
+config/autocast.default.toml   the default config, embedded into the DLL as a resource and shipped in the zip
+```

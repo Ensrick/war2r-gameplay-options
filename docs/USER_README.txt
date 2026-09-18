@@ -1,7 +1,9 @@
-WARCRAFT II: REMASTERED - AUTOCAST
-==================================
+WARCRAFT II: REMASTERED - AUTOCAST AND TWEAKS
+=============================================
 
-Your casters cast their spells on their own, the way the computer's do. Single-player only.
+Your casters cast their spells on their own, the way the computer's do. Idle workers go back to work. Optional
+tweaks slow combat down and make the economy kinder. Everything can be switched off or tuned in one text file.
+Single-player only.
 
 
 INSTALL
@@ -13,6 +15,7 @@ INSTALL
        Warcraft II Remastered\x86\version.dll
        Warcraft II Remastered\x86\autocast.toml
        Warcraft II Remastered\x86\autocast_readme.txt
+       Warcraft II Remastered\x86\autocast_config_tutorial.txt
 3. Start the game from Battle.net as usual.
 
 In a single-player game press Ctrl+F9. A banner "Autocast OFF" / "Autocast ON" proves the mod is loaded.
@@ -20,35 +23,58 @@ In a single-player game press Ctrl+F9. A banner "Autocast OFF" / "Autocast ON" p
 
 UNINSTALL
 ---------
-Delete version.dll (and the autocast.* files) from the x86 folder. Nothing else is touched.
+Delete version.dll (and the autocast.* files) from the x86 folder. No game file is modified by this mod.
 
 
 WHAT IT DOES
 ------------
-Paladin        Heal (units missing 10+ HP, most hurt first), Exorcism (enemy undead)
-Mage           Polymorph (targets you list in the config), Slow
-Ogre-Mage      Bloodlust (only on units that are fighting)
-Death Knight   Raise Dead (when enemies are near), Death Coil, Haste (your flyers only), Unholy Armor (off by default)
+AUTOCAST (Ctrl+F9 toggles it)
+  Paladin        Heal (units missing 10+ HP, most hurt first), Exorcism (enemy undead)
+  Mage           Polymorph (targets and priority come from your list: dragons, gryphons, daemons first), Slow
+  Ogre-Mage      Bloodlust (only on units that are fighting), Eye of Kilrogg (idle ogre-mage at full mana)
+  Death Knight   Raise Dead (when enemies are near), Death Coil, Haste (your flyers only), Unholy Armor (off)
 
-- A caster is only taken over while it is idle, guarding, patrolling or attacking. Your move orders are never
-  interrupted, and an invisible caster is left alone.
-- Two casters never pick the same target for the same spell.
-- Spells must be researched, and mana costs are whatever the game says they are.
-- Fireball, Flame Shield, Invisibility, Blizzard, Death and Decay, Whirlwind and Runes stay manual on purpose.
+  - A caster is only taken over while it is idle, guarding, patrolling or attacking. Your move orders are never
+    interrupted, and an invisible caster is left alone.
+  - Two casters never pick the same target for the same spell.
+  - Spells must be researched, and mana costs are whatever the game says they are.
+  - The Eye of Kilrogg scouts on its own: it flies to ground you have not explored. Move an eye yourself and the
+    mod leaves that eye to you.
+  - Fireball, Flame Shield, Invisibility, Blizzard, Death and Decay, Whirlwind and Runes stay manual on purpose.
+
+WORKERS
+  - An idle peasant / peon repairs a damaged building of yours within 10 tiles after 1 second.
+  - Still idle after 10 seconds, it walks to the nearest gold mine or tree within 5 tiles. A worker carrying gold or
+    lumber delivers it first.
+  - "Idle" means stopped with nothing queued. Stand Ground is respected, so that is how you park a worker.
+
+TWEAKS (each has its own switch or number)
+  - Unlimited gold mines: OFF by default.
+  - Health: units x2, heroes x4. Heroes regenerate 1 HP per second.
+  - Dragons and gryphon riders see 2 tiles further.
+  - Units cost half the gold and lumber. Archer / axethrower research and ballista / catapult upgrades cost half.
+
+  Health, prices and sight are applied when a NEW map starts (new mission, custom game, restart). A savegame keeps the
+  numbers it was made with, so saves from before you installed the mod stay as they were. The computer plays by the
+  same numbers you do.
 
 
 SETTINGS
 --------
-Open x86\autocast.toml in Notepad. Every setting has a comment above it. Save the file while the game is running
+Open x86\autocast.toml in Notepad. Every setting has a comment above it, and autocast_config_tutorial.txt has
+copy-paste recipes. Save the file while the game is running
 and the change applies within a few seconds (a banner confirms it). If you make a typo the mod keeps your previous
 settings and tells you the line number in x86\autocast.log.
+
+Want the mod to do nothing but autocast? Set units / heroes / buildings under [health] and everything under [costs]
+to 1.0, delete the lines under [vision], set regen_hp_per_second = 0, and switch the [workers] options to false.
 
 Lost your settings file? Delete it; a fresh one with the defaults is written the next time you start a game.
 
 
 GOOD TO KNOW
 ------------
-- Multiplayer: the mod switches itself off. Its orders are local and would desync a network game.
+- Multiplayer: the mod switches itself off. What it does is local and would desync a network game.
 - Game updates: the mod only activates on the exact game build it was made for (1.0.2.2818). After a Blizzard
   patch it does nothing (the game runs normally) until the mod is updated. autocast.log says "staying inert".
 - Battle.net "Scan and Repair" may remove version.dll. Just extract the zip again.

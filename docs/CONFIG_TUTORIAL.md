@@ -126,6 +126,95 @@ regen_for = "mine"          # your heroes only; "all" includes enemy heroes
 
 The `units` list in the same section decides which unit types count as heroes.
 
+### Let the Eye of Kilrogg scout for you (or not)
+
+```toml
+[eye_of_kilrogg]
+cast = true          # idle ogre-magi cast it by themselves
+cast_at_mana = 255   # only at full mana, so Bloodlust always comes first. Lower it for more eyes.
+max_active = 1       # eyes out at once
+auto_scout = true    # the eye flies to unexplored ground; an eye you move yourself is left to you
+```
+
+### Idle workers
+
+A worker that is stopped with nothing queued counts as idle. Stand Ground never counts as idle.
+
+```toml
+[workers]
+auto_repair = true
+repair_idle_seconds = 1
+repair_radius = 10
+auto_harvest = true
+harvest_idle_seconds = 10
+harvest_radius = 5       # raise this if your idle workers stand far from the trees
+```
+
+### Gold mines that never run dry
+
+Off by default. It covers every mine on the map, the computer's too.
+
+```toml
+[gold_mines]
+unlimited = true
+```
+
+### Health, prices and sight
+
+These three sections change the game's unit data. They are read **when a new map starts** (new mission, custom game,
+restart), not in the middle of a game, and a savegame keeps the numbers it was made with. `1.0` means "leave it alone".
+
+```toml
+[health]
+units = 2.0        # every non-building unit
+heroes = 4.0       # the unit types listed under [heroes] units
+buildings = 1.0
+
+[costs]
+units = 0.5              # gold and lumber price of units. Prices move in steps of 10
+ranged_upgrades = 0.5    # archer / ranger and axethrower / berserker research
+siege_upgrades = 0.5     # ballista and catapult upgrades
+
+[vision]
+dragon = 2               # unit_name = extra sight. Total sight tops out at 9
+gryphon_rider = 2
+```
+
+Give scouts better eyes too:
+
+```toml
+[vision]
+dragon = 2
+gryphon_rider = 2
+flying_machine = 1
+zeppelin = 1
+```
+
+Writing a `[vision]` section replaces the default list, so keep the lines you still want. An empty `[vision]` section
+means no sight bonus for anyone.
+
+Vanilla numbers, autocast only:
+
+```toml
+[health]
+units = 1.0
+heroes = 1.0
+
+[costs]
+units = 1.0
+ranged_upgrades = 1.0
+siege_upgrades = 1.0
+
+[vision]
+
+[heroes]
+regen_hp_per_second = 0
+
+[workers]
+auto_harvest = false
+auto_repair = false
+```
+
 ### Change or remove the hotkey
 
 `Ctrl` plus this key toggles autocast in game.
@@ -166,3 +255,14 @@ Every cast is then written to `x86\autocast.log` with the caster, the target and
 | heroes | units | the 15 campaign heroes | What counts as a hero |
 | heroes | regen_hp_per_second | 1 | 0 = off |
 | heroes | regen_for | "all" | "all" or "mine" |
+| eye_of_kilrogg | cast | true | Idle ogre-magi cast Eye of Kilrogg |
+| eye_of_kilrogg | cast_at_mana | 255 | Mana needed before casting it |
+| eye_of_kilrogg | max_active | 1 | Eyes out at the same time |
+| eye_of_kilrogg | auto_scout | true | Eyes fly to unexplored ground |
+| gold_mines | unlimited | false | Mines never run dry (all mines) |
+| workers | auto_repair / repair_idle_seconds / repair_radius | true / 1 / 10 | Idle workers repair your damaged buildings |
+| workers | auto_harvest / harvest_idle_seconds / harvest_radius | true / 10 / 5 | Idle workers go to the nearest mine or tree |
+| health | units / heroes / buildings | 2.0 / 4.0 / 1.0 | Max HP multipliers, applied at map start |
+| costs | units | 0.5 | Unit gold and lumber price multiplier, applied at map start |
+| costs | ranged_upgrades / siege_upgrades | 0.5 / 0.5 | Upgrade price multipliers, applied at map start |
+| vision | unit_name = bonus | dragon 2, gryphon_rider 2 | Extra sight range, applied at map start |
