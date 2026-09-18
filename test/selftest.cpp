@@ -243,12 +243,23 @@ int wmain(int argc, wchar_t** argv) {
     autocast::RunPass();
     CHECK(OrderOf(dk) == 0x33 && TargetOf(dk) == enemy, "death coil on footman");
 
-    // Haste when coil has nothing to hit.
+    // Haste (flyers only by default): never a ground unit, never an idle flyer, yes a flyer sent to attack.
     ResetWorld();
     dk = AddUnit(kTypeDeathKnight, 0, 10, 10, 60, 255, kOrderStand);
     Unit* fighter = AddUnit(kGrunt, 0, 11, 10, 60, 0, kOrderDefend);
+    Unit* ownDragon = AddUnit(kDragon, 0, 12, 12, 100, 0, kOrderStand);
     autocast::RunPass();
-    CHECK(OrderOf(dk) == 0x35 && TargetOf(dk) == fighter, "haste on defending grunt");
+    CHECK(OrderOf(dk) == kOrderStand, "haste went on a ground unit or an idle dragon (order %u)", OrderOf(dk));
+    Field<uint8_t>(ownDragon, kOffOrder) = kOrderAttackArea;
+    autocast::RunPass();
+    CHECK(OrderOf(dk) == 0x35 && TargetOf(dk) == ownDragon, "haste on the attacking dragon");
+    Field<uint8_t>(dk, kOffOrder) = kOrderStand;
+    Field<Unit*>(dk, kOffOrderTarget) = nullptr;
+    Field<int16_t>(ownDragon, kOffHasteTimer) = 300;
+    config::g.hasteFlyersOnly = false;
+    autocast::RunPass();
+    CHECK(OrderOf(dk) == 0x35 && TargetOf(dk) == fighter, "haste_flyers_only=0 should haste the defending grunt");
+    config::g.hasteFlyersOnly = true;
 
     // Neutral units are never enemies. Targets outside search_radius are ignored.
     ResetWorld();

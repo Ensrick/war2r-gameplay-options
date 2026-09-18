@@ -166,9 +166,15 @@ int ScoreTarget(const World& w, Spell spell, Unit* caster, Unit* t) {
     case kSpellBloodlust:
         if (!(tf & kTfFleshy) || Field<uint16_t>(t, kOffBloodTimer) != 0) return -1;
         return IsFighting(w, t, me) ? closeness : -1;
-    case kSpellHaste:
+    case kSpellHaste: {
         if ((tf & kTfBuilding) || Field<int16_t>(t, kOffHasteTimer) != 0) return -1;
-        return IsFighting(w, t, me) ? closeness : -1;
+        if (!config::g.hasteFlyersOnly) return IsFighting(w, t, me) ? closeness : -1;
+        if (!(tf & kTfFlyer)) return -1;
+        // A flyer sent to attack is hasted on the way in, not only once it is already trading blows.
+        const uint8_t order = Field<uint8_t>(t, kOffOrder);
+        const bool sentToAttack = order >= kOrderAttack && order <= kOrderAttackWall;
+        return (sentToAttack || IsFighting(w, t, me)) ? closeness : -1;
+    }
     case kSpellUnholyArmor:
         if ((tf & kTfBuilding) || Field<uint16_t>(t, kOffArmorTimer) != 0) return -1;
         if (Field<uint16_t>(t, kOffHp) > MaxHp(w, t) / 2) return -1;  // the game AI's own threshold

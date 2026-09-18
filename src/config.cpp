@@ -47,8 +47,11 @@ static const char kDefaultIni[] =
     "[tuning]\r\n"
     "; Heal units at or below this percent of max HP.\r\n"
     "heal_below_pct = 80\r\n"
-    "; Polymorph only unit types with at least this much max HP (enemy casters always qualify).\r\n"
-    "polymorph_min_hp = 90\r\n";
+    "; Polymorph only ground unit types with at least this much max HP. Enemy flyers (dragons, gryphons, daemons)\r\n"
+    "; and casters always qualify and are picked first.\r\n"
+    "polymorph_min_hp = 90\r\n"
+    "; 1 = Haste only on your flying units, when they are sent to attack or are fighting. 0 = any fighting unit.\r\n"
+    "haste_flyers_only = 1\r\n";
 
 static int Clamp(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
@@ -72,6 +75,7 @@ static void Load() {
     }
     c.healBelowPct = Clamp(readInt(L"tuning", L"heal_below_pct", c.healBelowPct), 1, 100);
     c.polymorphMinHp = Clamp(readInt(L"tuning", L"polymorph_min_hp", c.polymorphMinHp), 0, 65535);
+    c.hasteFlyersOnly = readInt(L"tuning", L"haste_flyers_only", 1) != 0;
     g = c;
 
     char spells[160] = "";

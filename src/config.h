@@ -21,7 +21,8 @@ struct Config {
     bool ownUnitsOnly = true;     // friendly spells skip allied players' units
     bool castWhileAttacking = true;
     int healBelowPct = 80;
-    int polymorphMinHp = 90;      // max HP of the target's unit type; casters are always eligible
+    int polymorphMinHp = 90;      // max HP of the target's unit type; flyers and casters are always eligible
+    bool hasteFlyersOnly = true;  // Haste only goes on air units (dragons, gryphon riders)
     int toggleKey = 0x78;         // VK_F9, pressed together with Ctrl
     bool logCasts = false;
 };

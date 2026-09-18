@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2 - 2026-09-18 (UNTESTED in game)
+
+- Haste only goes on your flying units (`haste_flyers_only = 1`, new default), when they have an attack order or
+  are fighting. Set it to 0 for the old rule (any fighting unit).
+
 ## 0.1.1 - 2026-09-18 (UNTESTED in game)
 
 - Polymorph: flying attackers (dragon, gryphon rider, daemon, Deathwing) always qualify and are picked first, then
