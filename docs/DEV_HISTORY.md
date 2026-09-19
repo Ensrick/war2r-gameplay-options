@@ -3,6 +3,20 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.7.1 (2026-09-19, UNTESTED in game)
+
+- Author: "some missions have restrictions on which units you can get, have you considered that?" Verified by the
+  agent: the units-allowed mask `0x919210[player]` is read fresh every pass for every candidate (StartProduction
+  checks it not at all), keep / castle upgrades use bits `0x8000000` / `0x10000000` of that same mask (FUN_004E36F0),
+  the tower button tests no ALOW bit, and no instruction writes any of the six masks (they come from the PUD handler
+  FUN_004D19D0), so a per-pass read covers mid-mission changes either way.
+- Gap it found while checking: the reserve counted a research as purchasable when a building of the right type merely
+  existed. It now needs one that is not already paying for a research or a building upgrade (job kind 1, 2, 3); a
+  building that is training a unit still counts, deliberately.
+- Tests: a campaign mask forbidding knights and battleships (their share renormalises over what is left), a mask with
+  every barracks unit cleared (StartProduction never called), and the reserve dropping to 0 with the upgrade / spell
+  masks cleared.
+
 ## 1.7.0 (2026-09-19, UNTESTED in game)
 
 - Author: "I spend most of my time cranking out units ... I'd like to make it so that above a certain resource

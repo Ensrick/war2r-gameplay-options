@@ -1,3 +1,8 @@
+[size=4][b]1.7.1[/b][/size]
+[list]
+[*]Auto-production: the upgrade reserve no longer holds money back for a research whose only building is already busy researching something else.
+[/list]
+
 [size=4][b]1.7.0[/b][/size]
 [list]
 [*]New [auto_production] (off by default, Ctrl+F10 in game): every idle building of yours trains by itself, all at once. Halls make workers (6 per hall tier), barracks, roosts, temples and shipyards make the army.

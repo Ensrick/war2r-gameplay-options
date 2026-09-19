@@ -7,6 +7,12 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-19). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.7.1 - 2026-09-19
+
+- Auto-production: the upgrade reserve no longer holds money back for a research whose only building is already
+  paying for another one, so the money is actually spent. A building that is training a unit still counts, because
+  that unit has nothing to do with the upgrade the reserve protects.
+
 ## 1.7.0 - 2026-09-19
 
 - New `[auto_production]` (off by default, Ctrl+F10 in game): every idle building of yours trains by itself, all of

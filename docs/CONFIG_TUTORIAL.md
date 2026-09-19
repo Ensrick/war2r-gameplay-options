@@ -639,6 +639,10 @@ spotters for them, so keep a flying machine or a zeppelin of your own around if 
 Good to know:
 
 - Auto-production only runs in single player, like every other feature that gives orders.
+- **Mission restrictions are obeyed.** Campaign and custom maps can forbid units, upgrades and keeps or castles, and
+  the mod checks every one of them against that list before it builds or reserves money, every pass. A mission where
+  you may not have knights gets no knights, their share goes to the rest of your army, and a barracks whose whole
+  list is forbidden simply stays idle. The game's own train command does not check this, so the mod has to.
 - A new unit stands next to the building that made it. Warcraft II has no rally point, so the mod cannot set one.
 - If a unit cannot be placed (no free tile), that building waits 10 seconds before trying again.
 - `[general] log_casts = true` writes one line per start to `x86\gameplay_options.log`.
