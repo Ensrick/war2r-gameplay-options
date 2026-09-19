@@ -80,7 +80,9 @@ inline bool ScanGrid(const World& w, Unit* centre, int radius, Fn fn) {
 }
 
 // The game's own IssueOrder (FUN_004ef210). handlerRva is an entry of the order handler table (0x8C1498).
+// A positional order (no target) outside the map is refused and logged: the game would read out of bounds.
 void IssueOrder(Unit* unit, int16_t x, int16_t y, Unit* target, uint32_t handlerRva);
+int RefusedOrderCount();  // orders the guard above has refused so far (tests, diagnostics)
 // Spell cast the way the AI helpers and the player command path both do it: pending spell id around IssueOrder.
 void IssueSpell(Unit* caster, uint8_t order, int16_t x, int16_t y, Unit* target);
 

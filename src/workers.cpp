@@ -33,18 +33,17 @@ int DistanceToFootprint(int px, int py, Unit* u) {
     return dx > dy ? dx : dy;
 }
 
-uint16_t RegionAt(const World& w, const uint16_t* region, int x, int y) {
-    if (x < 0 || y < 0 || x >= w.mapSize || y >= w.mapSize) return kRegionTree;
-    return region[y * w.mapSize + x];
-}
+bool OnMap(const World& w, int x, int y) { return x >= 0 && y >= 0 && x < w.mapSize && y < w.mapSize; }
 
 // A tree the worker can actually reach: a forest tile with a neighbour tile in the worker's own region.
 // Same test as the game's tree search predicate (FUN_004eaf60), minus its square-flag check.
+// Outside the map there is nothing, not even forest: until 1.4.0 an off-map tile counted as a tree, so a worker idling
+// on the map's edge was sent to x or y = -1 and the game read its unit grid out of bounds (0x4D80BF, crash 2026-09-19).
 bool TreeReachable(const World& w, const uint16_t* region, int x, int y, uint16_t workerRegion) {
-    if (RegionAt(w, region, x, y) != kRegionTree) return false;
+    if (!OnMap(w, x, y) || region[y * w.mapSize + x] != kRegionTree) return false;
     for (int dy = -1; dy <= 1; ++dy)
         for (int dx = -1; dx <= 1; ++dx)
-            if ((dx || dy) && RegionAt(w, region, x + dx, y + dy) == workerRegion) return true;
+            if ((dx || dy) && OnMap(w, x + dx, y + dy) && region[(y + dy) * w.mapSize + x + dx] == workerRegion) return true;
     return false;
 }
 
@@ -87,8 +86,8 @@ bool TryHarvest(const World& w, Unit* worker) {
     if (Field<uint8_t>(worker, kOffWorkerFlags) & kWorkerCarrying) return Issue(worker, 0, 0, nullptr, kRvaReturnHandler, kOrderReturnGoods);
 
     const uint16_t* region = *At<uint16_t*>(kRvaRegionMap);
-    if (!region) return false;
-    const uint16_t workerRegion = RegionAt(w, region, wx, wy);
+    if (!region || !OnMap(w, wx, wy)) return false;
+    const uint16_t workerRegion = region[wy * w.mapSize + wx];
     const int radius = config::g.workerHarvestRadius;
 
     Unit* mine = nullptr;

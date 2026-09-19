@@ -5,6 +5,13 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 
 **On Nexus Mods right now: 1.4.0** (uploaded 2026-09-19, with a changelog entry for every version since 1.0.0).
 
+## 1.4.1 - 2026-09-19
+
+- Fixed a crash with `[workers] auto_harvest` on: a worker standing idle on the outer edge of the map could be sent to
+  harvest a "tree" one tile outside the map, and the game crashed reading past its unit grid. Tiles outside the map no
+  longer count as forest, and no order to a position outside the map can reach the game any more, from any feature.
+- The tree regrowth log no longer credits trees that grew in the previous game to a freshly (re)started map.
+
 ## 1.4.0 - 2026-09-19
 
 - New `[unit_regen]` (off by default): every unit regenerates `hp_per_second` (1) hit points per second of play: land

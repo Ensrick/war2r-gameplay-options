@@ -24,6 +24,11 @@ Ensrick/war2r-gameplay-options (public since 2026-09-18).
 - Tree regrowth (`src/trees.cpp`) writes terrain directly. The one state the game cannot survive is a forest region
   word (0xFFFE) over a tile id outside the tree range (unchecked table read in `FUN_004eb400`): keep the tile-id-first
   write order, the state 1..24 guard and the table byte-match. Evidence: docs/research/tree_regrowth.md.
+- A positional order (target NULL) must be ON the map: the handlers index the unit grids with the order tile before
+  any check (crash 2026-09-19, `0x4D80BF`). `game::IssueOrder` refuses off-map tiles; keep that guard, and never let a
+  search treat off-map tiles as anything but "nothing".
+- Crash reports from the game: `<game>\x86\Errors\<date time id>\Crash.txt` + `War2_Remastered.dmp` (a minidump with
+  the exception context; the image base of that session is in the DBG-MODULE line, subtract it to get RVAs).
 - Orders: `SetOrder` writes the NEXT-order byte (+0x2F). Always read orders through `game::EffectiveOrder`.
 - Map-start data tweaks run ONLY from the new-map hook (0x4D2C46). Never apply table edits from the tick: savegames
   store the tables, so that double-applies.

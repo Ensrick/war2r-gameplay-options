@@ -3,6 +3,28 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.4.1 (2026-09-19) - crash fix
+
+- Author, first session with 1.4.0: "The game crashed". Blizzard crash report `x86\Errors\2026-09-19 03.03.05 ...\`
+  (`Crash.txt` + `War2_Remastered.dmp`), 33 s after a Restart Scenario (log: new map 03:02:32, crash 03:03:05).
+- Evidence: ACCESS_VIOLATION reading 0x0150FEE4 at `0x4D80BF` (image base 0x00ED0000 that session). Stack: `0x4D80BF` in
+  FUN_004d8090 <- `0x4D8607` harvest handler FUN_004d85e0 <- `0x4EF2D7` IssueOrder <- VERSION.dll (the mod). Exception
+  context from the minidump: `eax` = unit grid, `ecx` = -75, `edx` = unit 0x0167A868: type 3 (peon), owner 5 (the
+  local player), at 54,0, order tile 53,-1, target NULL. Stack arguments of the IssueOrder call: 53, -1, NULL, harvest.
+  FUN_004d8090 reads `unitGrid[orderY * mapSize + orderX]` with no bounds check (`0x4D80A0..0x4D80BF`).
+- Cause: `workers.cpp` `RegionAt` returned the FOREST value for every tile outside the map (meant as "blocked"), and
+  `TreeReachable` asked it whether the tile itself is forest. A worker idling on any map edge with auto_harvest on and
+  nothing closer found an off-map "tree" in its first search ring (the ring starts at y - 1). Present since the
+  auto-harvest feature (dev builds); on Nexus since 1.0.0, but auto_harvest ships off. Tree regrowth was not involved.
+- Fix: off-map tiles are nothing. Hardening for the class: `game::IssueOrder` refuses every positional order (no
+  target) outside the map and logs it (first five), whatever feature asks; the eye module already clamped its own.
+  Tests: a worker on each edge and corner gets no order and nothing reaches the guard; a tree on the edge row is still
+  found; the guard refuses four off-map orders and passes an on-map and a targeted one. Mutation check: the old
+  off-map rule restored fails three checks.
+- Side fix: the tree regrowth count logged after a restart (03:00:26 "8 tiles grew back" 36 s into a new map) was
+  carried over from the previous game; it is now logged as "(previous map)" when a new map attaches.
+- Not claimed fixed until the author has played an edge-of-map idle worker session.
+
 ## 1.4.0 (2026-09-19, UNTESTED in game)
 
 - Uploaded to Nexus Mods 2026-09-19 02:09 on the author's instruction ("Make sure you update the nexus files and

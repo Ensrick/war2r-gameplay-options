@@ -891,6 +891,51 @@ int wmain(int argc, wchar_t** argv) {
     CHECK(OrderOf(peon) == kOrderReturnGoods, "a loaded idle worker must return its cargo, never get a harvest order (order %u)", OrderOf(peon));
     CHECK(OrderOf(standing) == kOrderStand, "a worker on Stand Ground was taken over");
     regionMap[22 * kMap + 23] = regionMap[22 * kMap + 24] = 1;
+
+    // Crash 2026-09-19 (1.4.0, player session, dump in the game's Errors folder): a peon idling at 54,0 was sent to
+    // harvest a "tree" at 53,-1, because every tile outside the map counted as forest; the game then indexed its unit
+    // grid with -75 (0x4D80BF). On every edge and corner with no tree around: no order at all, nothing for the guard.
+    {
+        const int refusedBefore = game::RefusedOrderCount();
+        const struct { int x, y; } edges[] = {{30, 0}, {0, 30}, {kMap - 1, 30}, {30, kMap - 1}, {0, 0}, {kMap - 1, kMap - 1}};
+        uint32_t serial = 1100;
+        for (const auto& e : edges) {
+            ResetWorld();
+            peon = AddUnit(kPeon, 0, e.x, e.y, 30, 0, kOrderStop);
+            Field<uint32_t>(peon, kOffSerial) = ++serial;
+            mod::OnTick();
+            step(2600);
+            CHECK(OrderOf(peon) == kOrderStop, "worker on the map edge at %d,%d was given order %u to %d,%d", e.x, e.y, OrderOf(peon),
+                  Field<int16_t>(peon, kOffOrderX), Field<int16_t>(peon, kOffOrderY));
+        }
+        CHECK(game::RefusedOrderCount() == refusedBefore, "the worker code produced %d order(s) outside the map",
+              game::RefusedOrderCount() - refusedBefore);
+        ResetWorld();  // a real tree on the edge row is still found
+        peon = AddUnit(kPeon, 0, 30, 0, 30, 0, kOrderStop);
+        Field<uint32_t>(peon, kOffSerial) = ++serial;
+        regionMap[0 * kMap + 32] = kRegionTree;
+        mod::OnTick();
+        step(2600);
+        CHECK(OrderOf(peon) == kOrderHarvest && Field<int16_t>(peon, kOffOrderX) == 32 && Field<int16_t>(peon, kOffOrderY) == 0,
+              "a tree on the edge row must still be found (order %u at %d,%d)", OrderOf(peon), Field<int16_t>(peon, kOffOrderX),
+              Field<int16_t>(peon, kOffOrderY));
+        regionMap[0 * kMap + 32] = 1;
+
+        // The guard for the whole class: no positional order outside the map reaches the game, from any feature.
+        ResetWorld();
+        Unit* walker = AddUnit(kFootman, 0, 10, 10, 60, 0, kOrderStop);
+        game::IssueOrder(walker, 5, -1, nullptr, kRvaMoveHandler);
+        game::IssueOrder(walker, -1, 5, nullptr, kRvaHarvestHandler);
+        game::IssueOrder(walker, kMap, 5, nullptr, kRvaMoveHandler);
+        game::IssueOrder(walker, 5, kMap, nullptr, kRvaMoveHandler);
+        CHECK(OrderOf(walker) == kOrderStop && game::RefusedOrderCount() == refusedBefore + 4,
+              "orders outside the map must be refused (order %u, refused %d)", OrderOf(walker), game::RefusedOrderCount() - refusedBefore);
+        game::IssueOrder(walker, kMap - 1, 0, nullptr, kRvaMoveHandler);
+        CHECK(OrderOf(walker) == kOrderMove, "an order to the last tile of the map is fine (order %u)", OrderOf(walker));
+        Idle(walker);
+        game::IssueOrder(walker, -5, -5, peon, kRvaRepairHandler);  // a unit target: the tile is not used
+        CHECK(OrderOf(walker) == kOrderRepair, "a targeted order is not subject to the tile check (order %u)", OrderOf(walker));
+    }
     config::g.workerAutoHarvest = config::g.workerAutoRepair = false;
 
     // Map-start data tweaks, run against real default values (Data\Rez\unitdata.dat / upgrades.dat, typed in here).

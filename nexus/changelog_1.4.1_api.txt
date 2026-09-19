@@ -1,0 +1,2 @@
+Fixed a crash with [workers] auto_harvest on: a worker standing idle on the outer edge of the map could be sent to a "tree" one tile outside the map. Tiles outside the map no longer count as forest, and no order to a position outside the map reaches the game any more.
+The tree regrowth log no longer counts trees from the previous game after a restart.

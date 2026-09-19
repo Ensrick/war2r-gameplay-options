@@ -185,6 +185,10 @@ bool Attach(const World& w, Map& m) {
         g_attached = true;
         g_newMapPending = false;
         g_identity = now;
+        if (g_grownSinceLog) {  // belongs to the game that just ended, not to this one
+            logx::Write("trees: %d tile%s grew back (previous map)", g_grownSinceLog, g_grownSinceLog == 1 ? "" : "s");
+            g_grownSinceLog = 0;
+        }
         ClearTimers();
         const char* problem = Validate(m);
         g_disabled = problem != nullptr;
