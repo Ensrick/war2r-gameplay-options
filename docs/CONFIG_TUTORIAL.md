@@ -2,6 +2,12 @@
 
 All settings live in one text file: `Warcraft II Remastered\x86\gameplay_options.toml`. Open it with Notepad.
 
+## What is on when you install it
+
+Only four autocasts (**Heal, Slow, Bloodlust, Raise Dead**) and **worker auto-repair**. Every other feature is off, every
+multiplier is 1.0, and the unit / building examples in the file are comments. Nothing rebalances your game until you
+turn it on.
+
 ## The three rules
 
 1. **Save while playing.** The mod re-reads the file every couple of seconds. A banner in game says
@@ -33,11 +39,15 @@ A list may run over several lines, and a comma after the last item is fine.
 
 ## Recipes
 
-### Turn one spell off
+### Turn spells on or off
 
 ```toml
 [spells]
-exorcism = false
+exorcism = true      # off by default
+polymorph = true     # off by default
+death_coil = true    # off by default
+haste = true         # off by default
+slow = false         # on by default
 ```
 
 ### Paladins heal sooner, or later
@@ -116,17 +126,19 @@ cast_while_attacking = false    # casters only cast while idle or guarding
 
 ### Hero regeneration
 
+Off by default.
+
 ```toml
 [heroes]
-regen_hp_per_second = 0     # off
-# or
-regen_hp_per_second = 2
+regen_hp_per_second = 1     # every hero regains 1 hit point per second
 regen_for = "mine"          # your heroes only; "all" includes enemy heroes
 ```
 
 The `units` list in the same section decides which unit types count as heroes.
 
 ### Let the Eye of Kilrogg scout for you (or not)
+
+Both switches are off by default.
 
 ```toml
 [eye_of_kilrogg]
@@ -142,10 +154,10 @@ A worker that is stopped with nothing queued counts as idle. Stand Ground never 
 
 ```toml
 [workers]
-auto_repair = true
+auto_repair = true       # on by default
 repair_idle_seconds = 1
 repair_radius = 10
-auto_harvest = true
+auto_harvest = true      # off by default
 harvest_idle_seconds = 10
 harvest_radius = 5       # raise this if your idle workers stand far from the trees
 ```
@@ -261,8 +273,8 @@ oil = 500               #                       game: 700
 build_time = 80         # 0-255        game: 90
 ```
 
-The shipped config contains this example for both destroyers so you can see every stat working; delete the two tables to
-get the normal destroyer back. It also gives dragons and gryphon riders `sight = 8` (the game's value is 6).
+The shipped config contains this destroyer example, and `sight = 8` for dragons and gryphon riders (the game's value is 6),
+as **comments**. Remove the `# ` in front of the lines to switch one on.
 
 Names: every unit name from the Polymorph list above, plus `ballista`, `catapult`, `flying_machine`, `zeppelin` and the
 ships (`human_tanker`, `orc_tanker`, `human_transport`, `orc_transport`, `elven_destroyer`, `troll_destroyer`,
@@ -303,19 +315,6 @@ upgrade_bonus = 2     # rangers and berserkers gain +2 range from their upgrade.
 
 One number for both upgrades: the game uses a single rule for the two. This one applies right away, no new map needed.
 
-Vanilla numbers, autocast only (the multipliers are already 1.0 by default):
-
-```toml
-[heroes]
-regen_hp_per_second = 0
-
-[workers]
-auto_harvest = false
-auto_repair = false
-```
-
-...and delete the `[unit.*]` tables at the bottom of the file.
-
 ### Change or remove the hotkey
 
 `Ctrl` plus this key toggles autocast in game.
@@ -347,22 +346,22 @@ Every cast is then written to `x86\gameplay_options.log` with the caster, the ta
 | autocast | combat_radius | 6 | A unit counts as fighting when an enemy is this close to it |
 | autocast | own_units_only | true | Friendly spells skip allies' units |
 | autocast | cast_while_attacking | true | Casters may interrupt their own attack to cast |
-| spells | heal, exorcism, slow, polymorph, bloodlust, death_coil, haste, raise_dead | true | One switch per spell |
-| spells | unholy_armor | false | |
+| spells | heal, slow, bloodlust, raise_dead | true | One switch per spell |
+| spells | exorcism, polymorph, death_coil, haste, unholy_armor | false | |
 | heal | min_missing_hp | 10 | Heal only units missing at least this many HP |
 | heal | below_percent | 100 | Also require HP at or below this percent. 100 = off |
 | polymorph | targets | flyers, casters, big ground units | Valid targets in priority order |
 | haste | flyers_only | true | Haste only your air units |
 | heroes | units | the 15 campaign heroes | What counts as a hero |
-| heroes | regen_hp_per_second | 1 | 0 = off |
+| heroes | regen_hp_per_second | 0 | 0 = off |
 | heroes | regen_for | "all" | "all" or "mine" |
-| eye_of_kilrogg | cast | true | Idle ogre-magi cast Eye of Kilrogg |
+| eye_of_kilrogg | cast | false | Idle ogre-magi cast Eye of Kilrogg |
 | eye_of_kilrogg | cast_at_mana | 255 | Mana needed before casting it |
 | eye_of_kilrogg | max_active | 1 | Eyes out at the same time |
-| eye_of_kilrogg | auto_scout | true | Eyes fly to unexplored ground |
+| eye_of_kilrogg | auto_scout | false | Eyes fly to unexplored ground |
 | gold_mines | unlimited | false | Mines never run dry (all mines) |
 | workers | auto_repair / repair_idle_seconds / repair_radius | true / 1 / 10 | Idle workers repair your damaged buildings |
-| workers | auto_harvest / harvest_idle_seconds / harvest_radius | true / 10 / 5 | Idle workers go to the nearest mine or tree |
+| workers | auto_harvest / harvest_idle_seconds / harvest_radius | false / 10 / 5 | Idle workers go to the nearest mine or tree |
 | health / costs / time | all | 1.0 | Master multiplier of the section |
 | health.human / health.orc | all, workers, melee, ranged, siege, casters, air, naval, demolition, heroes; buildings, building_upgrades | 1.0 each | Unit health by race and group; structures only via their own two keys (cap 32767). Units cap 65535 |
 | health.neutral | all | 1.0 | Skeletons, daemons, critters, Eye of Kilrogg |

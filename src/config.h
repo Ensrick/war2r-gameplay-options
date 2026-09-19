@@ -58,7 +58,8 @@ struct Config {
     bool castWhileAttacking = true;
 
     // [spells]
-    bool spell[kSpellCount] = {true, true, true, true, true, true, true, false, true};
+    // Out of the box only Heal, Slow, Bloodlust and Raise Dead run; everything else is opt-in.
+    bool spell[kSpellCount] = {true, false, true, false, true, false, false, false, true};
 
     // [heal]
     int healMinMissingHp = 10;    // a scratch is not worth a paladin's attention
@@ -71,16 +72,16 @@ struct Config {
     bool hasteFlyersOnly = true;
 
     // [eye_of_kilrogg]
-    bool eyeCast = true;
+    bool eyeCast = false;
     int eyeCastAtMana = 255;        // the computer only casts it at full mana
     int eyeMaxActive = 1;
-    bool eyeAutoScout = true;
+    bool eyeAutoScout = false;
 
     // [gold_mines]
     bool goldMinesUnlimited = false;
 
     // [workers]
-    bool workerAutoHarvest = true;
+    bool workerAutoHarvest = false;
     int workerHarvestIdleSeconds = 10;
     int workerHarvestRadius = 5;
     bool workerAutoRepair = true;
@@ -104,7 +105,7 @@ struct Config {
 
     // [heroes]
     bool isHero[256] = {};          // unit types listed in [heroes] units
-    int heroRegenPerSecond = 1;     // 0 = off
+    int heroRegenPerSecond = 0;     // 0 = off
     bool heroRegenMineOnly = false; // regen_for = "mine"
 };
 

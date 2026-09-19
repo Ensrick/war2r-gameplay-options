@@ -3,6 +3,15 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.0.2 (release build, staged 2026-09-18, NOT uploaded)
+
+- Author's decision: "users probably won't appreciate having to disable features they might not want". Defaults in
+  code and in the shipped config: spells heal / slow / bloodlust / raise_dead on, the other five off; eye cast and
+  auto-scout off; worker auto-repair on, auto-harvest off; hero regen 0; all unit tables in the shipped file are
+  commented examples. The author's own installed config was deliberately left untouched.
+- 1.0.1 was built but never uploaded, so this gets its own number (one version per change) and both changelog
+  entries are posted at upload time.
+
 ## 1.0.1 (release build, staged 2026-09-18, NOT uploaded)
 
 - The author created the Nexus page and uploaded build dev.23 as "1.0.0" (file id 13, 2026-09-18 19:24). Builds dev.24

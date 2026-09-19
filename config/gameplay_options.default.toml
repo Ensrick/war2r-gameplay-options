@@ -1,4 +1,6 @@
 # Warcraft II Remastered - Gameplay Options
+# Out of the box only four autocasts (Heal, Slow, Bloodlust, Raise Dead) and worker auto-repair are switched on.
+# Everything else in this file is off or neutral until you turn it on; examples are given as comments.
 # Edits are picked up while the game runs (within a few seconds). A syntax error keeps the previous settings
 # and is reported in gameplay_options.log. Single-player only: everything here switches itself off in multiplayer.
 
@@ -22,13 +24,14 @@ own_units_only = true
 cast_while_attacking = true
 
 [spells]
+# true = your casters cast this spell on their own.
 heal = true
-exorcism = true
+exorcism = false
 slow = true
-polymorph = true
+polymorph = false
 bloodlust = true
-death_coil = true
-haste = true
+death_coil = false
+haste = false
 unholy_armor = false
 # Raise Dead is only cast while an enemy is within search_radius, so skeletons are not wasted.
 raise_dead = true
@@ -58,16 +61,16 @@ targets = [
 flyers_only = true
 
 [eye_of_kilrogg]
-# Ogre-magi cast Eye of Kilrogg on their own. Only an idle ogre-mage does it (the cast makes it stop).
-cast = true
+# true = ogre-magi cast Eye of Kilrogg on their own. Only an idle ogre-mage does it (the cast makes it stop).
+cast = false
 # Mana the ogre-mage must have before it casts. 255 = only when full, which is the computer's own rule,
 # so Bloodlust always gets first call on the mana.
 cast_at_mana = 255
 # How many of your eyes may be out at the same time.
 max_active = 1
 # Your eyes fly to unexplored ground by themselves (then to fogged ground once everything is explored).
-# Give an eye an order of your own and the mod leaves that eye to you.
-auto_scout = true
+# Give an eye an order of your own and the mod leaves that eye to you. Works for eyes you cast by hand too.
+auto_scout = false
 
 [gold_mines]
 # true = gold mines never run dry (every mine on the map, the computer's too). Off by default: starving a mine
@@ -79,7 +82,7 @@ unlimited = false
 # Stand Ground is respected: a worker you told to stand ground is never taken over.
 # Idle this long -> walk to the nearest gold mine or tree within harvest_radius tiles (a loaded worker returns
 # its cargo first).
-auto_harvest = true
+auto_harvest = false
 harvest_idle_seconds = 10
 harvest_radius = 5
 # Idle this long -> repair the nearest damaged building of yours within repair_radius tiles. Needs at least
@@ -98,8 +101,8 @@ units = [
     "chogall", "dentarg", "grom_hellscream", "guldan", "korgath_bladefist", "teron_gorefiend", "zuljin",
     "deathwing",
 ]
-# Hit points every hero regenerates per second of play. 0 = off.
-regen_hp_per_second = 1
+# Hit points every hero regenerates per second of play. 0 = off. Example: 1
+regen_hp_per_second = 0
 # "all" = every hero on the map (enemy heroes too), "mine" = only your own.
 regen_for = "all"
 
@@ -315,36 +318,25 @@ upgrade_bonus = 1
 # range = 7
 # ---------------------------------------------------------------------------------------------------------------
 
-# Scouts of the sky: dragons and gryphon riders see 8 tiles instead of the game's 6.
-[unit.dragon]
-sight = 8
+# Example: scouts of the sky. Dragons and gryphon riders see 8 tiles instead of the game's 6.
+# Remove the "# " in front of the lines to switch it on.
+# [unit.dragon]
+# sight = 8
+#
+# [unit.gryphon_rider]
+# sight = 8
 
-[unit.gryphon_rider]
-sight = 8
-
-# Worked example: both destroyers, every stat nudged a little so each one is easy to check in game.
+# Worked example: a destroyer with every stat nudged a little, so each one is easy to check in game.
 # The game's own destroyer: 100 hit points, armor 10, damage 35 basic + 0 piercing, range 4, sight 8,
-# 700 gold / 350 lumber / 700 oil, build time 90. Delete these two tables to get the normal destroyer back.
-[unit.elven_destroyer]
-hit_points = 105
-armor = 11
-basic_damage = 37
-piercing_damage = 2
-range = 5
-sight = 9
-gold = 600
-lumber = 300
-oil = 500
-build_time = 80
-
-[unit.troll_destroyer]
-hit_points = 105
-armor = 11
-basic_damage = 37
-piercing_damage = 2
-range = 5
-sight = 9
-gold = 600
-lumber = 300
-oil = 500
-build_time = 80
+# 700 gold / 350 lumber / 700 oil, build time 90. Copy it for troll_destroyer to change the orc ship too.
+# [unit.elven_destroyer]
+# hit_points = 105
+# armor = 11
+# basic_damage = 37
+# piercing_damage = 2
+# range = 5
+# sight = 9
+# gold = 600
+# lumber = 300
+# oil = 500
+# build_time = 80

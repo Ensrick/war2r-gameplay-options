@@ -99,6 +99,15 @@ static void Idle(Unit* u) {  // back to standing with nothing pending
 }
 static Unit* TargetOf(Unit* u) { return Field<Unit*>(u, kOffOrderTarget); }
 
+// The shipped defaults are conservative (4 spells + auto-repair). The behaviour scenarios below exercise every
+// feature, so they switch everything on; unholy armor stays off because several scenarios rely on that.
+static void EnableEverythingForTests() {
+    for (int i = 0; i < kSpellCount; ++i) config::g.spell[i] = i != kSpellUnholyArmor;
+    config::g.eyeCast = config::g.eyeAutoScout = true;
+    config::g.workerAutoHarvest = config::g.workerAutoRepair = true;
+    config::g.heroRegenPerSecond = 1;
+}
+
 // Fake unit types used by the scenarios.
 constexpr uint8_t kFootman = 0, kGrunt = 1, kOgre = 7, kSkeleton = 0x37, kPeon = 3, kDragon = 0x2B, kDaemon = 0x38;
 
@@ -183,7 +192,22 @@ int wmain(int argc, wchar_t** argv) {
     At<uint32_t>(kRvaSpellsResearched)[0] = 0xFFFFFFFF;
 
     mod::OnTick();  // first tick writes the embedded default config and loads it
-    CHECK(config::g.enabled && config::g.spell[kSpellHeal] && !config::g.spell[kSpellUnholyArmor], "default config");
+    // Shipped defaults: only Heal, Slow, Bloodlust, Raise Dead and worker auto-repair are on.
+    {
+        const bool expectSpell[kSpellCount] = {true, false, true, false, true, false, false, false, true};
+        bool spellsOk = true;
+        for (int i = 0; i < kSpellCount; ++i) spellsOk = spellsOk && config::g.spell[i] == expectSpell[i];
+        CHECK(config::g.enabled && spellsOk, "default spells must be heal, slow, bloodlust, raise_dead only");
+        CHECK(!config::g.eyeCast && !config::g.eyeAutoScout && !config::g.workerAutoHarvest && config::g.workerAutoRepair &&
+                  config::g.heroRegenPerSecond == 0 && !config::g.goldMinesUnlimited && config::g.rangeUpgradeBonus == 1,
+              "default options: everything off except worker auto-repair");
+        bool noStats = true;
+        for (const auto& row : config::g.unitStat)
+            for (int32_t v : row) noStats = noStats && v == -1;
+        CHECK(noStats && config::g.health.all == 1.0 && config::g.costs.all == 1.0 && config::g.time.all == 1.0,
+              "the shipped config must not change any unit, building or multiplier (examples are comments)");
+    }
+    EnableEverythingForTests();
     CHECK(GetFileAttributesW(ini) != INVALID_FILE_ATTRIBUTES, "default gameplay_options.toml was not written");
     {
         WIN32_FILE_ATTRIBUTE_DATA fad{};
@@ -574,22 +598,12 @@ int wmain(int argc, wchar_t** argv) {
         resetTables();
         CHECK(*At<uint8_t>(kRvaMapLoadCallSite) == 0xE8, "map load call site is not a call");
 
-        // The shipped config carries the destroyer example; it must parse into exactly the numbers written there.
-        {
-            const int expect[kStatCount] = {105, 11, 37, 2, 5, 9, 600, 300, 500, 80};
-            bool ok = true;
-            for (int i = 0; i < kStatCount; ++i)
-                ok = ok && config::g.unitStat[0x1E][i] == expect[i] && config::g.unitStat[0x1F][i] == expect[i];
-            CHECK(ok, "default [unit.elven_destroyer] / [unit.troll_destroyer] example did not load as written");
-            CHECK(config::g.unitStat[kFootman][kStatHitPoints] == -1, "units without a table must stay at -1");
-            CHECK(config::g.unitStat[kDragon][kStatSight] == 8 && config::g.unitStat[0x2A][kStatSight] == 8 &&
-                      config::g.unitStat[kDragon][kStatHitPoints] == -1,
-                  "default [unit.dragon] / [unit.gryphon_rider] sight = 8 did not load");
-            datatweaks::OnNewMapTablesLoaded();  // straight from the shipped config
-            CHECK(sightT[kDragon] == 8 && sightT[0x2A] == 8 && sightT[kFootman] == 4 && hpT[kFootman] == 60 && goldT[kFootman] == 60,
-                  "shipped config: dragon / gryphon sight 8, everything else untouched");
-            resetTables();
-        }
+        // Straight from the shipped config: a new map must leave every table exactly as the game made it.
+        datatweaks::OnNewMapTablesLoaded();
+        CHECK(sightT[kDragon] == 6 && sightT[0x2A] == 6 && hpT[kFootman] == 60 && goldT[kFootman] == 60 && buildT[kFootman] == 60 &&
+                  upGold[0] == 800 && rangeT[kArcher] == 4,
+              "shipped config changed game data");
+        resetTables();
 
         // Classification tables.
         CHECK(StructureRace(kFarmT) == kHuman && StructureRace(kPigFarm) == kOrc && StructureRace(kKeep) == kHuman &&
@@ -790,6 +804,7 @@ int wmain(int argc, wchar_t** argv) {
                   "guard tower stats (hp %u pierce %u range %u gold %u)", hpT[kGuardTower], pierceT[kGuardTower], rangeT[kGuardTower], goldT[kGuardTower]);
             DeleteFileW(ini);
             CHECK(config::Init(dir), "default config did not come back");
+            EnableEverythingForTests();
         }
 
         resetConfig();
@@ -805,7 +820,7 @@ int wmain(int argc, wchar_t** argv) {
     Unit* plainGrunt = AddUnit(kGrunt, 0, 7, 5, 10, 0, kOrderStand);
     Unit* deadHero = AddUnit(0x19, 0, 8, 5, 50, 0, kOrderStand);
     Field<uint8_t>(deadHero, kOffStateFlags) = kStateDying;
-    CHECK(config::g.heroRegenPerSecond == 1 && config::g.isHero[0x19] && !config::g.isHero[kGrunt], "default [heroes]");
+    CHECK(config::g.isHero[0x19] && !config::g.isHero[kGrunt], "default [heroes] list");
     mod::OnTick();  // establishes the time base
     for (int i = 0; i < 25; ++i) {  // ~2.5 s of 100 ms steps
         Sleep(100);
@@ -822,7 +837,7 @@ int wmain(int argc, wchar_t** argv) {
     // TOML config: a custom file is honoured, typos and bad values are survivable, a syntax error keeps old settings.
     WriteFileText(ini,
                   "[general]\ntoggle_key = \"F7\"\ninterval_ticks = 3\nbogus_key = 1\n"
-                  "[spells]\nheal = false\nunholy_armor = true\n"
+                  "[spells]\nheal = false\nunholy_armor = true\npolymorph = true\n"
                   "[heal]\nmin_missing_hp = 25\n"
                   "[polymorph]\ntargets = [\"grunt\", \"not_a_unit\", \"dragon\"]\n"
                   "[haste]\nflyers_only = false\n");

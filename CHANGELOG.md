@@ -1,6 +1,14 @@
 # Changelog
 
-## 1.0.1 - staged 2026-09-18, not uploaded yet
+## 1.0.2 - staged 2026-09-18, not uploaded yet
+
+- Quieter defaults, on the author's call that players should not have to switch features off: only Heal, Slow,
+  Bloodlust and Raise Dead autocast and worker auto-repair are on out of the box. Exorcism, Polymorph, Death Coil,
+  Haste, Eye of Kilrogg (cast and auto-scout), worker auto-harvest and hero regeneration default to off.
+- The unit examples in the shipped config (dragon / gryphon rider sight 8, the destroyer) are comments.
+- An existing `gameplay_options.toml` is never overwritten, so an updating player keeps their behaviour.
+
+## 1.0.1 - built 2026-09-18, never uploaded (ships together with 1.0.2)
 
 - `[building.<name>]` tables: the same ten base stats as `[unit.<name>]` for every structure (hit points, armor,
   basic and piercing damage, range, sight, gold, lumber, oil, build time). Towers moved here from the unit names.

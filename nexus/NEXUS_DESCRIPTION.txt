@@ -2,7 +2,7 @@
 
 One small DLL and one text file, [b]gameplay_options.toml[/b], that put the single-player game under your control: casters that cast on their own the way the computer's do, workers that go back to work, and every unit number (health, prices, build times, damage, armor, range, sight) open to editing. Every feature has its own switch.
 
-[b]On by default:[/b] autocast, idle-worker automation, heroes regenerating 1 HP per second, sight 8 for dragons and gryphon riders, and a small worked example that changes both destroyers (section 5). [b]Off / neutral by default:[/b] unlimited gold mines, Unholy Armor autocast, and every multiplier (all 1.0).
+[b]Out of the box[/b] only four autocasts (Heal, Slow, Bloodlust, Raise Dead) and worker auto-repair are switched on. Every other feature is off, every multiplier is 1.0, and the unit / building examples in the file are comments: nothing rebalances your game until you turn it on.
 
 [b]Single-player only.[/b] The mod switches itself off in multiplayer games.
 
@@ -45,14 +45,17 @@ targets = ["dragon", "daemon"]   # a list: square brackets, quotes, commas[/code
 
 [size=4][b]1. Autocast[/b][/size]
 [list]
-[*][b]Paladin:[/b] Heal (only units missing 10+ hit points, most hurt first), Exorcism on enemy undead
-[*][b]Mage:[/b] Polymorph (you list the valid targets, in priority order), Slow
-[*][b]Ogre-Mage:[/b] Bloodlust on units that are fighting; Eye of Kilrogg when idle at full mana, and the eye flies to unexplored ground by itself
-[*][b]Death Knight:[/b] Raise Dead when enemies are near, Death Coil, Haste on your flyers, Unholy Armor (off by default)
+[*][b]Paladin:[/b] Heal [on by default] (only units missing 10+ hit points, most hurt first), Exorcism on enemy undead
+[*][b]Mage:[/b] Slow [on by default], Polymorph (you list the valid targets, in priority order)
+[*][b]Ogre-Mage:[/b] Bloodlust [on by default] on units that are fighting; Eye of Kilrogg when idle at full mana, and the eye flies to unexplored ground by itself
+[*][b]Death Knight:[/b] Raise Dead [on by default] when enemies are near, Death Coil, Haste on your flyers, Unholy Armor
 [/list]
 Your move orders are never interrupted, two casters never pick the same target, and an eye you move yourself is left to you. Fireball, Flame Shield, Invisibility, Blizzard, Death and Decay, Whirlwind and Runes stay manual on purpose.
 [code][spells]
-exorcism = false          # turn one spell off
+exorcism = true           # switch more spells on
+polymorph = true
+death_coil = true
+haste = true
 
 [heal]
 min_missing_hp = 25       # only heal real wounds
@@ -70,7 +73,7 @@ max_active = 1
 auto_scout = true[/code]
 
 [size=4][b]2. Workers[/b][/size]
-An idle peasant or peon repairs a damaged building of yours nearby, and if it is still idle it walks to the nearest gold mine or tree. A worker carrying gold or lumber delivers it first. "Idle" means stopped with nothing queued; [b]Stand Ground[/b] is respected, so that is how you park a worker.
+An idle peasant or peon repairs a damaged building of yours nearby (on by default), and with auto_harvest switched on a worker that is still idle walks to the nearest gold mine or tree. A worker carrying gold or lumber delivers it first. "Idle" means stopped with nothing queued; [b]Stand Ground[/b] is respected, so that is how you park a worker.
 [code][workers]
 auto_repair = true
 repair_idle_seconds = 1
@@ -126,7 +129,7 @@ gold = 600              # game: 700
 lumber = 300            # game: 350
 oil = 500               # game: 700
 build_time = 80         # game: 90[/code]
-The file ships with this destroyer example switched on for both destroyers, so you can see every stat working, and with [b]dragons and gryphon riders at sight 8[/b] (the game's value is 6). Delete those tables from the bottom of the file to get the game's own units back. A blank template with every key is in the file too.
+The file ships with this destroyer example, sight 8 for dragons and gryphon riders (the game's value is 6) and a blank template as [b]comments[/b]: remove the "# " in front of the lines to switch one on.
 [code][range]
 upgrade_bonus = 2       # range that Longbow / Lighter Axes add. The game's own bonus is 1[/code]
 

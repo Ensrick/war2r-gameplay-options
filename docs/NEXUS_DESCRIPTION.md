@@ -17,7 +17,7 @@ Keep them in step with `docs/USER_README.txt`, `docs/CONFIG_TUTORIAL.md` and `CH
 - The description links to https://github.com/Ensrick/war2r-gameplay-options. That repo is PRIVATE, so the link is a
   404 for everyone else until the author decides to make it public. Visibility is the author's call.
 - The description cannot be edited through the Nexus API: paste `nexus/NEXUS_DESCRIPTION.txt` on the website.
-- The shipped config has the destroyer example switched on (the author's in-game test case). Decide whether the public
-  file should ship it commented out; the description currently says it is on.
+- Decided 2026-09-18: the shipped config keeps its examples as comments and only Heal, Slow, Bloodlust, Raise Dead and
+  worker auto-repair are on by default.
 - Add the Buy Me a Coffee block (memory `reference_bmc_button.md`) if wanted on this page.
 - Uploads wait for the author's go-ahead after the Nexus page exists. No upload has been made.

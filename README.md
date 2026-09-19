@@ -12,7 +12,7 @@ one `gameplay_options.toml` for every setting.
 
 | Area | What | Config section |
 |---|---|---|
-| Autocast | Heal, Exorcism, Slow, Polymorph, Bloodlust, Death Coil, Haste, Raise Dead, Unholy Armor (off) | `[spells] [autocast] [heal] [polymorph] [haste]` |
+| Autocast | Heal, Slow, Bloodlust, Raise Dead (on by default); Exorcism, Polymorph, Death Coil, Haste, Unholy Armor (opt-in) | `[spells] [autocast] [heal] [polymorph] [haste]` |
 | Eye of Kilrogg | idle ogre-magi cast it, the eye scouts unexplored ground by itself | `[eye_of_kilrogg]` |
 | Workers | idle workers repair nearby damage, then return to the nearest mine or tree | `[workers]` |
 | Gold mines | optional unlimited mines, off by default | `[gold_mines]` |

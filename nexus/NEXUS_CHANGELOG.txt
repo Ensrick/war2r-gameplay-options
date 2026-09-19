@@ -1,3 +1,10 @@
+[size=4][b]1.0.2[/b][/size]
+[list]
+[*]Quieter defaults: out of the box only Heal, Slow, Bloodlust and Raise Dead autocast, plus worker auto-repair. Exorcism, Polymorph, Death Coil, Haste, Eye of Kilrogg, worker auto-harvest and hero regeneration are now off until you switch them on.
+[*]The unit examples in the config (sight 8 for dragons and gryphon riders, the tweaked destroyer) are comments now instead of active settings.
+[*]Updating from 1.0.0 / 1.0.1: your existing gameplay_options.toml is not overwritten and keeps behaving as before. Delete it if you want the new defaults.
+[/list]
+
 [size=4][b]1.0.1[/b][/size]
 [list]
 [*]New [building.name] tables: set hit points, armor, damage, range, sight, gold, lumber, oil and build time for any structure, the same way [unit.name] works for units. Tower names moved there.
