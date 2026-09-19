@@ -55,7 +55,8 @@ WORKERS
   - "Idle" means stopped with nothing queued. Stand Ground is respected, so that is how you park a worker.
 
 OPTIONS (all off or neutral until you change them)
-  - Hero regeneration (for example 1 HP per second).
+  - Regeneration: heroes (2 HP per second when switched on) and, separately, every unit and ship (1 HP per
+    second), never structures.
   - More gold and oil: a multiplier for what every mine, oil patch and platform holds when a new map starts.
   - Unlimited gold mines, and separately unlimited oil platforms.
   - Halls that give food (5 by default when switched on), so a custom game that starts with one worker can train

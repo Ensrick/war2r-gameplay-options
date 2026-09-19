@@ -96,7 +96,13 @@ hall_food = true          # off by default: halls, keeps and castles give food, 
 hall_food_amount = 5      # the game's own value is 1, a farm gives 4
 
 [heroes]
-regen_hp_per_second = 1   # 0 = off
+regen = true              # off by default
+regen_hp_per_second = 2
+regen_for = "all"         # or "mine"
+
+[unit_regen]
+enabled = true            # off by default: every unit and ship regenerates, never a structure
+hp_per_second = 1
 regen_for = "all"         # or "mine"[/code]
 
 [size=4][b]4. Multipliers: health, prices, build and research time[/b][/size]
@@ -149,7 +155,7 @@ upgrade_bonus = 2       # range that Longbow / Lighter Axes add. The game's own 
 
 [size=4][b]When do changes apply?[/b][/size]
 [list]
-[*][b]Right away:[/b] spells, targets, workers, unlimited gold mines and oil platforms, hall food, hero regeneration, the hotkey, the Longbow / Lighter Axes bonus.
+[*][b]Right away:[/b] spells, targets, workers, unlimited gold mines and oil platforms, hall food, hero and unit regeneration, the hotkey, the Longbow / Lighter Axes bonus.
 [*][b]When a new map starts[/b] (new mission, custom game, restart): health, prices, times and [unit.name] tables. A savegame keeps the numbers it was made with, so saves from before you installed the mod stay exactly as they were.
 [*]The computer plays by the same numbers you do.
 [/list]

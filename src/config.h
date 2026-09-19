@@ -117,8 +117,14 @@ struct Config {
 
     // [heroes]
     bool isHero[256] = {};          // unit types listed in [heroes] units
-    int heroRegenPerSecond = 0;     // 0 = off
+    bool heroRegen = false;         // [heroes] regen
+    int heroRegenPerSecond = 2;     // used while heroRegen is on; 0 also means off
     bool heroRegenMineOnly = false; // regen_for = "mine"
+
+    // [unit_regen]: every unit and ship (never a structure); heroes keep their own numbers while [heroes] regen is on
+    bool unitRegen = false;
+    int unitRegenPerSecond = 1;
+    bool unitRegenMineOnly = false;
 };
 
 namespace config {

@@ -55,7 +55,7 @@ text += banner('WARCRAFT II: REMASTERED - GAMEPLAY OPTIONS',
                'settings and is reported in gameplay_options.log. Single-player only: the mod switches itself off in multiplayer.',
                '',
                'CONTENTS    1. GENERAL          2. AUTOCAST (spells, heal, polymorph, haste, eye of kilrogg)',
-               '            3. WORKERS          4. GOLD, OIL AND FOOD  5. HEROES',
+               '            3. WORKERS          4. GOLD, OIL AND FOOD  5. HEROES AND REGENERATION',
                '            6. HEALTH           7. PRICES              8. BUILD AND RESEARCH TIME',
                '            9. RANGE UPGRADE   10. YOUR OWN NUMBERS FOR ONE UNIT OR ONE BUILDING')
 text += '''
@@ -166,7 +166,7 @@ amount = 1.0
 hall_food = false
 hall_food_amount = 5
 
-''' + banner('5. HEROES') + '''
+''' + banner('5. HEROES AND REGENERATION') + '''
 [heroes]
 # Which unit types count as heroes (used by hero regeneration and by the "heroes" health multiplier).
 # All 15 heroes of both campaigns are listed. Short names work too: "uther", "grom", "teron", "korgath".
@@ -177,9 +177,18 @@ units = [
     "chogall", "dentarg", "grom_hellscream", "guldan", "korgath_bladefist", "teron_gorefiend", "zuljin",
     "deathwing",
 ]
-# Hit points every hero regenerates per second of play. 0 = off. Example: 1
-regen_hp_per_second = 0
+# true = heroes regenerate regen_hp_per_second hit points per second of play.
+regen = false
+regen_hp_per_second = 2
 # "all" = every hero on the map (enemy heroes too), "mine" = only your own.
+regen_for = "all"
+
+[unit_regen]
+# true = every unit regenerates hit points while you play: land units, flyers and ships, never a structure. A hurt
+# unit is then worth keeping instead of being a waste of food. Heroes follow [heroes] regen while that is on.
+enabled = false
+hp_per_second = 1
+# "all" = every unit on the map (the enemy's too), "mine" = only your own.
 regen_for = "all"
 
 ''' + banner('MULTIPLIERS: HEALTH (6), PRICES (7), BUILD AND RESEARCH TIME (8)',

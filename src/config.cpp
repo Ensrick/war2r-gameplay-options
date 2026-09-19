@@ -254,6 +254,16 @@ static void SetDefaultHeroes(Config& c) {
         if (e.hero) c.isHero[e.id] = true;
 }
 
+// regen_for = "all" | "mine", shared by [heroes] and [unit_regen]
+static void ReadRegenFor(const toml::table& root, const char* section, bool& mineOnly) {
+    const auto node = root[section]["regen_for"];
+    if (!node) return;
+    const auto s = node.value<std::string>();
+    if (s && _stricmp(s->c_str(), "mine") == 0) mineOnly = true;
+    else if (s && _stricmp(s->c_str(), "all") == 0) mineOnly = false;
+    else logx::Write("config: [%s] regen_for must be \"all\" or \"mine\", keeping \"%s\"", section, mineOnly ? "mine" : "all");
+}
+
 static void ReadHeroes(const toml::table& root, Config& c) {
     if (const auto node = root["heroes"]["units"]) {
         if (const toml::array* arr = node.as_array()) {
@@ -268,12 +278,7 @@ static void ReadHeroes(const toml::table& root, Config& c) {
             logx::Write("config: [heroes] units must be a list of unit names, keeping the default list");
         }
     }
-    if (const auto node = root["heroes"]["regen_for"]) {
-        const auto s = node.value<std::string>();
-        if (s && _stricmp(s->c_str(), "mine") == 0) c.heroRegenMineOnly = true;
-        else if (s && _stricmp(s->c_str(), "all") == 0) c.heroRegenMineOnly = false;
-        else logx::Write("config: [heroes] regen_for must be \"all\" or \"mine\", keeping \"%s\"", c.heroRegenMineOnly ? "mine" : "all");
-    }
+    ReadRegenFor(root, "heroes", c.heroRegenMineOnly);
 }
 
 static void ReadPolymorphTargets(const toml::table& root, Config& c) {
@@ -306,7 +311,8 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"heal", " min_missing_hp below_percent "},
         {"polymorph", " targets "},
         {"haste", " flyers_only "},
-        {"heroes", " units regen_hp_per_second regen_for "},
+        {"heroes", " units regen regen_hp_per_second regen_for "},
+        {"unit_regen", " enabled hp_per_second regen_for "},
         {"eye_of_kilrogg", " cast cast_at_mana max_active auto_scout "},
         {"gold_mines", " unlimited amount "},
         {"food", " hall_food hall_food_amount "},
@@ -393,6 +399,12 @@ static bool Load() {
     ReadInt(root, "workers", "repair_idle_seconds", 0, 3600, c.workerRepairIdleSeconds);
     ReadInt(root, "workers", "repair_radius", 1, 64, c.workerRepairRadius);
     ReadInt(root, "heroes", "regen_hp_per_second", 0, 1000, c.heroRegenPerSecond);
+    // Files written before the "regen" switch existed turned hero regeneration on with a number above 0.
+    if (root["heroes"]["regen"]) ReadBool(root, "heroes", "regen", c.heroRegen);
+    else if (root["heroes"]["regen_hp_per_second"]) c.heroRegen = c.heroRegenPerSecond > 0;
+    ReadBool(root, "unit_regen", "enabled", c.unitRegen);
+    ReadInt(root, "unit_regen", "hp_per_second", 0, 1000, c.unitRegenPerSecond);
+    ReadRegenFor(root, "unit_regen", c.unitRegenMineOnly);
     ReadHeroes(root, c);
     g = c;
 

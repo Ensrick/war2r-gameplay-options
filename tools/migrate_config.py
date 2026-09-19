@@ -6,6 +6,8 @@ Steps (each one only when the file still needs it):
   1.0.6  adds the [oil_platforms] block after [gold_mines]
   1.1.0  adds "amount = 1.0" to [gold_mines] and [oil_platforms]
   1.2.0  adds the [food] block after [oil_platforms]
+  regen  [heroes] gains the "regen" switch (true when the old regen_hp_per_second was above 0, so nothing changes) and
+         the [unit_regen] block is added after [heroes]
   1.0.8  [health] "all" used to mean "every unit". It now means everything (units, ships, structures), and the new
          "units" key is the units-only master. An old value moves from "all" to "units", so units keep their health and
          buildings stay untouched. Same for [health.human] / [health.orc].
@@ -26,6 +28,7 @@ OIL_BLOCK = ['[oil_platforms]',
              '# had when you switched this on, never less than 5000.',
              'unlimited = false']
 FOOD_BLOCK = ['[food]', '# true = every Town Hall / Great Hall, Keep / Stronghold and Castle / Fortress gives hall_food_amount food instead', "# of the game's 1. In a custom game that starts with one peasant you can then train from the hall right away,", '# without waiting for a farm. A farm still gives 4, the 200 food limit stays. The computer gets the same.', 'hall_food = false', 'hall_food_amount = 5']
+UNIT_REGEN_BLOCK = ['[unit_regen]', '# true = every unit regenerates hit points while you play: land units, flyers and ships, never a structure. A hurt', '# unit is then worth keeping instead of being a waste of food. Heroes follow [heroes] regen while that is on.', 'enabled = false', 'hp_per_second = 1', '# "all" = every unit on the map (the enemy\'s too), "mine" = only your own.', 'regen_for = "all"']
 AMOUNT = {
     'gold_mines': ['# Multiplies the gold in every mine when a NEW map starts: 3.0 = three times as much, for both sides. "Gold left"', '# shows the real number. A mine holds up to 6,553,500, ten times what the map editor allows, so 10.0 always fits.'],
     'oil_platforms': ['# The same for oil: every oil patch and platform, when a NEW map starts.'],
@@ -98,6 +101,33 @@ def add_food(lines, tree, notes):
     notes.append('added [food] hall_food = false, hall_food_amount = 5')
 
 
+def add_regen(lines, tree, notes):
+    heroes = tree.get('heroes', {})
+    s = span(lines, '[heroes]')
+    if s is not None and 'regen' not in heroes:
+        was_on = heroes.get('regen_hp_per_second', 0) > 0
+        at = value_line(lines, s[0], s[1], 'regen_hp_per_second')
+        new = ['# true = heroes regenerate regen_hp_per_second hit points per second of play.', 'regen = ' + ('true' if was_on else 'false')]
+        if at is None:
+            lines[s[0] + 1:s[0] + 1] = new
+        else:
+            first = at
+            while first > s[0] + 1 and lines[first - 1].startswith('# Hit points every hero regenerates'):
+                first -= 1
+            lines[first:at] = new
+            if not was_on:  # 0 used to be the off switch; the amount now shows what "on" would give
+                at = value_line(lines, s[0], span(lines, '[heroes]')[1], 'regen_hp_per_second')
+                lines[at] = 'regen_hp_per_second = 2'
+        notes.append('[heroes] regen = ' + ('true (it was on)' if was_on else 'false'))
+    if 'unit_regen' not in tree and s is not None:
+        s = span(lines, '[heroes]')
+        end = s[1]
+        while end > s[0] + 1 and not lines[end - 1].strip():
+            end -= 1
+        lines[end:end] = [''] + UNIT_REGEN_BLOCK
+        notes.append('added [unit_regen] enabled = false')
+
+
 def health_units(lines, tree, notes):
     health = tree.get('health', {})
     for table, who in (('health', None), ('health.human', 'human'), ('health.orc', 'orc')):
@@ -150,8 +180,11 @@ def main():
     add_oil(lines, before, notes)
     add_amounts(lines, notes)
     add_food(lines, before, notes)
+    add_regen(lines, before, notes)
     health_units(lines, before, notes)
     text = LF.join(lines)
+    text = text.replace('#  5. HEROES' + LF, '#  5. HEROES AND REGENERATION' + LF, 1)
+    text = text.replace('  5. HEROES' + LF, '  5. HEROES AND REGENERATION' + LF, 1)
     for old_title in ('#  4. GOLD MINES' + LF, '#  4. GOLD MINES AND OIL' + LF):
         text = text.replace(old_title, '#  4. GOLD, OIL AND FOOD' + LF, 1)
     for old_contents in ('4. GOLD MINES          5. HEROES', '4. GOLD MINES AND OIL  5. HEROES'):
@@ -163,7 +196,11 @@ def main():
     after = tomllib.loads(text)
     old, new = dict(leaves(before)), dict(leaves(after))
     allowed = {('oil_platforms', 'unlimited'), ('oil_platforms', 'amount'), ('gold_mines', 'amount'), ('food', 'hall_food'),
-               ('food', 'hall_food_amount')} | {t + (k,) for t in (('health',), ('health', 'human'), ('health', 'orc')) for k in ('all', 'units')}
+               ('food', 'hall_food_amount'), ('heroes', 'regen'), ('unit_regen', 'enabled'), ('unit_regen', 'hp_per_second'),
+               ('unit_regen', 'regen_for')} | {t + (k,) for t in (('health',), ('health', 'human'), ('health', 'orc')) for k in ('all', 'units')}
+    hero_amount = ('heroes', 'regen_hp_per_second')
+    if old.get(hero_amount) == 0 and new.get(('heroes', 'regen')) is False:
+        allowed = allowed | {hero_amount}
     lost = [k for k, v in old.items() if k not in allowed and new.get(k, KeyError) != v]
     extra = [k for k in new if k not in old and k not in allowed]
     # the health move must keep the product of the two keys for units

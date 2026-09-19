@@ -124,17 +124,25 @@ search_radius = 5
 cast_while_attacking = false    # casters only cast while idle or guarding
 ```
 
-### Hero regeneration
+### Regeneration: heroes, and every other unit
 
-Off by default.
+Both are off by default and have their own switch and number.
 
 ```toml
 [heroes]
-regen_hp_per_second = 1     # every hero regains 1 hit point per second
+regen = true
+regen_hp_per_second = 2     # every hero regains 2 hit points per second
 regen_for = "mine"          # your heroes only; "all" includes enemy heroes
+
+[unit_regen]
+enabled = true
+hp_per_second = 1           # every unit: land, air and ships. Never a structure
+regen_for = "all"           # the enemy's units too; "mine" = only yours
 ```
 
-The `units` list in the same section decides which unit types count as heroes.
+A hurt unit is then worth keeping instead of being a waste of food. A hero follows `[heroes]` while that switch is on
+and is an ordinary unit otherwise; the two numbers never add up. The `units` list under `[heroes]` decides which unit
+types count as heroes. A config from an older version that had `regen_hp_per_second` above 0 keeps regenerating.
 
 ### Let the Eye of Kilrogg scout for you (or not)
 
@@ -423,8 +431,9 @@ Every cast is then written to `x86\gameplay_options.log` with the caster, the ta
 | polymorph | targets | flyers, casters, big ground units | Valid targets in priority order |
 | haste | flyers_only | true | Haste only your air units |
 | heroes | units | the 15 campaign heroes | What counts as a hero |
-| heroes | regen_hp_per_second | 0 | 0 = off |
+| heroes | regen / regen_hp_per_second | false / 2 | Heroes regenerate this many hit points per second |
 | heroes | regen_for | "all" | "all" or "mine" |
+| unit_regen | enabled / hp_per_second / regen_for | false / 1 / "all" | Every unit and ship regenerates (never a structure); heroes follow [heroes] while that is on |
 | eye_of_kilrogg | cast | false | Idle ogre-magi cast Eye of Kilrogg |
 | eye_of_kilrogg | cast_at_mana | 255 | Mana needed before casting it |
 | eye_of_kilrogg | max_active | 1 | Eyes out at the same time |
