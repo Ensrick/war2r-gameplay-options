@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(war2r_gameplay_options VERSION 1.7.1 LANGUAGES CXX RC)
+project(war2r_gameplay_options VERSION 1.7.2 LANGUAGES CXX RC)
 
 # Pre-release builds carry a -dev.N suffix; every change bumps N (docs/DEV_HISTORY.md). Empty for a release build.
 set(MOD_PRERELEASE "")

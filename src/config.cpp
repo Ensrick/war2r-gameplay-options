@@ -288,11 +288,17 @@ static void ReadAutoProduction(const toml::table& root, Config& c) {
     AutoProduction& p = c.production;
     ReadBool(root, kSec, "enabled", p.enabled);
     ReadToggleKey(root, kSec, p.toggleKey);
-    ReadInt(root, kSec, "workers_per_hall_tier", 0, 100, p.workersPerHallTier);
+    for (int tier = 0; tier < kProdTiers; ++tier) {
+        char key[16];
+        sprintf_s(key, "workers_tier%d", tier + 1);
+        ReadInt(root, kSec, key, 0, 200, p.workersTier[tier]);
+    }
     ReadInt(root, kSec, "food_free_min", 0, 200, p.foodFreeMin);
     ReadInt(root, kSec, "food_free_percent", 0, 100, p.foodFreePercent);
     ReadInt(root, kSec, "filler_min", 1, 1000, p.fillerMin);
     ReadInt(root, kSec, "navy_max", 0, 100, p.navyMax);
+    ReadBool(root, kSec, "workers_ignore_reserve", p.workersIgnoreReserve);
+    ReadBool(root, kSec, "tankers_ignore_reserve", p.tankersIgnoreReserve);
     auto readNumber = [&](const char* key, double lo, double hi, double& out) {  // 0 is a real value here
         const auto node = sec[key];
         if (!node) return;
@@ -320,9 +326,10 @@ static void ReadAutoProduction(const toml::table& root, Config& c) {
                 logx::Write("config: unknown key [%s%s%s] %s ignored", kSec, table ? "." : "", table ? table : "", padded.c_str() + 1);
         }
     };
-    warnUnknown(nullptr, " enabled toggle_key workers_per_hall_tier food_free_min food_free_percent bank_multiple reserve_extra "
-                         "upgrade_bias filler_min navy_weight navy_max units land_tier1 land_tier2 land_tier3 navy_tier1 navy_tier2 "
-                         "navy_tier3 ");
+    warnUnknown(nullptr, " enabled toggle_key workers_tier1 workers_tier2 workers_tier3 food_free_min food_free_percent "
+                         "bank_multiple reserve_extra "
+                         "upgrade_bias filler_min navy_weight navy_max workers_ignore_reserve tankers_ignore_reserve units "
+                         "land_tier1 land_tier2 land_tier3 navy_tier1 navy_tier2 navy_tier3 ");
     const char* const kAllClasses = " workers infantry archers knights casters flyers siege tankers destroyers battleships submarines ";
     const char* const kLandClasses = " infantry archers knights casters flyers siege ";
     const char* const kNavyClasses = " destroyers battleships submarines ";

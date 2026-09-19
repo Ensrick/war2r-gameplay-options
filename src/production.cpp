@@ -1,6 +1,7 @@
 #include "production.h"
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 
 #include "log.h"
@@ -26,14 +27,14 @@ Group GroupOf(int cls) {
 
 bool IsArmy(int cls) { return GroupOf(cls) != kGroupNone; }
 
-Price Reserve(const Price* items, int count, double extra) {
+Price Reserve(const Buy* items, int count, double extra) {
     Price out{};
     for (int r = 0; r < kResourceCount; ++r) {
         int dearest = 0;
         long long sum = 0;
         for (int i = 0; i < count; ++i) {
-            sum += items[i].r[r];
-            if (items[i].r[r] > dearest) dearest = items[i].r[r];
+            sum += items[i].price.r[r];
+            if (items[i].anchor && items[i].price.r[r] > dearest) dearest = items[i].price.r[r];
         }
         const double v = dearest + extra * static_cast<double>(sum - dearest);
         out.r[r] = v > 2e9 ? 2000000000 : static_cast<int>(std::ceil(v - 1e-9));
@@ -75,6 +76,12 @@ bool CanAfford(const Plan& plan, const AutoProduction& cfg, int cls) {
     double want = cfg.classBankMultiple[cls] > 0 ? cfg.classBankMultiple[cls] : cfg.bankMultiple;
     if (cls == kProdSubmarines) want *= 2;  // only when there is money to spare
     return Buys(plan, cls) >= want;
+}
+
+bool CanPay(const Plan& plan, int cls) {
+    for (int r = 0; r < kResourceCount; ++r)
+        if (plan.bank.r[r] < plan.cost[cls].r[r]) return false;
+    return true;
 }
 
 int ArmySize(const Plan& plan) {
@@ -167,15 +174,25 @@ bool FoodAllows(const Plan& plan, const AutoProduction& cfg) {
     return FoodAllows(plan.supply, plan.used, plan.inTraining, cfg.foodFreeMin, cfg.foodFreePercent);
 }
 
-bool WantWorker(const Plan& plan, const AutoProduction& cfg) {
-    return plan.trainable[kProdWorkers] && plan.count[kProdWorkers] < cfg.workersPerHallTier * plan.tier &&
-           FoodAllows(plan, cfg) && CanAfford(plan, cfg, kProdWorkers);
+// Workers are a plain count target, not army shopping: with workers_ignore_reserve they wait for nothing but the
+// price itself. Making the economy wait for the upgrade reserve is what stalls a poor start (the keep upgrade alone
+// is 2000 gold, more than a hall full of peasants).
+int WorkerTarget(const Plan& plan, const AutoProduction& cfg) {
+    if (plan.tier < 1) return 0;  // no hall: nothing trains workers anyway
+    return cfg.workersTier[plan.tier > kProdTiers ? kProdTiers - 1 : plan.tier - 1];
 }
 
-// One tanker, once an oil platform is his: enough to keep the oil coming without a fleet of them.
+bool WantWorker(const Plan& plan, const AutoProduction& cfg) {
+    return plan.trainable[kProdWorkers] && plan.count[kProdWorkers] < WorkerTarget(plan, cfg) &&
+           FoodAllows(plan, cfg) &&
+           (cfg.workersIgnoreReserve ? CanPay(plan, kProdWorkers) : CanAfford(plan, cfg, kProdWorkers));
+}
+
+// One tanker, once an oil platform is his: enough to keep the oil coming without a fleet of them. It pays for itself,
+// so by default it waits for the price only.
 bool WantTanker(const Plan& plan, const AutoProduction& cfg, bool ownsOilPlatform) {
     return ownsOilPlatform && plan.trainable[kProdTankers] && plan.count[kProdTankers] == 0 && FoodAllows(plan, cfg) &&
-           CanAfford(plan, cfg, kProdTankers);
+           (cfg.tankersIgnoreReserve ? CanPay(plan, kProdTankers) : CanAfford(plan, cfg, kProdTankers));
 }
 
 void Commit(Plan& plan, int cls) {
@@ -192,12 +209,14 @@ namespace {
 
 constexpr unsigned kPassEveryMs = 1000;
 constexpr unsigned kBackoffMs = 10000;
+constexpr unsigned kDiagEveryMs = 30000;  // at most one "why nothing" line per 30 s of play
 constexpr uint16_t kJobProducing = 0x10;  // kOffJobFlags
 constexpr uint8_t kNotTrainable = 'n';    // 0x838248 entry of a type no building trains
 
 unsigned g_playMs = 0;
 unsigned g_sincePassMs = 0;
 unsigned g_starts = 0;
+unsigned g_nextDiagMs = 0;
 Plan g_lastPlan;
 
 // The map decides how much of the army is ships. Counted once per map: every tile and every oil source.
@@ -330,15 +349,27 @@ bool RequirementsMet(uint8_t type, const Owned& o) {
 // StartProduction itself checks NONE of this (docs/research/production.md section 1): a mission that forbids a unit
 // would happily build it and the mod must be the one to refuse. The mask is read fresh every pass, so it follows a
 // new map, a loaded savegame and anything that changes it while the mission runs.
-bool CanTrain(uint8_t type, const Owned& o) {
+// Why a class is not being trained, for the log line. The order is the order the gates are applied in.
+enum Block {
+    kBlockNone, kBlockOff, kBlockNever, kBlockNoBuilding, kBlockMission, kBlockPrereq, kBlockNoPlatform, kBlockBusy,
+    kBlockWaiting, kBlockFood, kBlockGold, kBlockLumber, kBlockOil, kBlockReserve, kBlockBank, kBlockEnough
+};
+const char* const kBlockNames[] = {"ok",   "off",     "never",  "no building", "mission", "prereq",  "no platform", "busy",
+                                   "waiting", "food", "gold",   "lumber",      "oil",     "reserve", "bank",        "enough"};
+
+// The building comes first, so a class the player has nothing to build in stays out of the log line entirely.
+Block TrainBlock(uint8_t type, const Owned& o) {
     const uint8_t at = At<uint8_t>(kRvaTrainedAt)[type];
-    if (at == kNotTrainable || !AllowBit(type)) return false;
-    if (!(At<uint32_t>(kRvaUnitsAllowed)[o.player] & AllowBit(type)) || !RequirementsMet(type, o)) return false;
+    if (at == kNotTrainable || !AllowBit(type)) return kBlockNever;
     int trainers = o.buildings[at];
     if (at == 0x4A) trainers += o.buildings[0x58] + o.buildings[0x5A];
     if (at == 0x4B) trainers += o.buildings[0x59] + o.buildings[0x5B];
-    return trainers > 0;
+    if (!trainers) return kBlockNoBuilding;
+    if (!(At<uint32_t>(kRvaUnitsAllowed)[o.player] & AllowBit(type))) return kBlockMission;
+    return RequirementsMet(type, o) ? kBlockNone : kBlockPrereq;
 }
+
+bool CanTrain(uint8_t type, const Owned& o) { return TrainBlock(type, o) == kBlockNone; }
 
 // The live price, so [costs], [unit.<name>] and a map's own UDTA all count.
 Price UnitPrice(uint8_t type) {
@@ -394,11 +425,13 @@ bool ResearchPurchasable(int id, const Owned& o) {
 // dearer of guard tower (lumber mill) / cannon tower (blacksmith) (4E37B0). A building already doing one is skipped.
 // The keep / castle ALOW bits are the same units-allowed mask a unit is checked against; the tower button (4E37B0)
 // tests no ALOW bit at all in this build, only the lumber mill / blacksmith counter, so neither does this.
-int Purchasable(const World& w, const Owned& o, Price* out, int max) {
+int Purchasable(const World& w, const Owned& o, Buy* out, int max) {
     int n = 0;
     for (int id = 0; id < units::kResearchCount && n < max; ++id)
         if (ResearchPurchasable(id, o))
-            out[n++] = {{At<uint16_t>(kRvaUpgradeGold)[id], At<uint16_t>(kRvaUpgradeLumber)[id], At<uint16_t>(kRvaUpgradeOil)[id]}};
+            out[n++] = {{{At<uint16_t>(kRvaUpgradeGold)[id], At<uint16_t>(kRvaUpgradeLumber)[id],
+                          At<uint16_t>(kRvaUpgradeOil)[id]}},
+                        true};  // a research is money he has already decided to spend: it may anchor the reserve
     const uint32_t allowed = At<uint32_t>(kRvaUnitsAllowed)[o.player];
     for (unsigned i = 0; i < w.unitCount && n < max; ++i) {
         Unit* b = UnitAt(w, i);
@@ -412,7 +445,7 @@ int Purchasable(const World& w, const Owned& o, Price* out, int max) {
             if (o.Pair(0x52)) target = 0x62 + race;       // cannon tower, the dearer one
             else if (o.Pair(0x4C)) target = 0x60 + race;  // guard tower
         }
-        if (target >= 0) out[n++] = UnitPrice(static_cast<uint8_t>(target));
+        if (target >= 0) out[n++] = {UnitPrice(static_cast<uint8_t>(target)), false};  // his choice, never the anchor
     }
     return n;
 }
@@ -482,6 +515,55 @@ void UpdateMapProfile(const World& w) {
 const char* const kClassNames[kProdClassCount] = {"worker",    "infantry",   "archer",      "knight",    "caster", "flyer",
                                                   "siege",     "tanker",     "destroyer",   "battleship", "submarine"};
 
+// The first gate that stops a class this pass, for the log line below.
+Block WhyNot(const Plan& plan, const AutoProduction& cfg, const Owned& o, int race, int cls, unsigned idleMask,
+             unsigned usableMask, bool ownsPlatform) {
+    if (!cfg.unitClass[cls]) return kBlockOff;
+    const Block b = TrainBlock(TypeFor(cls, race, o), o);
+    if (b != kBlockNone) return b;
+    if (cls == kProdTankers && !ownsPlatform) return kBlockNoPlatform;
+    if (!(usableMask & (1u << cls))) return (idleMask & (1u << cls)) ? kBlockWaiting : kBlockBusy;
+    if (!FoodAllows(plan, cfg)) return kBlockFood;
+    for (int r = 0; r < kResourceCount; ++r)
+        if (plan.bank.r[r] < plan.cost[cls].r[r]) return static_cast<Block>(kBlockGold + r);
+    const bool ignoresReserve = (cls == kProdWorkers && cfg.workersIgnoreReserve) ||
+                                (cls == kProdTankers && cfg.tankersIgnoreReserve);
+    if (!ignoresReserve) {
+        if (Buys(plan, cls) < 1) return kBlockReserve;    // the bank holds the price, the upgrade reserve does not
+        if (!CanAfford(plan, cfg, cls)) return kBlockBank;  // affordable, but not bank_multiple times over
+    }
+    return kBlockEnough;  // nothing stops it: the count target or the mix says there are enough already
+}
+
+// Why the pass produced nothing, with the numbers behind it. One line per 30 s of play, and only while
+// [general] log_casts is on: enough to answer "why is it not building anything?" without guessing.
+void LogNothing(const Plan& plan, const AutoProduction& cfg, const Owned& o, int race, unsigned idleMask,
+                unsigned usableMask, bool ownsPlatform, unsigned nowMs) {
+    if (!config::g.logCasts || nowMs < g_nextDiagMs) return;
+    g_nextDiagMs = nowMs + kDiagEveryMs;
+    double target[kProdClassCount];
+    Targets(plan, cfg, target);
+    char blocked[400] = "";
+    size_t used = 0;
+    for (int c = 0; c < kProdClassCount; ++c) {
+        const Block b = WhyNot(plan, cfg, o, race, c, idleMask, usableMask, ownsPlatform);
+        if (b == kBlockNever || b == kBlockNoBuilding) continue;  // nothing of the kind anywhere: not news
+        char one[64];
+        if (b == kBlockEnough && IsArmy(c))
+            sprintf_s(one, "%s%s=enough(%+.1f)", used ? ", " : "", config::kProductionClassKeys[c], target[c] - plan.count[c]);
+        else
+            sprintf_s(one, "%s%s=%s", used ? ", " : "", config::kProductionClassKeys[c], kBlockNames[b]);
+        if (used + strlen(one) >= sizeof(blocked)) break;
+        strcat_s(blocked, one);
+        used = strlen(blocked);
+    }
+    const int cap = plan.supply > 200 ? 200 : plan.supply;
+    logx::Write("production: nothing (workers %d/%d, food free %d, gold %d lum %d oil %d, reserve %d/%d/%d, blocked: %s)",
+                plan.count[kProdWorkers], WorkerTarget(plan, cfg), cap - plan.used - plan.inTraining,
+                plan.bank.r[kGold], plan.bank.r[kLumber], plan.bank.r[kOil], plan.reserve.r[kGold],
+                plan.reserve.r[kLumber], plan.reserve.r[kOil], blocked);
+}
+
 bool Start(const World& w, Plan& plan, Unit* b, unsigned slot, int cls, uint8_t type, uint32_t serialMark, unsigned nowMs) {
     using StartProductionFn = int(__cdecl*)(Unit*, uint8_t, uint8_t);
     SlotState& s = g_slots[slot];
@@ -504,7 +586,10 @@ bool Start(const World& w, Plan& plan, Unit* b, unsigned slot, int cls, uint8_t 
 
 }  // namespace
 
-void OnNewMap() { g_map.valid = false; }
+void OnNewMap() {
+    g_map.valid = false;
+    g_nextDiagMs = 0;
+}
 
 void Pass(const World& w, unsigned nowMs) {
     const AutoProduction& cfg = config::g.production;
@@ -579,14 +664,22 @@ void Pass(const World& w, unsigned nowMs) {
         plan.trainable[c] = cfg.unitClass[c] && CanTrain(type, o);
         plan.levels[c] = Levels(c, o, race);
     }
-    static Price items[256];
+    static Buy items[256];
     const int itemCount = Purchasable(w, o, items, 256);
     plan.reserve = Reserve(items, itemCount, cfg.reserveExtra);
     g_lastPlan = plan;
 
     auto usable = [&](const Idle& b) { return nowMs >= g_slots[b.slot].backoffUntilMs && !Selected(b.unit); };
 
-    // 1. Workers: every idle hall, keep or castle while below workers_per_hall_tier x the best tier.
+    unsigned idleMask = 0, usableMask = 0;  // classes with an idle building, and with one the mod may use right now
+    for (int k = 0; k < idleCount; ++k) {
+        const unsigned classes = ClassesAt(TypeOf(idle[k].unit));
+        idleMask |= classes;
+        if (usable(idle[k])) usableMask |= classes;
+    }
+    const unsigned startsBefore = g_starts;
+
+    // 1. Workers: every idle hall, keep or castle while below the best tier's workers_tierN.
     for (int k = 0; k < idleCount; ++k) {
         const uint8_t t = TypeOf(idle[k].unit);
         if (!(ClassesAt(t) & (1u << kProdWorkers)) || !usable(idle[k]) || !WantWorker(plan, cfg)) continue;
@@ -620,6 +713,8 @@ void Pass(const World& w, unsigned nowMs) {
         if (At<uint8_t>(kRvaTrainedAt)[type] != AsTrainer(t)) continue;  // the game's table disagrees: leave it alone
         Start(w, plan, idle[k].unit, idle[k].slot, cls, type, maxSerial, nowMs);
     }
+    // A building was idle and nothing was built: say why, once every 30 s.
+    if (g_starts == startsBefore && idleCount > 0) LogNothing(plan, cfg, o, race, idleMask, usableMask, ownsPlatform, nowMs);
 }
 
 void OnTick(const World& w, unsigned elapsedMs) {

@@ -57,11 +57,13 @@ constexpr int kResourceCount = 3;  // gold, lumber, oil
 struct AutoProduction {
     bool enabled = false;
     int toggleKey = 0x79;             // VK_F10, pressed together with Ctrl
-    int workersPerHallTier = 6;       // workers wanted: this x the best hall tier (hall 1, keep 2, castle 3)
+    int workersTier[kProdTiers] = {12, 16, 24};  // workers wanted at the best hall tier: hall, keep, castle (0 = none)
     int foodFreeMin = 4;              // food left free for your own peasants, transports, zeppelins: the larger of
     int foodFreePercent = 10;         // these two, counted AFTER the unit the mod is about to train
     double bankMultiple = 4.0;        // train only while the spare bank holds this many of the unit's current price
     double classBankMultiple[kProdClassCount] = {};  // [auto_production.bank_multiple] per class, 0 = use the one above
+    bool workersIgnoreReserve = true;  // workers ARE the economy: the count target, the food and the price, nothing else
+    bool tankersIgnoreReserve = true;  // the one tanker pays for itself in oil
     double reserveExtra = 0.25;       // bank kept for upgrades: the dearest one + this x all the others
     double upgradeBias = 0.25;        // each upgrade level of a class's line raises its share by this much
     int fillerMin = 10;               // nothing of the mix affordable here: build what the bank buys this many of

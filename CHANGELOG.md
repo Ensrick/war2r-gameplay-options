@@ -7,6 +7,19 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-19). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.7.2 - 2026-09-19
+
+- Fixed: auto-production never trained workers on a poor start. They had to clear the upgrade reserve plus four times
+  their price, and workers are what earn that money. Workers and the single oil tanker now wait for their own price
+  only (`workers_ignore_reserve`, `tankers_ignore_reserve`, both on).
+- Worker targets are three numbers now: `workers_tier1` 12, `workers_tier2` 16, `workers_tier3` 24, replacing
+  `workers_per_hall_tier`.
+- The upgrade reserve is no longer dictated by the keep: only a research can be its dearest item, while keeps, castles
+  and towers count at the `reserve_extra` weight. With a hall, barracks and blacksmith that is 1300 gold instead of
+  2200, so the army starts sooner while the buffer you asked for stays.
+- With `[general] log_casts` on, a line every 30 s when nothing was built, naming the first blocked gate per unit
+  type, your bank and the reserve.
+
 ## 1.7.1 - 2026-09-19
 
 - Auto-production: the upgrade reserve no longer holds money back for a research whose only building is already

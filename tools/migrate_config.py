@@ -7,6 +7,8 @@ Steps (each one only when the file still needs it):
   1.1.0  adds "amount = 1.0" to [gold_mines] and [oil_platforms]
   1.2.0  adds the [food] block after [oil_platforms]
   1.3.0  adds the [trees] block after [food]
+  1.7.2  [auto_production] workers_per_hall_tier becomes workers_tier1 / 2 / 3 (12 / 16 / 24), and the two
+         *_ignore_reserve switches are added
   1.7.0  adds part "11. AUTO-PRODUCTION" ([auto_production] and its sub-tables, switched off) in front of
          "YOUR OWN NUMBERS", which becomes part 12
   1.6.1  the Raise Dead comment says that the spell must be researched
@@ -222,6 +224,31 @@ def _auto_production_keys():
 AUTO_PRODUCTION_KEYS = _auto_production_keys()
 
 
+def auto_production_172(lines, tree, notes):
+    """A config written by 1.7.0 / 1.7.1: replace the old worker key, add the two switches."""
+    prod = tree.get('auto_production', {})
+    if not isinstance(prod, dict) or 'workers_tier1' in prod:
+        return
+    s = span(lines, '[auto_production]')
+    if s is None:
+        return
+    old = value_line(lines, s[0], s[1], 'workers_per_hall_tier')
+    per = prod.get('workers_per_hall_tier', 6)
+    new = ['workers_tier1 = ' + str(per * 2), 'workers_tier2 = ' + str(per * 2 + 4), 'workers_tier3 = ' + str(per * 4)] \
+        if per != 6 else ['workers_tier1 = 12', 'workers_tier2 = 16', 'workers_tier3 = 24']
+    if old is None:
+        lines[s[0] + 1:s[0] + 1] = new
+    else:
+        first = old
+        while first > s[0] + 1 and lines[first - 1].startswith('#'):
+            first -= 1
+        lines[first:old + 1] = ['# Workers wanted, by your best hall tier (0 to 200, 0 = never train workers).'] + new
+    append_missing(lines, tree, 'auto_production',
+                   ['# Workers and the single tanker wait for their own price only, never for the upgrade reserve.',
+                    'workers_ignore_reserve = true', 'tankers_ignore_reserve = true'], notes)
+    notes.append('[auto_production] workers_tier1/2/3 replace workers_per_hall_tier')
+
+
 def auto_production_170(lines, tree, notes):
     if 'auto_production' in tree:
         return
@@ -295,6 +322,7 @@ def main():
     spells_150(lines, before, notes)
     spell_power_160(lines, before, notes)
     auto_production_170(lines, before, notes)
+    auto_production_172(lines, before, notes)
     health_units(lines, before, notes)
     text = LF.join(lines)
     text = text.replace('#  5. HEROES' + LF, '#  5. HEROES AND REGENERATION' + LF, 1)
@@ -319,7 +347,8 @@ def main():
                ('autocast', l.split('=')[0].strip()) for l in AUTOCAST_NEW if not l.startswith('#')} | {
                (sec, l.split('=')[0].strip()) for sec in ('spell_damage', 'spell_cost', 'mana') for l in SPELL_POWER
                if l and not l.startswith(('#', '['))} | {
-               k for k in AUTO_PRODUCTION_KEYS} | {('trees', k) for k in ('regrow', 'regrow_min_minutes', 'regrow_max_minutes',
+               k for k in AUTO_PRODUCTION_KEYS | {('auto_production', k) for k in ('workers_tier1', 'workers_tier2',
+               'workers_tier3', 'workers_per_hall_tier', 'workers_ignore_reserve', 'tankers_ignore_reserve')}} | {('trees', k) for k in ('regrow', 'regrow_min_minutes', 'regrow_max_minutes',
                'building_distance', 'unit_distance')} | {t + (k,) for t in (('health',), ('health', 'human'), ('health', 'orc')) for k in ('all', 'units')}
     hero_amount = ('heroes', 'regen_hp_per_second')
     if old.get(hero_amount) == 0 and new.get(('heroes', 'regen')) is False:

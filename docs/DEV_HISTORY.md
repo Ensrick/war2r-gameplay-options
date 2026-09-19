@@ -3,6 +3,19 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.7.2 (2026-09-19, UNTESTED in game)
+
+- Author in game: "why isn't it auto-producing peasants?" then "Maybe it is working" (his log did show four peons a
+  minute later once gold came in), and "I think we need 12 peasants at tier 1, 16 at tier 2 and 24 at tier 3".
+- Real deadlock underneath: workers went through CanAfford, so the first extra peasant needed the reserve (keep 2000
+  gold anchored it) + 4 x price = ~3800 gold, and peasants are what earn it. Workers and the tanker now need their own
+  price only. Diagnostic line added because the report was pure guesswork otherwise.
+- Reserve rule (agent's proposal, accepted): only a RESEARCH can anchor the reserve; keeps, castles and towers count
+  at reserve_extra. Hall + barracks + blacksmith: 2200 -> 1300 gold, a 400-gold grunt gated at 2900 instead of 3800,
+  close to the ~2500 he asked for. Rejected alternatives: a share-of-bank cap (worse early), "dearest only below N
+  gold" (an absolute gold threshold does not scale with the cost multipliers).
+- 27 mutation checks.
+
 ## 1.7.1 (2026-09-19, UNTESTED in game)
 
 - Author: "some missions have restrictions on which units you can get, have you considered that?" Verified by the

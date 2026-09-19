@@ -327,13 +327,15 @@ regen = 1.0
 # second oil tanker: scouting, ferrying and oil runs stay yours.
 enabled = false
 toggle_key = "F10"          # Ctrl + this key turns it on and off in game ("" = no hotkey)
-workers_per_hall_tier = 6   # 6 workers with a town hall, 12 with a keep, 18 with a castle
+workers_tier1 = 12          # workers wanted with a town hall / great hall
+workers_tier2 = 16          # with a keep / stronghold
+workers_tier3 = 24          # with a castle / fortress (0 to 200, 0 = never train workers)
 # Food that always stays free AFTER the unit being trained: this much, or this share of your supply, whichever is
 # more. That room is yours, for peasants, transports, zeppelins or a tanker of your own.
 food_free_min = 4
 food_free_percent = 10
-# Money kept back for upgrades: the dearest one you could buy right now plus this share of all the others. The more
-# you could be researching (towers, keep, castle, weapons, spells), the more it saves.
+# Money kept back for upgrades: the dearest RESEARCH you could buy right now plus this share of everything else you
+# could buy. Keeps, castles and towers never count as the dearest, only at this weight.
 reserve_extra = 0.25
 upgrade_bias = 0.25         # each upgrade level a unit line already has raises that class's share by this much
 filler_min = 10             # nothing of the mix affordable at a building: build what the spare bank buys this often
@@ -341,6 +343,8 @@ filler_min = 10             # nothing of the mix affordable at a building: build
 # oil), a little higher while you only have a town hall. No oil and less than 10% water = a land map, no ships.
 navy_weight = 1.0           # x that share (0 = never build ships)
 navy_max = 80               # ships are never more than this much of the army, in percent
+workers_ignore_reserve = true  # workers wait for their own price only, never for the upgrade reserve
+tankers_ignore_reserve = true  # the one oil tanker with them
 
 [auto_production.units]
 # Switch a whole class off. Names are race-neutral: infantry = footman / grunt, archers = archer, ranger / axethrower,

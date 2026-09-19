@@ -1,0 +1,4 @@
+Fixed: auto-production never trained workers on a poor start (they had to clear the upgrade reserve, and workers are what earn that money). Workers and the one oil tanker now wait for their own price only.
+Worker targets are three numbers: workers_tier1 12, workers_tier2 16, workers_tier3 24.
+The upgrade reserve is no longer dictated by the keep: only a research can be its dearest item; keeps, castles and towers count at the smaller weight.
+With log_casts on, a line every 30 s when nothing was built, naming the first blocked gate per unit type.

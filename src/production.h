@@ -18,8 +18,15 @@ struct Price {
 Group GroupOf(int cls);
 bool IsArmy(int cls);  // everything but workers and tankers
 
-// Upgrade reserve per resource: the dearest purchasable item + extra x the sum of all the others.
-Price Reserve(const Price* items, int count, double extra);
+// Something the player could pay for right now. A research may be the dearest item the reserve is built around; a
+// BUILDING upgrade (keep, castle, guard / cannon tower) never is, because it is a choice he makes when he wants it,
+// not a purchase already decided on. Early game the keep alone (2000 gold) would otherwise set the whole reserve.
+struct Buy {
+    Price price;
+    bool anchor;
+};
+// Upgrade reserve per resource: the dearest anchor + extra x the sum of everything else (anchors and non-anchors).
+Price Reserve(const Buy* items, int count, double extra);
 // Ships as a fraction of the army, from the map: the water fraction plus 5 % per oil source (at most 30 %), scaled by
 // the hall tier (1.2 / 1.0 / 0.9) and navy_weight, capped at navy_max. A map with no oil and less than 10 % water is
 // a land map (lakes): 0.
@@ -44,6 +51,9 @@ struct Plan {
 double Buys(const Plan&, int cls);
 // Affordable = the spare bank holds bank_multiple prices (twice that for submarines: a luxury, only when rich).
 bool CanAfford(const Plan&, const AutoProduction&, int cls);
+// The bank holds the plain price, upgrade reserve and bank_multiple ignored. This is the whole money rule for
+// workers and the tanker (workers_ignore_reserve / tankers_ignore_reserve): they are the economy, not army shopping.
+bool CanPay(const Plan&, int cls);
 int ArmySize(const Plan&);  // units of the army classes (every one of them eats 1 food)
 // Wanted number per army class: land and navy shares from the map, each mix renormalised over the classes that are
 // available and affordable, bent by upgrades and by what the bank can pay for.
@@ -55,6 +65,8 @@ int PickArmyClass(const Plan&, const AutoProduction&, unsigned candidates, bool*
 // This is what keeps a gold-rich, lumber-poor game producing (grunts at tier 3). A group the map gives no share of
 // the army is skipped, so a land map never gets ships this way.
 int PickFiller(const Plan&, const AutoProduction&, unsigned candidates);
+// Workers wanted at the player's best hall tier (workers_tier1 / 2 / 3); 0 without a hall.
+int WorkerTarget(const Plan&, const AutoProduction&);
 bool WantWorker(const Plan&, const AutoProduction&);
 bool WantTanker(const Plan&, const AutoProduction&, bool ownsOilPlatform);
 bool FoodAllows(const Plan&, const AutoProduction&);
