@@ -1,0 +1,4 @@
+New [building.name] tables: hit points, armor, damage, range, sight, gold, lumber, oil and build time for any structure. Tower names moved there.
+New structure health multipliers: buildings and building_upgrades under [health.human] / [health.orc]; the 'all' values stay unit-only.
+Unit price multipliers now scale oil as well as gold and lumber.
+The [heroes] list is grouped by side, and unit names accept short spellings (uther, grom, teron, korgath, gryphon).

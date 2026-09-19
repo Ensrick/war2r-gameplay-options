@@ -1,3 +1,11 @@
+[size=4][b]1.0.1[/b][/size]
+[list]
+[*]New [building.name] tables: set hit points, armor, damage, range, sight, gold, lumber, oil and build time for any structure, the same way [unit.name] works for units. Tower names moved there.
+[*]New health multipliers for structures: buildings and building_upgrades under [health.human] / [health.orc]. The "all" values stay unit-only.
+[*]Unit price multipliers now scale oil as well as gold and lumber.
+[*]The [heroes] list is grouped by side, and unit names accept short spellings (uther, grom, teron, korgath, gryphon).
+[/list]
+
 [size=4][b]1.0.0 - Initial release[/b][/size]
 For Warcraft II: Remastered 1.0.2.2818, single-player.
 
@@ -20,8 +28,8 @@ For Warcraft II: Remastered 1.0.2.2818, single-player.
 [list]
 [*]Unlimited gold mines, off by default.
 [*]Heroes regenerate 1 hit point per second.
-[*]Multipliers for health, prices and build / research time: master x race (human / orc) x group, all 1.0 by default. Unit health dials never touch structures; structures have their own health keys.
-[*]Per-unit and per-building base stats in [unit.name] / [building.name] tables: hit points, armor, basic and piercing damage, range, sight, gold, lumber, oil, build time. Ships with sight 8 for dragons and gryphon riders and a worked destroyer example.
+[*]Multipliers for health, prices and build / research time: master x race (human / orc) x group, all 1.0 by default. Health only touches units.
+[*]Per-unit base stats in [unit.name] tables: hit points, armor, basic and piercing damage, range, sight, gold, lumber, oil, build time. Ships with sight 8 for dragons and gryphon riders and a worked destroyer example.
 [*]Configurable range bonus for Longbow / Lighter Axes.
 [/list]
 

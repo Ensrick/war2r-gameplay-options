@@ -3,6 +3,12 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.0.1 (release build, staged 2026-09-18, NOT uploaded)
+
+- The author created the Nexus page and uploaded build dev.23 as "1.0.0" (file id 13, 2026-09-18 19:24). Builds dev.24
+  to dev.26 are therefore the content of 1.0.1. Same code as dev.26; only the version string changed.
+- From here on pre-release builds are numbered against the NEXT public version (`1.0.2-dev.N`).
+
 ## 1.0.0-dev.26 - 2026-09-18 (UNTESTED in game)
 
 - `[building.<name>]` tables: the same ten base stats as `[unit.<name>]` for every structure (43 names, ids checked
