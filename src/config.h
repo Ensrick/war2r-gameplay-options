@@ -107,7 +107,7 @@ struct Config {
     // [eye_of_kilrogg]
     bool eyeCast = false;
     int eyeCastAtMana = 255;        // the computer only casts it at full mana
-    int eyeMaxActive = 1;
+    int eyeMaxActive = 3;
     bool eyeAutoScout = false;
 
     // [gold_mines] / [oil_platforms]

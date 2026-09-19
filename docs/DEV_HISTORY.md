@@ -3,6 +3,13 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.6.2 (2026-09-19)
+
+- Author: "I also don't think eye of krillog is bieng cast at max mana." Log of his session: 12 eye casts, one at
+  14:00:42 and the next at 14:27:00, i.e. no new eye while one was out. Cause: `max_active = 1` counts all his
+  ogre-magi together, and Bloodlust autocast keeps their mana below 255. Not a bug; he chose "Eye max active lets say 3
+  by default". Default 3; his own config set to 3 as well (migration keeps existing values, so it is set by hand).
+
 ## 1.6.1 (2026-09-19) - Raise Dead fix, UNTESTED in game
 
 - Author: "Raise dead auto doesn't work. It has to target a grid square with a decaying body". Log of his 1.6.0

@@ -144,8 +144,8 @@ cast = false
 # Mana the ogre-mage must have before it casts. 255 = only when full, which is the computer's own rule,
 # so Bloodlust always gets first call on the mana.
 cast_at_mana = 255
-# How many of your eyes may be out at the same time.
-max_active = 1
+# How many of your eyes may be out at the same time (all your ogre-magi together).
+max_active = 3
 # true = your eyes fly to unexplored ground by themselves (then to fogged ground once everything is explored).
 # Give an eye an order of your own and the mod leaves that eye to you. Works for eyes you cast by hand too.
 auto_scout = false

@@ -208,7 +208,7 @@ Both switches are off by default.
 [eye_of_kilrogg]
 cast = true          # idle ogre-magi cast it by themselves
 cast_at_mana = 255   # only at full mana, so Bloodlust always comes first. Lower it for more eyes.
-max_active = 1       # eyes out at once
+max_active = 3       # eyes out at once, all your ogre-magi together
 auto_scout = true    # the eye flies to unexplored ground; an eye you move yourself is left to you
 ```
 
@@ -586,7 +586,7 @@ tiles", "all corpses ... are claimed", "switched off"), at most once every 30 se
 | unit_regen | enabled / hp_per_second / regen_for | false / 1 / "all" | Every unit and ship regenerates (never a structure); heroes follow [heroes] while that is on |
 | eye_of_kilrogg | cast | false | Idle ogre-magi cast Eye of Kilrogg |
 | eye_of_kilrogg | cast_at_mana | 255 | Mana needed before casting it |
-| eye_of_kilrogg | max_active | 1 | Eyes out at the same time |
+| eye_of_kilrogg | max_active | 3 | Eyes out at the same time, all ogre-magi together |
 | eye_of_kilrogg | auto_scout | false | Eyes fly to unexplored ground |
 | gold_mines | unlimited | false | Mines never run dry (all mines) |
 | gold_mines | amount | 1.0 | Multiplies the gold in every mine when a new map starts (cap 6,553,500 per mine) |

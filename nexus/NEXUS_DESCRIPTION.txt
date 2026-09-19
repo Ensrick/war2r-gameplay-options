@@ -69,7 +69,7 @@ flyers_only = false       # haste every fighting unit, not just flyers
 
 [eye_of_kilrogg]
 cast = true
-max_active = 1
+max_active = 3
 auto_scout = true[/code]
 
 [size=4][b]2. Workers[/b][/size]

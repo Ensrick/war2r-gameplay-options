@@ -727,7 +727,7 @@ int wmain(int argc, wchar_t** argv) {
         CHECK(laterOff && config::g.channelManaReserve == 0 && config::g.areaMinEnemies == 3 && config::g.fireballMinEnemies == 2,
               "holy_vision .. runes must be off by default; channel_mana_reserve 0, area_min_enemies 3, fireball_min_enemies 2");
         CHECK(!config::g.eyeCast && !config::g.eyeAutoScout && !config::g.workerAutoHarvest && config::g.workerAutoRepair &&
-                  !config::g.heroRegen && config::g.heroRegenPerSecond == 2 && !config::g.unitRegen && config::g.unitRegenPerSecond == 1 && !config::g.goldMinesUnlimited && !config::g.oilPlatformsUnlimited && config::g.rangeUpgradeBonus == 1,
+                  config::g.eyeMaxActive == 3 && !config::g.heroRegen && config::g.heroRegenPerSecond == 2 && !config::g.unitRegen && config::g.unitRegenPerSecond == 1 && !config::g.goldMinesUnlimited && !config::g.oilPlatformsUnlimited && config::g.rangeUpgradeBonus == 1,
               "default options: everything off except worker auto-repair");
         bool noStats = true;
         for (const auto& row : config::g.unitStat)
@@ -1153,9 +1153,16 @@ int wmain(int argc, wchar_t** argv) {
     Idle(om);
     mod::RunAutocastPass();
     CHECK(OrderOf(om) == kOrderSpellEye && TargetOf(om) == nullptr, "idle full-mana ogre-mage should cast the eye (order %u)", OrderOf(om));
+    config::g.eyeMaxActive = 1;
     Unit* om2 = AddUnit(kTypeOgreMage, 0, 22, 20, 90, 255, kOrderStand);
     mod::RunAutocastPass();
     CHECK(OrderOf(om2) == kOrderStand, "second eye cast while one is pending (max_active = 1)");
+    config::g.eyeMaxActive = 3;  // the default since 1.6.2: three eyes, the fourth ogre-mage waits
+    Unit* om3 = AddUnit(kTypeOgreMage, 0, 24, 20, 90, 255, kOrderStand);
+    Unit* om4 = AddUnit(kTypeOgreMage, 0, 26, 20, 90, 255, kOrderStand);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(om2) == kOrderSpellEye && OrderOf(om3) == kOrderSpellEye && OrderOf(om4) == kOrderStand,
+          "max_active = 3: two more eyes, never a fourth (orders %u %u %u)", OrderOf(om2), OrderOf(om3), OrderOf(om4));
 
     // Auto-scout: toward unexplored ground, again after arriving, hands off once the player flies it elsewhere.
     ResetWorld();
