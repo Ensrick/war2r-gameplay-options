@@ -3,6 +3,19 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.0.5 (release build, staged 2026-09-18, NOT uploaded)
+
+- Author, on his tower tables: "Ok, it's not watch tower?" The game's strings say "Build Watch Tower" (orc) and "Build
+  Scout Tower" (human); the mod only knew `orc_scout_tower`, so `[building.watch_tower]` would have been refused with
+  a log note. Added building aliases `watch_tower`, `orc_watch_tower` -> 0x41 and `scout_tower` -> 0x40. `guard_tower`
+  / `cannon_tower` stay unknown on purpose: the same in-game name exists for both races.
+- Vanilla tower health read from `Data\Rez\unitdata.dat` (UDTA hit point words at offset 1676): scout 100, guard 130,
+  cannon 160, both races. The author's doubles (200 / 260 / 320) are exact.
+- In-game log, author's session 20:38 on the RIGHT install (1.0.4): first tick 20:38:32 with no "map load" line before
+  it (= a save was loaded, tables untouched, as designed), then 20:38:44 "map load: 34 unit stats set, health [all
+  x2.00 ...] costs [all x0.50 ...]". So Restart Scenario after loading a save DOES go through the new-map hook. Visible
+  effect still to be confirmed by the author.
+
 ## 1.0.4 (release build, staged 2026-09-18, NOT uploaded)
 
 - Author report 20:21: "I loaded up the campaign, I didn't see any changes in health to units when I restarted a loaded

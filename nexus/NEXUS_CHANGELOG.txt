@@ -1,3 +1,8 @@
+[size=4][b]1.0.5[/b][/size]
+[list]
+[*][building.watch_tower] and [building.orc_watch_tower] are accepted for the orc scout tower (the game calls it Watch Tower), [building.scout_tower] for the human one.
+[/list]
+
 [size=4][b]1.0.4[/b][/size]
 [list]
 [*]Readme: what to check when nothing happens and no gameplay_options.log appears (the game you started is not the install the mod is in). No change to the mod's behaviour.

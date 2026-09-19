@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.5 - staged 2026-09-18, not uploaded yet
+
+- `[building.watch_tower]` and `[building.orc_watch_tower]` are accepted for the orc scout tower (the game calls it
+  Watch Tower), `[building.scout_tower]` for the human one.
+
 ## 1.0.4 - staged 2026-09-18, not uploaded yet
 
 - Readme and Nexus description: what to check when nothing happens and no `gameplay_options.log` appears (the game

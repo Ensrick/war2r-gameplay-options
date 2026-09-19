@@ -320,6 +320,9 @@ Names: `farm` `pig_farm` `human_barracks` `orc_barracks` `church` `altar_of_stor
 `orc_oil_platform` `keep` `stronghold` `castle` `fortress` `human_guard_tower` `orc_guard_tower` `human_cannon_tower`
 `orc_cannon_tower` `human_wall` `orc_wall` `gold_mine` `dark_portal` `runestone`.
 
+The orc "Watch Tower" of the game is `orc_scout_tower`; `watch_tower` and `orc_watch_tower` are accepted as well, and
+`scout_tower` means the human one. Guard and cannon towers need the `human_` / `orc_` prefix.
+
 A unit name under `[building.*]` (or the other way round) is refused with a note in the log, never misapplied.
 
 ### Longbow and Lighter Axes

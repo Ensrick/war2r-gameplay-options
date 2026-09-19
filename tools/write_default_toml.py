@@ -235,7 +235,8 @@ upgrade_bonus = 1
              '                orc_shipyard town_hall great_hall elven_lumber_mill troll_lumber_mill human_foundry orc_foundry',
              '                mage_tower temple_of_the_damned human_blacksmith orc_blacksmith human_refinery orc_refinery',
              '                human_oil_platform orc_oil_platform keep stronghold castle fortress human_guard_tower',
-             '                orc_guard_tower human_cannon_tower orc_cannon_tower human_wall orc_wall gold_mine dark_portal runestone') + '''
+             '                orc_guard_tower human_cannon_tower orc_cannon_tower human_wall orc_wall gold_mine dark_portal runestone',
+             '                The orc Watch Tower is orc_scout_tower (watch_tower and orc_watch_tower work too).') + '''
 # Template (remove the "# " in front of the lines you want):
 # [unit.footman]
 # hit_points = -1

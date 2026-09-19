@@ -1,0 +1,1 @@
+[building.watch_tower] and [building.orc_watch_tower] are accepted for the orc scout tower (the game calls it Watch Tower), [building.scout_tower] for the human one.

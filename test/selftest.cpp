@@ -231,6 +231,11 @@ int wmain(int argc, wchar_t** argv) {
         CHECK(uther && uther->id == 0x34 && grom && grom->id == 0x19 && units::FindByName("uther_lightbringer") == uther &&
                   !units::FindByName("destroyer"),
               "unit name aliases");
+        const units::Building* watch = units::FindBuildingByName("Watch_Tower");
+        CHECK(watch && watch->id == 0x41 && units::FindBuildingByName("orc_watch_tower") == watch &&
+                  units::FindBuildingByName("orc_scout_tower") == watch && units::FindBuildingByName("scout_tower") &&
+                  units::FindBuildingByName("scout_tower")->id == 0x40 && !units::FindBuildingByName("guard_tower"),
+              "building name aliases (the orc scout tower is the Watch Tower in game)");
     }
 
     // Heal: most hurt own unit wins; healthy, allied-player and out-of-threshold units are skipped.

@@ -28,7 +28,20 @@ const Entry* FindByName(const char* name) {
     return nullptr;
 }
 
+// The game's own display names where they differ from ours: the orc scout tower is the "Watch Tower" in game
+// ("Build Watch Tower" / "Build Scout Tower" in Data\Strings\enUS.json).
+static const struct {
+    const char* alias;
+    const char* name;
+} kBuildingAliases[] = {
+    {"watch_tower", "orc_scout_tower"},
+    {"orc_watch_tower", "orc_scout_tower"},
+    {"scout_tower", "human_scout_tower"},
+};
+
 const Building* FindBuildingByName(const char* name) {
+    for (const auto& a : kBuildingAliases)
+        if (_stricmp(a.alias, name) == 0) name = a.name;
     for (const Building& b : kBuildingNames)
         if (_stricmp(b.name, name) == 0) return &b;
     return nullptr;
