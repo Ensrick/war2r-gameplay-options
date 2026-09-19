@@ -25,7 +25,8 @@ Ensrick/war2r-gameplay-options (private).
   default> <out> --old-default <default it came from>` keeps every value they changed and appends their tables. Never
   overwrite an edited config with the default.
 - New config keys go in four places: `config.h`, `config.cpp` (reader + `kKnown` list),
-  `config/gameplay_options.default.toml`, `docs/CONFIG_TUTORIAL.md`.
+  `tools/write_default_toml.py` (it GENERATES `config/gameplay_options.default.toml`: edit the generator, run it, never
+  hand-edit the TOML), `docs/CONFIG_TUTORIAL.md`.
 - Ghidra: `C:\Tools\ghidra_projects` (`war2bne`, `war2r`, clones `war2r_a` / `war2r_b` for parallel agents), helper
   `scripts\gh_run.ps1`. One headless run per project at a time. Ghidra's launcher breaks on paths with `(x86)`; exe
   copies live in `C:\Tools\ghidra_projects\bin`.

@@ -180,8 +180,12 @@ with. The computer plays by the same numbers.
 All three share one layout, and the values **multiply into each other from the top down**:
 
 ```
-[costs] all   x   [costs.human] all   x   units or research (umbrella)   x   the group
+[costs] all  x  [costs] units / structures / research  x  [costs.human] all  x  [costs.human] units / structures / research  x  the group
 ```
+
+The file is laid out in numbered parts with a banner each (`6. HEALTH`, `7. PRICES`, `8. BUILD AND RESEARCH TIME`), and
+inside every race table the keys sit under `--- HUMAN UNITS ---`, `--- HUMAN STRUCTURES ---` and `--- HUMAN RESEARCH ---`
+sub-headers, so the structure settings are the block right under the unit groups.
 
 `1.0` is the game's own number and the default everywhere. `0.5` halves, `2.0` doubles.
 
@@ -216,8 +220,9 @@ Groups you can use in `[x.human]` and `[x.orc]`:
 
 | Key | Covers |
 |---|---|
-| `all` | everything of that race |
+| `all` | everything of that race (in `[health]`: every unit of that race) |
 | `units` | umbrella over all unit groups (`[costs]` and `[time]`) |
+| `structures` | umbrella over `buildings` and `building_upgrades` |
 | `research` | umbrella over all research groups (`[costs]` and `[time]`) |
 | `workers` `melee` `ranged` `siege` `casters` `air` `naval` `demolition` | peasant / peon; footman, knight, paladin / grunt, ogre, ogre-mage; archer, ranger / axethrower, berserker; ballista / catapult; mage / death knight; gryphon rider, flying machine / dragon, zeppelin; every ship; dwarves / sappers |
 | `heroes` | the unit types listed under `[heroes] units` (`[health]` only) |
@@ -227,18 +232,29 @@ Groups you can use in `[x.human]` and `[x.orc]`:
 | `paladin_upgrades` (human) / `ogre_mage_upgrades` (orc) | the upgrade itself plus holy vision, healing, exorcism / eye of kilrogg, bloodlust, runes |
 | `mage_spells` (human) / `death_knight_spells` (orc) | their spell research |
 
+The same three kinds exist as masters for all races at the top of each section: `[costs] units`, `[costs] structures`,
+`[costs] research` (and the same in `[time]`). `[health]` has `all` (every unit) and `structures` (every structure).
+
+**"All structures" is the `structures` key**: at the top of a section for both races, under `[x.human]` / `[x.orc]` for
+one race.
+
 In `[health]`, `all` (the master and the one per race) and the unit groups are **unit** health: they never touch a
-structure. Structure health follows only its own two keys, `buildings` and `building_upgrades`, so doubling everyone's
+structure. Structure health follows only `structures`, `buildings` and `building_upgrades`, so doubling everyone's
 health does not quietly double every town hall. `[health.neutral] all` covers skeletons, daemons, critters and the Eye of
-Kilrogg. Prices scale gold, lumber and oil alike, for units, structures and research.
+Kilrogg; the gold mine, dark portal and runestone are never scaled. Prices scale gold, lumber and oil alike, for units,
+structures and research.
 
 ```toml
 [health]
-all = 2.0               # units only
+all = 2.0               # every unit, no structure
+structures = 1.5        # every structure of both races
 
 [health.human]
-buildings = 1.5         # human structures
-building_upgrades = 2.0 # keep, castle, guard tower, cannon tower
+structures = 1.2        # human structures another 20% on top
+building_upgrades = 2.0 # keep, castle, guard tower, cannon tower on top of that
+
+[costs]
+structures = 0.5        # every building and building upgrade half price
 ```
 
 The engine's own limits cap the results:
@@ -362,10 +378,12 @@ Every cast is then written to `x86\gameplay_options.log` with the caster, the ta
 | gold_mines | unlimited | false | Mines never run dry (all mines) |
 | workers | auto_repair / repair_idle_seconds / repair_radius | true / 1 / 10 | Idle workers repair your damaged buildings |
 | workers | auto_harvest / harvest_idle_seconds / harvest_radius | false / 10 / 5 | Idle workers go to the nearest mine or tree |
-| health / costs / time | all | 1.0 | Master multiplier of the section |
-| health.human / health.orc | all, workers, melee, ranged, siege, casters, air, naval, demolition, heroes; buildings, building_upgrades | 1.0 each | Unit health by race and group; structures only via their own two keys (cap 32767). Units cap 65535 |
+| health / costs / time | all | 1.0 | Master multiplier of the section (in health: units only) |
+| health / costs / time | structures | 1.0 | Every structure of both races |
+| costs / time | units, research | 1.0 | Every unit / all research of both races |
+| health.human / health.orc | all, workers, melee, ranged, siege, casters, air, naval, demolition, heroes; structures, buildings, building_upgrades | 1.0 each | Unit health by race and group; structures only via the three structure keys (cap 32767). Units cap 65535 |
 | health.neutral | all | 1.0 | Skeletons, daemons, critters, Eye of Kilrogg |
-| costs.human / costs.orc | all, units, research, the 8 unit groups, buildings, building_upgrades, the research groups | 1.0 each | Price multipliers, caps 2550 / 65535 |
+| costs.human / costs.orc | all, units, structures, research, the 8 unit groups, buildings, building_upgrades, the research groups | 1.0 each | Price multipliers, caps 2550 / 65535 |
 | time.human / time.orc | same keys as costs | 1.0 each | Training, construction, upgrade and research time, cap 255 |
 | range | upgrade_bonus | 1 | Range added by Longbow / Lighter Axes |
 | unit.NAME / building.NAME | hit_points, armor, basic_damage, piercing_damage, range, sight, gold, lumber, oil, build_time | -1 each | Base stats of one unit or structure type, -1 = the game's value |

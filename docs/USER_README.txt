@@ -57,11 +57,14 @@ WORKERS
 OPTIONS (all off or neutral until you change them)
   - Hero regeneration (for example 1 HP per second).
   - Unlimited gold mines.
-  - Multipliers for HEALTH, PRICES and BUILD / RESEARCH TIME, all 1.0 (unchanged) by default. Each has a master
-    value, a value per race (human / orc) and values per group (workers, melee, ranged, siege, casters, air, naval,
-    demolition, heroes; buildings, building upgrades; melee / ranged / siege / naval research, paladin or ogre-mage
-    research, mage or death knight spells). They multiply into each other. Unit health dials never touch structures;
-    structures have their own two health keys (buildings, building_upgrades).
+  - Multipliers for HEALTH, PRICES and BUILD / RESEARCH TIME, all 1.0 (unchanged) by default. Each has master
+    values (all, units, structures, research), the same per race (human / orc) and values per group (workers, melee,
+    ranged, siege, casters, air, naval, demolition, heroes; buildings, building upgrades; melee / ranged / siege /
+    naval research, paladin or ogre-mage research, mage or death knight spells). They multiply into each other.
+    "All structures" is the key named structures. Unit health dials never touch structures; structure health has
+    its own keys (structures, buildings, building_upgrades).
+  - The config file is split into numbered, labeled parts (GENERAL, AUTOCAST, WORKERS, GOLD MINES, HEROES, HEALTH,
+    PRICES, BUILD AND RESEARCH TIME, RANGE UPGRADE, YOUR OWN NUMBERS) with UNITS / STRUCTURES / RESEARCH sub-headers.
   - Your own base stats for any unit in a [unit.<name>] table, and for any structure in a [building.<name>] table:
     hit points, armor, basic and piercing damage, range, sight, gold, lumber, oil, build time. The file contains
     ready-made examples as comments (sight 8 for dragons and gryphon riders, a tweaked destroyer, a stronger guard

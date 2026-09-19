@@ -25,22 +25,30 @@ enum UnitStat {
 // One multiplier tree, used three times: [health], [costs], [time].
 // Effective multiplier = all x race.all x (race.units | race.research umbrella) x group. Everything defaults to 1.0.
 struct RaceMultipliers {
-    double all = 1.0;
-    double units = 1.0;     // umbrella over every unit group (costs / time; health has only units, so "all" covers it)
-    double research = 1.0;  // umbrella over every research group
+    double all = 1.0;         // [costs] / [time]: everything of the race. [health]: every UNIT of the race
+    double units = 1.0;       // umbrella over every unit group ([costs] / [time])
+    double structures = 1.0;  // umbrella over both structure groups
+    double research = 1.0;    // umbrella over every research group ([costs] / [time])
     double unit[units::kUnitGroupCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
     double structure[units::kStructureGroupCount] = {1, 1};
     double researchGroup[units::kResearchGroupCount] = {1, 1, 1, 1, 1, 1};
 };
 
 struct Multipliers {
-    double all = 1.0;
+    double all = 1.0;         // [costs] / [time]: everything. [health]: every UNIT (never a structure)
+    double units = 1.0;       // masters per kind, all races
+    double structures = 1.0;
+    double research = 1.0;
     RaceMultipliers race[units::kRaceCount];
 
-    double Unit(units::Race r, units::UnitGroup g) const { return all * race[r].all * race[r].units * race[r].unit[g]; }
-    double Structure(units::Race r, units::StructureGroup g) const { return all * race[r].all * race[r].structure[g]; }
+    double Unit(units::Race r, units::UnitGroup g) const { return all * units * race[r].all * race[r].units * race[r].unit[g]; }
+    double Structure(units::Race r, units::StructureGroup g) const {
+        return all * structures * race[r].all * race[r].structures * race[r].structure[g];
+    }
+    // [health] only: the "all" values are the player's unit dials and must never reach a structure.
+    double StructureHealth(units::Race r, units::StructureGroup g) const { return structures * race[r].structures * race[r].structure[g]; }
     double Research(units::Race r, units::ResearchGroup g) const {
-        return all * race[r].all * race[r].research * race[r].researchGroup[g];
+        return all * research * race[r].all * race[r].research * race[r].researchGroup[g];
     }
 };
 

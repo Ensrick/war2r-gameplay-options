@@ -1,3 +1,10 @@
+[size=4][b]1.0.3[/b][/size]
+[list]
+[*]New "all structures" multipliers: a structures key at the top of [health], [costs] and [time] for both races, and under [x.human] / [x.orc] for one race. [costs] and [time] also get units and research masters at the top. All 1.0 by default; in [health] the "all" values stay unit-only.
+[*]The config file is reorganised into ten numbered, labeled parts with a contents list at the top, and every race table has UNITS / STRUCTURES / RESEARCH sub-headers.
+[*]Updating: your existing gameplay_options.toml keeps working as it is. To get the labeled layout, rename yours, start the game once so a fresh file is written, and copy your values over.
+[/list]
+
 [size=4][b]1.0.2[/b][/size]
 [list]
 [*]Quieter defaults: out of the box only Heal, Slow, Bloodlust and Raise Dead autocast, plus worker auto-repair. Exorcism, Polymorph, Death Coil, Haste, Eye of Kilrogg, worker auto-harvest and hero regeneration are now off until you switch them on.

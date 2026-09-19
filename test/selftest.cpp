@@ -677,6 +677,29 @@ int wmain(int argc, wchar_t** argv) {
         datatweaks::OnNewMapTablesLoaded();
         CHECK(hpT[kFarmT] == 32767, "structure health cap is 32767 (%u)", hpT[kFarmT]);
 
+        // The structures masters: [health] structures x [health.orc] structures x group, still blind to the unit dials.
+        resetTables(); resetConfig();
+        hpT[kPigFarm] = 400; hpT[kStronghold] = 1400;
+        config::g.health.all = 5.0;
+        config::g.health.structures = 2.0;
+        config::g.health.race[kOrc].structures = 1.5;
+        config::g.health.race[kOrc].structure[kBuildingUpgrades] = 2.0;
+        datatweaks::OnNewMapTablesLoaded();
+        CHECK(hpT[kFarmT] == 800 && hpT[kPigFarm] == 1200 && hpT[kStronghold] == 8400 && hpT[kFootman] == 300 && hpT[kTypeGoldMine] == 25500,
+              "structure health masters (farm %u pig farm %u stronghold %u)", hpT[kFarmT], hpT[kPigFarm], hpT[kStronghold]);
+
+        // Same masters for prices and times, where the top "all" does include structures.
+        resetTables(); resetConfig();
+        config::g.costs.structures = 0.5;
+        config::g.costs.race[kOrc].structures = 0.5;
+        config::g.costs.units = 0.5;
+        config::g.costs.research = 0.5;
+        config::g.time.structures = 0.5;
+        datatweaks::OnNewMapTablesLoaded();
+        CHECK(goldT[kFarmT] == 25 && goldT[kPigFarm] == 13 && goldT[kStronghold] == 50 && goldT[kFootman] == 30 && upGold[0] == 400,
+              "price masters per kind (farm %u pig farm %u stronghold %u)", goldT[kFarmT], goldT[kPigFarm], goldT[kStronghold]);
+        CHECK(buildT[kFarmT] == 50 && buildT[kFootman] == 60, "time structures master (farm %u)", buildT[kFarmT]);
+
         // Costs: master, race, umbrellas and groups; gold, lumber and oil all scale.
         resetTables(); resetConfig();
         config::g.costs.race[kHuman].units = 0.5;
@@ -788,7 +811,7 @@ int wmain(int argc, wchar_t** argv) {
                           "[building.farm]\nhit_points = 40000\n"
                           "[unit.keep]\nhit_points = 9\n"
                           "[building.footman]\nhit_points = 9\n"
-                          "[health.orc]\nbuildings = 2.0\n");
+                          "[health]\nstructures = 1.5\n[health.orc]\nbuildings = 2.0\nstructures = 3.0\n[costs]\nstructures = 0.5\nunits = 0.25\n");
             CHECK(config::Init(dir), "building tables rejected");
             const uint8_t tower = 0x60;
             CHECK(config::g.unitStat[tower][kStatHitPoints] == 200 && config::g.unitStat[tower][kStatPiercingDamage] == 14 &&
@@ -798,9 +821,12 @@ int wmain(int argc, wchar_t** argv) {
             CHECK(config::g.unitStat[kFarmT][kStatHitPoints] == -1, "structure hit_points above 32767 must be refused");
             CHECK(config::g.unitStat[kKeep][kStatHitPoints] == -1 && config::g.unitStat[kFootman][kStatHitPoints] == -1,
                   "a building under [unit.*] or a unit under [building.*] must be refused");
-            CHECK(config::g.health.race[kOrc].structure[kBuildings] == 2.0, "[health.orc] buildings did not load");
+            CHECK(config::g.health.race[kOrc].structure[kBuildings] == 2.0 && config::g.health.structures == 1.5 &&
+                      config::g.health.race[kOrc].structures == 3.0 && config::g.costs.structures == 0.5 && config::g.costs.units == 0.25,
+                  "structure masters did not load from the file");
             datatweaks::OnNewMapTablesLoaded();
-            CHECK(hpT[kGuardTower] == 200 && pierceT[kGuardTower] == 14 && rangeT[kGuardTower] == 7 && goldT[kGuardTower] == 45 && armorT[kGuardTower] == 20,
+            // human guard tower: health 200 x [health] structures 1.5 = 300; gold 450 x [costs] structures 0.5 = 225 -> 23 tens
+            CHECK(hpT[kGuardTower] == 300 && pierceT[kGuardTower] == 14 && rangeT[kGuardTower] == 7 && goldT[kGuardTower] == 23 && armorT[kGuardTower] == 20,
                   "guard tower stats (hp %u pierce %u range %u gold %u)", hpT[kGuardTower], pierceT[kGuardTower], rangeT[kGuardTower], goldT[kGuardTower]);
             DeleteFileW(ini);
             CHECK(config::Init(dir), "default config did not come back");

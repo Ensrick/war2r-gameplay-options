@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.3 - staged 2026-09-18, not uploaded yet
+
+- "All structures" multipliers: a `structures` key at the top of `[health]`, `[costs]` and `[time]` (both races) and
+  under each race table (umbrella over `buildings` and `building_upgrades`). `[costs]` and `[time]` also gain top-level
+  `units` and `research` masters. All 1.0 by default; in `[health]` the `all` values stay unit-only.
+- The shipped `gameplay_options.toml` is reorganised into ten numbered parts with a banner each and a contents list at
+  the top; every race table has UNITS / STRUCTURES / RESEARCH sub-headers.
+- Neutral structures (gold mine, dark portal, runestone) are never scaled.
+
 ## 1.0.2 - staged 2026-09-18, not uploaded yet
 
 - Quieter defaults, on the author's call that players should not have to switch features off: only Heal, Slow,

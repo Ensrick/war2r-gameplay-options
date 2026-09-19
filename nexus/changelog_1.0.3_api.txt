@@ -1,0 +1,3 @@
+New "all structures" multipliers: a structures key at the top of [health], [costs] and [time] (both races) and under each race table. [costs] and [time] also get units and research masters. All 1.0 by default.
+The config file is reorganised into ten numbered, labeled parts with a contents list, and every race table has UNITS / STRUCTURES / RESEARCH sub-headers.
+An existing gameplay_options.toml keeps working unchanged.

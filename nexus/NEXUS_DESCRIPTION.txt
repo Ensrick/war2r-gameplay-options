@@ -92,9 +92,11 @@ regen_for = "all"         # or "mine"[/code]
 
 [size=4][b]4. Multipliers: health, prices, build and research time[/b][/size]
 Three sections with the same layout: [b][health][/b], [b][costs][/b], [b][time][/b]. Everything is 1.0 (the game's own number) until you change it. 0.5 halves, 2.0 doubles. The values [b]multiply into each other from the top down[/b]:
-[code]master "all"   x   race "all"   x   units / research (umbrella)   x   the group[/code]
+[code]master "all"  x  master units / structures / research  x  race "all"  x  race units / structures / research  x  the group[/code]
+The file is split into numbered, labeled parts, and every race table has UNITS / STRUCTURES / RESEARCH sub-headers. [b]"All structures" is the key named structures[/b]: at the top of a section for both races, under [x.human] / [x.orc] for one race.
 [code][health]
 all = 2.0               # every unit in the game: double health
+structures = 1.5        # every structure of both races
 
 [health.orc]
 all = 1.5               # orcs another 50% on top
@@ -111,9 +113,12 @@ buildings = 1.5
 [costs.orc]
 research = 0.5          # all orc research half price
 
+[costs]
+structures = 0.5        # every building and building upgrade half price
+
 [time]
 all = 0.5               # train, build and research twice as fast[/code]
-[b]Groups:[/b] workers, melee, ranged, siege, casters, air, naval, demolition, heroes (health only), buildings, building_upgrades (keep, castle, guard and cannon tower), melee_upgrades, ranged_upgrades, siege_upgrades, naval_upgrades, paladin_upgrades / ogre_mage_upgrades, mage_spells / death_knight_spells. In [health], "all" and the unit groups are unit health and never touch a structure; structures follow only their own buildings / building_upgrades keys. Prices scale gold, lumber and oil.
+[b]Masters and umbrellas:[/b] all, units, structures, research. [b]Groups:[/b] workers, melee, ranged, siege, casters, air, naval, demolition, heroes (health only), buildings, building_upgrades (keep, castle, guard and cannon tower), melee_upgrades, ranged_upgrades, siege_upgrades, naval_upgrades, paladin_upgrades / ogre_mage_upgrades, mage_spells / death_knight_spells. In [health], "all" and the unit groups are unit health and never touch a structure; structures follow only structures / buildings / building_upgrades. Prices scale gold, lumber and oil.
 [b]Limits of the engine:[/b] 65535 hit points (32767 for structures), 2550 for a unit or structure price (steps of 10), 65535 for a research price, 255 for a build or research time.
 
 [size=4][b]5. Your own numbers for a single unit or building[/b][/size]

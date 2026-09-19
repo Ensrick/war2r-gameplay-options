@@ -147,7 +147,7 @@ def main():
     if appended:
         while lines and not lines[-1].strip():
             lines.pop()
-        lines += ['', '# Carried over from your previous file.']
+        lines += ['', '# --- YOUR TABLES (carried over from your previous file) ---']
         for table, items in appended.items():
             lines += ['[' + '.'.join(table) + ']'] + [f'{k} = {fmt(v)}' for k, v in items] + ['']
 

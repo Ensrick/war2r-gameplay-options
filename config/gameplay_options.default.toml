@@ -1,27 +1,35 @@
-# Warcraft II Remastered - Gameplay Options
-# Out of the box only four autocasts (Heal, Slow, Bloodlust, Raise Dead) and worker auto-repair are switched on.
-# Everything else in this file is off or neutral until you turn it on; examples are given as comments.
-# Edits are picked up while the game runs (within a few seconds). A syntax error keeps the previous settings
-# and is reported in gameplay_options.log. Single-player only: everything here switches itself off in multiplayer.
+# ==============================================================================================================
+#  WARCRAFT II: REMASTERED - GAMEPLAY OPTIONS
+#  Out of the box only four autocasts (Heal, Slow, Bloodlust, Raise Dead) and worker auto-repair are on.
+#  Everything else is off or neutral until you turn it on; ready-made examples are given as comments.
+#  
+#  Save the file while the game runs: changes are picked up within a few seconds. A typo keeps your previous
+#  settings and is reported in gameplay_options.log. Single-player only: the mod switches itself off in multiplayer.
+#  
+#  CONTENTS    1. GENERAL          2. AUTOCAST (spells, heal, polymorph, haste, eye of kilrogg)
+#              3. WORKERS          4. GOLD MINES          5. HEROES
+#              6. HEALTH           7. PRICES              8. BUILD AND RESEARCH TIME
+#              9. RANGE UPGRADE   10. YOUR OWN NUMBERS FOR ONE UNIT OR ONE BUILDING
+# ==============================================================================================================
+
+# ==============================================================================================================
+#  1. GENERAL
+# ==============================================================================================================
 
 [general]
+# Master switch for autocasting. Ctrl + toggle_key flips it in game.
 enabled = true
-# Ctrl + this key toggles autocast in game. "F1".."F12", or a Windows virtual-key number.
+# "F1".."F12", or a Windows virtual-key number. "" = no hotkey.
 toggle_key = "F9"
 # Game steps between autocast passes. Lower = snappier; the computer AI itself uses 50.
 interval_ticks = 10
-# true = write every cast to gameplay_options.log
+# true = write every cast and worker order to gameplay_options.log
 log_casts = false
 
-[autocast]
-# How far (tiles) a caster looks for targets. It walks into range if needed.
-search_radius = 8
-# Bloodlust / Haste / Unholy Armor only go on units that are fighting: attacking with an enemy this close.
-combat_radius = 6
-# true = Heal / Bloodlust / Haste only on your own units, false = allies too.
-own_units_only = true
-# true = casters may interrupt their own attack to cast. Move orders are never interrupted.
-cast_while_attacking = true
+# ==============================================================================================================
+#  2. AUTOCAST
+#  Your casters cast on their own. Move orders are never interrupted; two casters never pick the same target.
+# ==============================================================================================================
 
 [spells]
 # true = your casters cast this spell on their own.
@@ -35,6 +43,16 @@ haste = false
 unholy_armor = false
 # Raise Dead is only cast while an enemy is within search_radius, so skeletons are not wasted.
 raise_dead = true
+
+[autocast]
+# How far (tiles) a caster looks for targets. It walks into range if needed.
+search_radius = 8
+# Bloodlust / Haste / Unholy Armor only go on units that are fighting: attacking with an enemy this close.
+combat_radius = 6
+# true = Heal / Bloodlust / Haste only on your own units, false = allies too.
+own_units_only = true
+# true = casters may interrupt their own attack to cast.
+cast_while_attacking = true
 
 [heal]
 # Heal only units missing at least this many hit points.
@@ -68,31 +86,42 @@ cast = false
 cast_at_mana = 255
 # How many of your eyes may be out at the same time.
 max_active = 1
-# Your eyes fly to unexplored ground by themselves (then to fogged ground once everything is explored).
+# true = your eyes fly to unexplored ground by themselves (then to fogged ground once everything is explored).
 # Give an eye an order of your own and the mod leaves that eye to you. Works for eyes you cast by hand too.
 auto_scout = false
 
-[gold_mines]
-# true = gold mines never run dry (every mine on the map, the computer's too). Off by default: starving a mine
-# is a legitimate way to win some campaign missions, but a computer that runs out of gold can stall a long game.
-unlimited = false
+# ==============================================================================================================
+#  3. WORKERS
+#  "Idle" means stopped with nothing queued. Stand Ground is respected: that is how you park a worker.
+# ==============================================================================================================
 
 [workers]
-# Your idle peasants / peons go back to work by themselves. "Idle" means stopped with nothing queued.
-# Stand Ground is respected: a worker you told to stand ground is never taken over.
-# Idle this long -> walk to the nearest gold mine or tree within harvest_radius tiles (a loaded worker returns
-# its cargo first).
-auto_harvest = false
-harvest_idle_seconds = 10
-harvest_radius = 5
 # Idle this long -> repair the nearest damaged building of yours within repair_radius tiles. Needs at least
 # 1 gold and 1 lumber in the bank; buildings still under construction are left alone.
 auto_repair = true
 repair_idle_seconds = 1
 repair_radius = 10
+# Idle this long -> walk to the nearest gold mine or tree within harvest_radius tiles (a loaded worker returns
+# its cargo first).
+auto_harvest = false
+harvest_idle_seconds = 10
+harvest_radius = 5
+
+# ==============================================================================================================
+#  4. GOLD MINES
+# ==============================================================================================================
+
+[gold_mines]
+# true = gold mines never run dry (every mine on the map, the computer's too). Starving a mine is a legitimate way to
+# win some campaign missions, but a computer that runs out of gold can stall a long game: your call.
+unlimited = false
+
+# ==============================================================================================================
+#  5. HEROES
+# ==============================================================================================================
 
 [heroes]
-# Which unit types count as heroes (used by hero regeneration and the hero health multiplier).
+# Which unit types count as heroes (used by hero regeneration and by the "heroes" health multiplier).
 # All 15 heroes of both campaigns are listed. Short names work too: "uther", "grom", "teron", "korgath".
 units = [
     # Alliance
@@ -106,190 +135,261 @@ regen_hp_per_second = 0
 # "all" = every hero on the map (enemy heroes too), "mine" = only your own.
 regen_for = "all"
 
-# ---------------------------------------------------------------------------------------------------------------
-# The sections below change the game's unit, structure and research data. They are applied once, when a NEW map
-# starts (new mission, custom game, restart). Editing them mid-game does nothing until the next map. A savegame keeps
-# the values it was made with: saves from before the mod stay unchanged, saves made with the mod keep their numbers.
-# The computer plays by the same numbers.
-#
-# [health], [costs] and [time] are multipliers and share one layout. 1.0 = the game's own number, 0.5 = half,
-# 2.0 = double. The values multiply into each other, top down:
-#     [x] all   x   [x.human] or [x.orc] all   x   units / research (umbrella)   x   the group
-# so "all = 2.0" at the top doubles everything, and "[health.orc] melee = 1.5" adds 50% for grunts, ogres and
-# ogre-magi on top of that.
-#
-# Groups     workers      peasant, peon
-#            melee        footman, knight, paladin / grunt, ogre, ogre-mage
-#            ranged       archer, ranger / axethrower, berserker
-#            siege        ballista / catapult
-#            casters      mage / death knight
-#            air          gryphon rider, flying machine / dragon, zeppelin
-#            naval        every ship
-#            demolition   dwarves / goblin sappers
-#            heroes       the unit types listed under [heroes] units (health only, heroes are never trained)
-#            buildings           structures your workers place
-#            building_upgrades   keep / stronghold, castle / fortress, guard tower, cannon tower
-#            melee_upgrades      swords, shields / battle axes, shields
-#            ranged_upgrades     arrows, ranger upgrade, longbow, scouting, marksmanship / throwing axes, berserker
-#                                upgrade, lighter axes, scouting, regeneration
-#            siege_upgrades      ballista / catapult upgrades
-#            naval_upgrades      ship cannons and ship armor
-#            paladin_upgrades    paladin upgrade, holy vision, healing, exorcism
-#            ogre_mage_upgrades  ogre-mage upgrade, eye of kilrogg, bloodlust, runes
-#            mage_spells / death_knight_spells   their spell research
-#
-# Engine limits: hit points 65535 (from 10000 up the status panel stops printing the numbers), unit and structure
-# prices 2550 in steps of 10, research prices 65535, build and research times 255 (many are already 200-255, so
-# times can be shortened freely but barely lengthened). Free things stay free.
-# ---------------------------------------------------------------------------------------------------------------
+# ==============================================================================================================
+#  MULTIPLIERS: HEALTH (6), PRICES (7), BUILD AND RESEARCH TIME (8)
+#  1.0 = the game's own number, 0.5 = half, 2.0 = double. Values multiply into each other from the top down:
+#  
+#        master          x      race               x      group
+#        [costs]                [costs.human]             e.g. melee, buildings, naval_upgrades
+#  
+#  Every section has its masters first, then one table for humans and one for orcs. Inside a race table the
+#  lines are grouped under UNITS, STRUCTURES and RESEARCH.
+#  
+#  These are applied once, when a NEW map starts (new mission, custom game, restart). A savegame keeps the numbers it
+#  was made with. The computer plays by the same numbers. Engine limits: unit health 65535 (the status panel stops
+#  printing numbers from 10000 up), structure health 32767, unit and structure prices 2550 in steps of 10, research
+#  prices 65535, times 255 (many are already 200-255: they can be cut freely but barely lengthened). Free stays free.
+# ==============================================================================================================
+
+# ==============================================================================================================
+#  6. HEALTH
+#  Units and structures have SEPARATE masters here: doubling unit health never touches a building.
+# ==============================================================================================================
 
 [health]
-# "all" is the master multiplier for UNIT health. It never touches structures, and neither do the race "all" values
-# or the unit groups. Structures follow only their own two keys below: buildings and building_upgrades
-# (keep / stronghold, castle / fortress, guard and cannon towers). Structure health tops out at 32767.
+# UNITS master: every unit of every race (never a structure).
 all = 1.0
+# STRUCTURES master: every building of both races.
+structures = 1.0
 
 [health.human]
+# --- HUMAN UNITS ---
+# every human unit
 all = 1.0
-workers = 1.0
-melee = 1.0
-ranged = 1.0
-siege = 1.0
-casters = 1.0
-air = 1.0
-naval = 1.0
-demolition = 1.0
-heroes = 1.0
-buildings = 1.0
-building_upgrades = 1.0
+workers = 1.0           # peasant
+melee = 1.0             # footman, knight, paladin
+ranged = 1.0            # archer, ranger
+siege = 1.0             # ballista
+casters = 1.0           # mage
+air = 1.0               # gryphon rider, flying machine
+naval = 1.0             # every ship
+demolition = 1.0        # dwarves
+heroes = 1.0            # human heroes (the list is under HEROES above)
+
+# --- HUMAN STRUCTURES ---
+# every human structure
+structures = 1.0
+buildings = 1.0         # everything a worker places
+building_upgrades = 1.0 # keep, castle, guard tower, cannon tower
 
 [health.orc]
+# --- ORC UNITS ---
+# every orc unit
 all = 1.0
-workers = 1.0
-melee = 1.0
-ranged = 1.0
-siege = 1.0
-casters = 1.0
-air = 1.0
-naval = 1.0
-demolition = 1.0
-heroes = 1.0
-buildings = 1.0
-building_upgrades = 1.0
+workers = 1.0           # peon
+melee = 1.0             # grunt, ogre, ogre-mage
+ranged = 1.0            # axethrower, berserker
+siege = 1.0             # catapult
+casters = 1.0           # death knight
+air = 1.0               # dragon, zeppelin
+naval = 1.0             # every ship
+demolition = 1.0        # goblin sappers
+heroes = 1.0            # orc heroes (the list is under HEROES above)
+
+# --- ORC STRUCTURES ---
+# every orc structure
+structures = 1.0
+buildings = 1.0         # everything a worker places
+building_upgrades = 1.0 # stronghold, fortress, guard tower, cannon tower
 
 [health.neutral]
 # Skeletons, daemons, critters, the Eye of Kilrogg.
 all = 1.0
 
+# ==============================================================================================================
+#  7. PRICES
+#  Gold, lumber and oil all scale.
+# ==============================================================================================================
+
 [costs]
-# Gold, lumber and oil all scale, for units, structures and research alike.
+# Master for everything: units, structures and research.
 all = 1.0
+# Masters per kind (both races).
+units = 1.0
+structures = 1.0
+research = 1.0
 
 [costs.human]
+# everything human: units, structures and research
 all = 1.0
+
+# --- HUMAN UNITS ---
+# every human unit
 units = 1.0
+workers = 1.0           # peasant
+melee = 1.0             # footman, knight, paladin
+ranged = 1.0            # archer, ranger
+siege = 1.0             # ballista
+casters = 1.0           # mage
+air = 1.0               # gryphon rider, flying machine
+naval = 1.0             # every ship
+demolition = 1.0        # dwarves
+
+# --- HUMAN STRUCTURES ---
+# every human structure
+structures = 1.0
+buildings = 1.0         # everything a worker places
+building_upgrades = 1.0 # keep, castle, guard tower, cannon tower
+
+# --- HUMAN RESEARCH ---
+# all human research
 research = 1.0
-workers = 1.0
-melee = 1.0
-ranged = 1.0
-siege = 1.0
-casters = 1.0
-air = 1.0
-naval = 1.0
-demolition = 1.0
-buildings = 1.0
-building_upgrades = 1.0
-melee_upgrades = 1.0
-ranged_upgrades = 1.0
-siege_upgrades = 1.0
-naval_upgrades = 1.0
-paladin_upgrades = 1.0
-mage_spells = 1.0
+melee_upgrades = 1.0        # swords, shields
+ranged_upgrades = 1.0       # arrows, ranger upgrade, longbow, scouting, marksmanship
+siege_upgrades = 1.0        # ballista upgrades
+naval_upgrades = 1.0        # ship cannons and ship armor
+paladin_upgrades = 1.0      # paladin upgrade, holy vision, healing, exorcism
+mage_spells = 1.0           # flame shield, fireball, slow, invisibility, polymorph, blizzard
 
 [costs.orc]
+# everything orc: units, structures and research
 all = 1.0
+
+# --- ORC UNITS ---
+# every orc unit
 units = 1.0
+workers = 1.0           # peon
+melee = 1.0             # grunt, ogre, ogre-mage
+ranged = 1.0            # axethrower, berserker
+siege = 1.0             # catapult
+casters = 1.0           # death knight
+air = 1.0               # dragon, zeppelin
+naval = 1.0             # every ship
+demolition = 1.0        # goblin sappers
+
+# --- ORC STRUCTURES ---
+# every orc structure
+structures = 1.0
+buildings = 1.0         # everything a worker places
+building_upgrades = 1.0 # stronghold, fortress, guard tower, cannon tower
+
+# --- ORC RESEARCH ---
+# all orc research
 research = 1.0
-workers = 1.0
-melee = 1.0
-ranged = 1.0
-siege = 1.0
-casters = 1.0
-air = 1.0
-naval = 1.0
-demolition = 1.0
-buildings = 1.0
-building_upgrades = 1.0
-melee_upgrades = 1.0
-ranged_upgrades = 1.0
-siege_upgrades = 1.0
-naval_upgrades = 1.0
-ogre_mage_upgrades = 1.0
-death_knight_spells = 1.0
+melee_upgrades = 1.0        # battle axes, shields
+ranged_upgrades = 1.0       # throwing axes, berserker upgrade, lighter axes, scouting, regeneration
+siege_upgrades = 1.0        # catapult upgrades
+naval_upgrades = 1.0        # ship cannons and ship armor
+ogre_mage_upgrades = 1.0    # ogre-mage upgrade, eye of kilrogg, bloodlust, runes
+death_knight_spells = 1.0   # raise dead, death coil, whirlwind, haste, unholy armor, death and decay
+
+# ==============================================================================================================
+#  8. BUILD AND RESEARCH TIME
+#  Training, construction, structure upgrades and research. Same layout as PRICES.
+# ==============================================================================================================
 
 [time]
-# Training, construction, structure upgrade and research time. Same groups as [costs].
+# Master for everything.
 all = 1.0
+# Masters per kind (both races).
+units = 1.0
+structures = 1.0
+research = 1.0
 
 [time.human]
+# everything human: units, structures and research
 all = 1.0
+
+# --- HUMAN UNITS ---
+# every human unit
 units = 1.0
+workers = 1.0           # peasant
+melee = 1.0             # footman, knight, paladin
+ranged = 1.0            # archer, ranger
+siege = 1.0             # ballista
+casters = 1.0           # mage
+air = 1.0               # gryphon rider, flying machine
+naval = 1.0             # every ship
+demolition = 1.0        # dwarves
+
+# --- HUMAN STRUCTURES ---
+# every human structure
+structures = 1.0
+buildings = 1.0         # everything a worker places
+building_upgrades = 1.0 # keep, castle, guard tower, cannon tower
+
+# --- HUMAN RESEARCH ---
+# all human research
 research = 1.0
-workers = 1.0
-melee = 1.0
-ranged = 1.0
-siege = 1.0
-casters = 1.0
-air = 1.0
-naval = 1.0
-demolition = 1.0
-buildings = 1.0
-building_upgrades = 1.0
-melee_upgrades = 1.0
-ranged_upgrades = 1.0
-siege_upgrades = 1.0
-naval_upgrades = 1.0
-paladin_upgrades = 1.0
-mage_spells = 1.0
+melee_upgrades = 1.0        # swords, shields
+ranged_upgrades = 1.0       # arrows, ranger upgrade, longbow, scouting, marksmanship
+siege_upgrades = 1.0        # ballista upgrades
+naval_upgrades = 1.0        # ship cannons and ship armor
+paladin_upgrades = 1.0      # paladin upgrade, holy vision, healing, exorcism
+mage_spells = 1.0           # flame shield, fireball, slow, invisibility, polymorph, blizzard
 
 [time.orc]
+# everything orc: units, structures and research
 all = 1.0
+
+# --- ORC UNITS ---
+# every orc unit
 units = 1.0
+workers = 1.0           # peon
+melee = 1.0             # grunt, ogre, ogre-mage
+ranged = 1.0            # axethrower, berserker
+siege = 1.0             # catapult
+casters = 1.0           # death knight
+air = 1.0               # dragon, zeppelin
+naval = 1.0             # every ship
+demolition = 1.0        # goblin sappers
+
+# --- ORC STRUCTURES ---
+# every orc structure
+structures = 1.0
+buildings = 1.0         # everything a worker places
+building_upgrades = 1.0 # stronghold, fortress, guard tower, cannon tower
+
+# --- ORC RESEARCH ---
+# all orc research
 research = 1.0
-workers = 1.0
-melee = 1.0
-ranged = 1.0
-siege = 1.0
-casters = 1.0
-air = 1.0
-naval = 1.0
-demolition = 1.0
-buildings = 1.0
-building_upgrades = 1.0
-melee_upgrades = 1.0
-ranged_upgrades = 1.0
-siege_upgrades = 1.0
-naval_upgrades = 1.0
-ogre_mage_upgrades = 1.0
-death_knight_spells = 1.0
+melee_upgrades = 1.0        # battle axes, shields
+ranged_upgrades = 1.0       # throwing axes, berserker upgrade, lighter axes, scouting, regeneration
+siege_upgrades = 1.0        # catapult upgrades
+naval_upgrades = 1.0        # ship cannons and ship armor
+ogre_mage_upgrades = 1.0    # ogre-mage upgrade, eye of kilrogg, bloodlust, runes
+death_knight_spells = 1.0   # raise dead, death coil, whirlwind, haste, unholy armor, death and decay
+
+# ==============================================================================================================
+#  9. RANGE UPGRADE
+# ==============================================================================================================
 
 [range]
 # What Longbow (rangers) and Lighter Axes (berserkers) add to attack range. The game's own bonus is 1.
-# One number for both: the game uses a single rule for the two upgrades.
+# One number for both: the game uses a single rule for the two upgrades. Applies right away, no new map needed.
 upgrade_bonus = 1
 
-# ---------------------------------------------------------------------------------------------------------------
-# Your own base stats for a unit: one [unit.<name>] table per unit. -1 (or leaving a line out) keeps the game's own
-# number; 0 is a real value where it makes sense (armor, damage, lumber, oil ...). These replace the game's base
-# numbers first; the [health] / [costs] / [time] multipliers then apply on top of them.
-# Names: every unit name listed under [polymorph], the ships (human_tanker orc_tanker human_transport orc_transport
-# elven_destroyer troll_destroyer battleship juggernaught gnomish_submarine giant_turtle), flying_machine zeppelin
-# ballista catapult.
-#
-#   hit_points 1-65535   armor 0-255   basic_damage 0-255   piercing_damage 0-255   range 0-20 tiles   sight 0-9
-#   gold / lumber / oil 0-2550 in steps of 10   build_time 0-255
-#
-# Template:
+# ==============================================================================================================
+#  10. YOUR OWN NUMBERS FOR ONE UNIT OR ONE BUILDING
+#  One [unit.<name>] table per unit, one [building.<name>] table per structure. -1 (or leaving a line out) keeps
+#  the game's own number; 0 is a real value where it makes sense (armor, damage, lumber, oil ...). These replace the
+#  game's base numbers first; the multipliers above then apply on top of them. Applied when a new map starts.
+#  
+#     hit_points 1-65535 (structures 1-32767)   armor 0-255   basic_damage 0-255   piercing_damage 0-255
+#     range 0-20 tiles   sight 0-9   gold / lumber / oil 0-2550 in steps of 10   build_time 0-255
+#  
+#  UNIT NAMES      every name listed under [polymorph], plus ballista catapult flying_machine zeppelin human_tanker
+#                  orc_tanker human_transport orc_transport elven_destroyer troll_destroyer battleship juggernaught
+#                  gnomish_submarine giant_turtle eye_of_kilrogg. Short names work: uther, grom, gryphon ...
+#  BUILDING NAMES  farm pig_farm human_barracks orc_barracks church altar_of_storms human_scout_tower orc_scout_tower
+#                  stables ogre_mound gnomish_inventor goblin_alchemist gryphon_aviary dragon_roost human_shipyard
+#                  orc_shipyard town_hall great_hall elven_lumber_mill troll_lumber_mill human_foundry orc_foundry
+#                  mage_tower temple_of_the_damned human_blacksmith orc_blacksmith human_refinery orc_refinery
+#                  human_oil_platform orc_oil_platform keep stronghold castle fortress human_guard_tower
+#                  orc_guard_tower human_cannon_tower orc_cannon_tower human_wall orc_wall gold_mine dark_portal runestone
+# ==============================================================================================================
+
+# Template (remove the "# " in front of the lines you want):
 # [unit.footman]
 # hit_points = -1
 # armor = -1
@@ -301,32 +401,15 @@ upgrade_bonus = 1
 # lumber = -1
 # oil = -1
 # build_time = -1
-#
-# Structures work the same way in [building.<name>] tables (hit_points tops out at 32767 there; the damage and range
-# keys matter for the towers). Names: farm pig_farm human_barracks orc_barracks church altar_of_storms
-# human_scout_tower orc_scout_tower stables ogre_mound gnomish_inventor goblin_alchemist gryphon_aviary dragon_roost
-# human_shipyard orc_shipyard town_hall great_hall elven_lumber_mill troll_lumber_mill human_foundry orc_foundry
-# mage_tower temple_of_the_damned human_blacksmith orc_blacksmith human_refinery orc_refinery human_oil_platform
-# orc_oil_platform keep stronghold castle fortress human_guard_tower orc_guard_tower human_cannon_tower
-# orc_cannon_tower human_wall orc_wall gold_mine dark_portal runestone
-#
-# Example (the game's guard tower: 130 hit points, armor 20, damage 4 basic + 12 piercing, range 6, sight 9,
-# 500 gold / 150 lumber, build time 140):
-# [building.human_guard_tower]
-# hit_points = 200
-# piercing_damage = 14
-# range = 7
-# ---------------------------------------------------------------------------------------------------------------
 
 # Example: scouts of the sky. Dragons and gryphon riders see 8 tiles instead of the game's 6.
-# Remove the "# " in front of the lines to switch it on.
 # [unit.dragon]
 # sight = 8
 #
 # [unit.gryphon_rider]
 # sight = 8
 
-# Worked example: a destroyer with every stat nudged a little, so each one is easy to check in game.
+# Example: a destroyer with every stat nudged a little, so each one is easy to check in game.
 # The game's own destroyer: 100 hit points, armor 10, damage 35 basic + 0 piercing, range 4, sight 8,
 # 700 gold / 350 lumber / 700 oil, build time 90. Copy it for troll_destroyer to change the orc ship too.
 # [unit.elven_destroyer]
@@ -340,3 +423,10 @@ upgrade_bonus = 1
 # lumber = 300
 # oil = 500
 # build_time = 80
+
+# Example: a tougher guard tower. The game's own: 130 hit points, armor 20, damage 4 basic + 12 piercing, range 6,
+# sight 9, 500 gold / 150 lumber, build time 140.
+# [building.human_guard_tower]
+# hit_points = 200
+# piercing_damage = 14
+# range = 7
