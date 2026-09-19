@@ -3,6 +3,43 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.0.0-dev.22 - 2026-09-18 (UNTESTED in game)
+
+- The `[vision]` bonus section is gone. Dragons and gryphon riders get their sight from ordinary
+  `[unit.dragon]` / `[unit.gryphon_rider]` tables (`sight = 8`) in the shipped config.
+
+## 1.0.0-dev.21 - 2026-09-18 (UNTESTED in game)
+
+- `[unit.<name>]` tables: base stats per unit type (hit_points, armor, basic_damage, piercing_damage, range, sight,
+  gold, lumber, oil, build_time). -1 or a missing key keeps the game's value, 0 is a real value. Applied before the
+  multipliers. The shipped config carries the user's destroyer example (105 HP, armor 11, 37 + 2 damage, range 5,
+  sight 9, 600 / 300 / 500, build time 80; game values 100, 10, 35 + 0, 4, 8, 700 / 350 / 700, 90).
+- `[range.units]` (added in dev.20, never shipped) is folded into these tables. Tower names added for them.
+
+## 1.0.0-dev.20 - 2026-09-18 (UNTESTED in game)
+
+- `[range] upgrade_bonus`: the Longbow / Lighter Axes bonus is the `inc al` at `0x4EE689` in GetAttackRange; the mod
+  rewrites it as `add al, n` (same 2 bytes) and keeps the status panels' per-level byte `0x8C11E4` in step. Synced every
+  tick (a savegame can load without a new map) and forced back to the game's +1 in multiplayer. Refuses to patch if
+  the two bytes are not the expected ones.
+
+## 1.0.0-dev.19 - 2026-09-18 (UNTESTED in game)
+
+- `[time]`: training, construction, structure upgrade and research time multipliers, same tree as `[costs]`.
+  Byte tables (`0x917910`, `0x9188A8`), cap 255.
+
+## 1.0.0-dev.18 - 2026-09-18 (UNTESTED in game)
+
+- `[costs]` restructured: master `all`, then `[costs.human]` / `[costs.orc]` with `all`, the umbrellas `units` and
+  `research`, the 8 unit groups, `buildings`, `building_upgrades` and the research groups (`naval_upgrades` is the ship
+  research group; `paladin_upgrades` / `ogre_mage_upgrades`, `mage_spells` / `death_knight_spells` are per race).
+  Every research row and structure type is assigned a race (units.cpp).
+
+## 1.0.0-dev.17 - 2026-09-18 (UNTESTED in game)
+
+- `[health]` restructured: master `all`, `[health.human]` / `[health.orc]` with `all` and the unit groups including
+  `heroes`, `[health.neutral] all`. Values multiply top down. Still units only.
+
 ## 1.0.0-dev.16 - 2026-09-18 (UNTESTED in game)
 
 - `[costs]` is now a full set of price groups, all 1.0 by default: `units`, `buildings`, `building_upgrades`

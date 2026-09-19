@@ -50,19 +50,21 @@ WORKERS
 
 TWEAKS (each has its own switch or number)
   - Heroes regenerate 1 HP per second.
-  - Dragons and gryphon riders see 2 tiles further.
+  - Dragons and gryphon riders see 8 tiles instead of 6.
   - Unlimited gold mines: OFF by default.
-  - Health multipliers for units and for heroes: 1.0 (unchanged) by default. Try units = 2.0, heroes = 4.0 for slower,
-    weightier fights.
-  - Price multipliers, all 1.0 by default (0.5 = half price): units, buildings, building upgrades (keep, castle,
-    guard / cannon tower), and research by group: melee (swords, axes, shields), elf / troll, siege, paladin /
-    ogre-mage, naval, mage / death knight spells.
-  Health multipliers only ever touch units, never structures. The engine's limits apply: 65535 hit points, 2550 for a
-  unit or structure price, 65535 for research.
+  - Multipliers for HEALTH, PRICES and BUILD / RESEARCH TIME, all 1.0 (unchanged) by default. Each has a master
+    value, a value per race (human / orc) and values per group (workers, melee, ranged, siege, casters, air, naval,
+    demolition, heroes; buildings, building upgrades; melee / ranged / siege / naval research, paladin or ogre-mage
+    research, mage or death knight spells). They multiply into each other. Health only ever touches units.
+  - Your own base stats for any unit in a [unit.<name>] table: hit points, armor, basic and piercing damage, range,
+    sight, gold, lumber, oil, build time. The shipped file changes both destroyers a little as a worked example;
+    delete those two tables to get the normal destroyer back.
+  - How much range Longbow / Lighter Axes add (the game's own bonus is 1).
+  Engine limits: 65535 hit points, 2550 for a unit or structure price, 65535 for research, 255 for times, sight 9.
 
-  Health, prices and sight are applied when a NEW map starts (new mission, custom game, restart). A savegame keeps the
-  numbers it was made with, so saves from before you installed the mod stay as they were. The computer plays by the
-  same numbers you do.
+  Health, prices, times and unit stats are applied when a NEW map starts (new mission, custom game, restart). A
+  savegame keeps the numbers it was made with, so saves from before you installed the mod stay as they were. The
+  computer plays by the same numbers you do.
 
 
 SETTINGS
@@ -72,8 +74,8 @@ copy-paste recipes. Save the file while the game is running
 and the change applies within a few seconds (a banner confirms it). If you make a typo the mod keeps your previous
 settings and tells you the line number in x86\autocast.log.
 
-Want the mod to do nothing but autocast? Delete the lines under [vision], set regen_hp_per_second = 0, and switch
-the [workers] options to false. The health and price multipliers are already 1.0 out of the box.
+Want the mod to do nothing but autocast? Delete the [unit.*] tables at the bottom of the file, set
+regen_hp_per_second = 0, and switch the [workers] options to false. Every multiplier is already 1.0 out of the box.
 
 Lost your settings file? Delete it; a fresh one with the defaults is written the next time you start a game.
 

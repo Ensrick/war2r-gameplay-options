@@ -100,49 +100,226 @@ regen_hp_per_second = 1
 regen_for = "all"
 
 # ---------------------------------------------------------------------------------------------------------------
-# The three sections below change the game's unit and upgrade data. They are applied once, when a NEW map starts
-# (new mission, custom game, restart). Editing them mid-game does nothing until the next map. A savegame keeps the
-# values it was made with: saves from before the mod stay unchanged, saves made with the mod keep their numbers.
-# The computer plays by the same numbers. Only units are affected, never structures.
+# The sections below change the game's unit, structure and research data. They are applied once, when a NEW map
+# starts (new mission, custom game, restart). Editing them mid-game does nothing until the next map. A savegame keeps
+# the values it was made with: saves from before the mod stay unchanged, saves made with the mod keep their numbers.
+# The computer plays by the same numbers.
+#
+# [health], [costs] and [time] are multipliers and share one layout. 1.0 = the game's own number, 0.5 = half,
+# 2.0 = double. The values multiply into each other, top down:
+#     [x] all   x   [x.human] or [x.orc] all   x   units / research (umbrella)   x   the group
+# so "all = 2.0" at the top doubles everything, and "[health.orc] melee = 1.5" adds 50% for grunts, ogres and
+# ogre-magi on top of that.
+#
+# Groups     workers      peasant, peon
+#            melee        footman, knight, paladin / grunt, ogre, ogre-mage
+#            ranged       archer, ranger / axethrower, berserker
+#            siege        ballista / catapult
+#            casters      mage / death knight
+#            air          gryphon rider, flying machine / dragon, zeppelin
+#            naval        every ship
+#            demolition   dwarves / goblin sappers
+#            heroes       the unit types listed under [heroes] units (health only, heroes are never trained)
+#            buildings           structures your workers place
+#            building_upgrades   keep / stronghold, castle / fortress, guard tower, cannon tower
+#            melee_upgrades      swords, shields / battle axes, shields
+#            ranged_upgrades     arrows, ranger upgrade, longbow, scouting, marksmanship / throwing axes, berserker
+#                                upgrade, lighter axes, scouting, regeneration
+#            siege_upgrades      ballista / catapult upgrades
+#            naval_upgrades      ship cannons and ship armor
+#            paladin_upgrades    paladin upgrade, holy vision, healing, exorcism
+#            ogre_mage_upgrades  ogre-mage upgrade, eye of kilrogg, bloodlust, runes
+#            mage_spells / death_knight_spells   their spell research
+#
+# Engine limits: hit points 65535 (from 10000 up the status panel stops printing the numbers), unit and structure
+# prices 2550 in steps of 10, research prices 65535, build and research times 255 (many are already 200-255, so
+# times can be shortened freely but barely lengthened). Free things stay free.
 # ---------------------------------------------------------------------------------------------------------------
 
 [health]
-# Max hit points multiplier for units. 1.0 = the game's own numbers, 2.0 = double, 0.5 = half.
-# Heroes are the unit types listed under [heroes] and use their own multiplier instead of "units".
-# The engine stores hit points in 16 bits: results are capped at 65535. From 10000 up the status panel stops
-# printing the numbers (the health bar still works).
-units = 1.0
+# Units only: structures are never touched. "all" is the master multiplier.
+all = 1.0
+
+[health.human]
+all = 1.0
+workers = 1.0
+melee = 1.0
+ranged = 1.0
+siege = 1.0
+casters = 1.0
+air = 1.0
+naval = 1.0
+demolition = 1.0
 heroes = 1.0
 
+[health.orc]
+all = 1.0
+workers = 1.0
+melee = 1.0
+ranged = 1.0
+siege = 1.0
+casters = 1.0
+air = 1.0
+naval = 1.0
+demolition = 1.0
+heroes = 1.0
+
+[health.neutral]
+# Skeletons, daemons, critters, the Eye of Kilrogg.
+all = 1.0
+
 [costs]
-# Price multipliers. 1.0 = the game's own prices, 0.5 = half, 2.0 = double. Something that costs anything never
-# becomes free. Engine limits: a unit or structure price is stored in steps of 10 with a ceiling of 2550,
-# an upgrade price tops out at 65535.
+# Units pay gold and lumber (oil is untouched); structures and research scale gold, lumber and oil.
+all = 1.0
 
-# Units: gold and lumber (oil is untouched).
+[costs.human]
+all = 1.0
 units = 1.0
-# Structures your workers place: gold, lumber and oil.
+research = 1.0
+workers = 1.0
+melee = 1.0
+ranged = 1.0
+siege = 1.0
+casters = 1.0
+air = 1.0
+naval = 1.0
+demolition = 1.0
 buildings = 1.0
-# Upgrading a structure: keep / stronghold, castle / fortress, guard tower, cannon tower.
 building_upgrades = 1.0
-
-# Research, grouped by who benefits.
-# Footmen, knights, grunts, ogres: swords, battle axes, shields.
 melee_upgrades = 1.0
-# Elves and trolls: arrows, throwing axes, ranger / berserker upgrade, longbow, lighter axes, scouting,
-# marksmanship, regeneration.
 ranged_upgrades = 1.0
-# Ballista and catapult upgrades.
 siege_upgrades = 1.0
-# Paladin and ogre-mage upgrade, and their spells: holy vision, healing, exorcism, eye of kilrogg, bloodlust, runes.
-paladin_ogre_mage_upgrades = 1.0
-# Ship cannons and ship armor.
 naval_upgrades = 1.0
-# Mage and death knight spell research.
-mage_death_knight_spells = 1.0
+paladin_upgrades = 1.0
+mage_spells = 1.0
 
-[vision]
-# Extra sight range per unit type: unit_name = bonus. Total sight tops out at 9 (the engine's limit).
-# Listing anything here replaces the default list, so keep the lines you still want.
-dragon = 2
-gryphon_rider = 2
+[costs.orc]
+all = 1.0
+units = 1.0
+research = 1.0
+workers = 1.0
+melee = 1.0
+ranged = 1.0
+siege = 1.0
+casters = 1.0
+air = 1.0
+naval = 1.0
+demolition = 1.0
+buildings = 1.0
+building_upgrades = 1.0
+melee_upgrades = 1.0
+ranged_upgrades = 1.0
+siege_upgrades = 1.0
+naval_upgrades = 1.0
+ogre_mage_upgrades = 1.0
+death_knight_spells = 1.0
+
+[time]
+# Training, construction, structure upgrade and research time. Same groups as [costs].
+all = 1.0
+
+[time.human]
+all = 1.0
+units = 1.0
+research = 1.0
+workers = 1.0
+melee = 1.0
+ranged = 1.0
+siege = 1.0
+casters = 1.0
+air = 1.0
+naval = 1.0
+demolition = 1.0
+buildings = 1.0
+building_upgrades = 1.0
+melee_upgrades = 1.0
+ranged_upgrades = 1.0
+siege_upgrades = 1.0
+naval_upgrades = 1.0
+paladin_upgrades = 1.0
+mage_spells = 1.0
+
+[time.orc]
+all = 1.0
+units = 1.0
+research = 1.0
+workers = 1.0
+melee = 1.0
+ranged = 1.0
+siege = 1.0
+casters = 1.0
+air = 1.0
+naval = 1.0
+demolition = 1.0
+buildings = 1.0
+building_upgrades = 1.0
+melee_upgrades = 1.0
+ranged_upgrades = 1.0
+siege_upgrades = 1.0
+naval_upgrades = 1.0
+ogre_mage_upgrades = 1.0
+death_knight_spells = 1.0
+
+[range]
+# What Longbow (rangers) and Lighter Axes (berserkers) add to attack range. The game's own bonus is 1.
+# One number for both: the game uses a single rule for the two upgrades.
+upgrade_bonus = 1
+
+# ---------------------------------------------------------------------------------------------------------------
+# Your own base stats for a unit: one [unit.<name>] table per unit. -1 (or leaving a line out) keeps the game's own
+# number; 0 is a real value where it makes sense (armor, damage, lumber, oil ...). These replace the game's base
+# numbers first; the [health] / [costs] / [time] multipliers then apply on top of them.
+# Names: every unit name listed under [polymorph], the ships (human_tanker orc_tanker human_transport orc_transport
+# elven_destroyer troll_destroyer battleship juggernaught gnomish_submarine giant_turtle), flying_machine zeppelin
+# ballista catapult, and the towers human_guard_tower orc_guard_tower human_cannon_tower orc_cannon_tower.
+#
+#   hit_points 1-65535   armor 0-255   basic_damage 0-255   piercing_damage 0-255   range 0-20 tiles   sight 0-9
+#   gold / lumber / oil 0-2550 in steps of 10   build_time 0-255
+#
+# Template:
+# [unit.footman]
+# hit_points = -1
+# armor = -1
+# basic_damage = -1
+# piercing_damage = -1
+# range = -1
+# sight = -1
+# gold = -1
+# lumber = -1
+# oil = -1
+# build_time = -1
+# ---------------------------------------------------------------------------------------------------------------
+
+# Scouts of the sky: dragons and gryphon riders see 8 tiles instead of the game's 6.
+[unit.dragon]
+sight = 8
+
+[unit.gryphon_rider]
+sight = 8
+
+# Worked example: both destroyers, every stat nudged a little so each one is easy to check in game.
+# The game's own destroyer: 100 hit points, armor 10, damage 35 basic + 0 piercing, range 4, sight 8,
+# 700 gold / 350 lumber / 700 oil, build time 90. Delete these two tables to get the normal destroyer back.
+[unit.elven_destroyer]
+hit_points = 105
+armor = 11
+basic_damage = 37
+piercing_damage = 2
+range = 5
+sight = 9
+gold = 600
+lumber = 300
+oil = 500
+build_time = 80
+
+[unit.troll_destroyer]
+hit_points = 105
+armor = 11
+basic_damage = 37
+piercing_damage = 2
+range = 5
+sight = 9
+gold = 600
+lumber = 300
+oil = 500
+build_time = 80

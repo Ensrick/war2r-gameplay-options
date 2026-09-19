@@ -20,10 +20,12 @@ Workers
 Tweaks (all configurable)
 - Unlimited gold mines, off by default.
 - Heroes regenerate 1 HP per second.
-- Health multipliers for units and for heroes, 1.0 (unchanged) by default, capped at the engine's 65535.
-- Dragons and gryphon riders: +2 sight.
-- Price multipliers, 1.0 by default: units, buildings, building upgrades (cap 2550), and research by group: melee,
-  elf / troll, siege, paladin / ogre-mage, naval, mage / death knight spells (cap 65535).
+- Multipliers for health, prices and build / research time, 1.0 by default: master x race (human / orc) x group.
+  Health only touches units. Caps are the engine's: 65535 hit points, 2550 per unit or structure price, 65535 per
+  research price, 255 per time.
+- Per-unit base stats in `[unit.<name>]` tables: hit points, armor, basic / piercing damage, range, sight, gold,
+  lumber, oil, build time. Ships with sight 8 for dragons and gryphon riders and a worked destroyer example.
+- Configurable range bonus for Longbow / Lighter Axes.
 
 Config
 - `autocast.toml`, hot reloaded, with error reporting that never breaks a running game.

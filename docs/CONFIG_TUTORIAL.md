@@ -159,82 +159,117 @@ Off by default. It covers every mine on the map, the computer's too.
 unlimited = true
 ```
 
-### Health, prices and sight
+### Health, prices, build times: the multipliers
 
-These three sections change the game's unit data. They are read **when a new map starts** (new mission, custom game,
-restart), not in the middle of a game, and a savegame keeps the numbers it was made with.
+`[health]`, `[costs]` and `[time]` change the game's unit, structure and research data. They are read **when a new map
+starts** (new mission, custom game, restart), not in the middle of a game, and a savegame keeps the numbers it was made
+with. The computer plays by the same numbers.
 
-The health and price settings are multipliers: `1.0` is the game's own number (the default for all of them), `2.0`
-doubles it, `0.5` halves it. Health multipliers only touch units, never structures. Slower, weightier fights with a
-kinder economy:
+All three share one layout, and the values **multiply into each other from the top down**:
+
+```
+[costs] all   x   [costs.human] all   x   units or research (umbrella)   x   the group
+```
+
+`1.0` is the game's own number and the default everywhere. `0.5` halves, `2.0` doubles.
 
 ```toml
 [health]
-units = 2.0        # every unit that is not a hero
-heroes = 4.0       # the unit types listed under [heroes] units
+all = 2.0              # master: every unit in the game has double health
+
+[health.orc]
+all = 1.5              # ...and orcs another 50% on top (3x in total)
+melee = 1.2            # ...and grunts, ogres and ogre-magi 20% on top of that
+
+[health.human]
+heroes = 4.0           # human heroes: 2.0 x 4.0 = 8x
 
 [costs]
-units = 0.5              # gold and lumber price of units
-ranged_upgrades = 0.5    # elf / troll research
-siege_upgrades = 0.5     # ballista and catapult upgrades
+all = 1.0
 
-[vision]
-dragon = 2               # unit_name = extra sight. Total sight tops out at 9
-gryphon_rider = 2
-```
-
-Every price group in `[costs]`:
-
-| Setting | What it prices |
-|---|---|
-| `units` | every unit: gold and lumber (oil is untouched) |
-| `buildings` | structures your workers place: gold, lumber and oil |
-| `building_upgrades` | keep / stronghold, castle / fortress, guard tower, cannon tower |
-| `melee_upgrades` | swords, battle axes, shields |
-| `ranged_upgrades` | arrows, throwing axes, ranger / berserker upgrade, longbow, lighter axes, scouting, marksmanship, regeneration |
-| `siege_upgrades` | ballista and catapult upgrades |
-| `paladin_ogre_mage_upgrades` | paladin and ogre-mage upgrade plus their spells: holy vision, healing, exorcism, eye of kilrogg, bloodlust, runes |
-| `naval_upgrades` | ship cannons and ship armor |
-| `mage_death_knight_spells` | mage and death knight spell research |
-
-Expensive fortifications, cheap knights and paladins:
-
-```toml
-[costs]
+[costs.human]
+units = 0.5            # umbrella: every human unit half price
+naval_upgrades = 0.5   # ship cannons and ship armor research
 buildings = 1.5
-building_upgrades = 2.0
-melee_upgrades = 0.5
-paladin_ogre_mage_upgrades = 0.5
+
+[costs.orc]
+research = 0.5         # umbrella: all orc research half price
+melee_upgrades = 0.5   # battle axes and shields: 0.5 x 0.5 = a quarter
+
+[time]
+all = 0.5              # everything trains, builds and researches twice as fast
 ```
+
+Groups you can use in `[x.human]` and `[x.orc]`:
+
+| Key | Covers |
+|---|---|
+| `all` | everything of that race |
+| `units` | umbrella over all unit groups (`[costs]` and `[time]`) |
+| `research` | umbrella over all research groups (`[costs]` and `[time]`) |
+| `workers` `melee` `ranged` `siege` `casters` `air` `naval` `demolition` | peasant / peon; footman, knight, paladin / grunt, ogre, ogre-mage; archer, ranger / axethrower, berserker; ballista / catapult; mage / death knight; gryphon rider, flying machine / dragon, zeppelin; every ship; dwarves / sappers |
+| `heroes` | the unit types listed under `[heroes] units` (`[health]` only) |
+| `buildings` | structures your workers place |
+| `building_upgrades` | keep / stronghold, castle / fortress, guard tower, cannon tower |
+| `melee_upgrades` `ranged_upgrades` `siege_upgrades` `naval_upgrades` | swords, axes, shields; the elf / troll line; ballista / catapult; ship cannons and armor |
+| `paladin_upgrades` (human) / `ogre_mage_upgrades` (orc) | the upgrade itself plus holy vision, healing, exorcism / eye of kilrogg, bloodlust, runes |
+| `mage_spells` (human) / `death_knight_spells` (orc) | their spell research |
+
+`[health]` only knows unit groups: structures never have their health changed. `[health.neutral] all` covers skeletons,
+daemons, critters and the Eye of Kilrogg. Units pay gold and lumber (oil is untouched); structures and research scale
+gold, lumber and oil.
 
 The engine's own limits cap the results:
 
 | What | Limit | Why |
 |---|---|---|
 | Unit hit points | 65535 | stored in 16 bits. From 10000 up the status panel stops printing the numbers; the health bar still works |
-| Unit or structure price | 2550, in steps of 10 | the game stores these prices as one byte of tens |
+| Unit or structure price | 2550, in steps of 10 | stored as one byte of tens |
 | Research price | 65535 | stored in 16 bits |
+| Build / research time | 255 | stored as one byte. Many are already 200-255 (town hall 255, dragon 250, most research 250), so times can be cut freely but barely lengthened |
 
-Any multiplier from 0.01 to 1000 is accepted. Something that costs anything never becomes free, and what is free stays free.
+Any multiplier from 0.01 to 1000 is accepted. What is free stays free; what costs something never becomes free.
 
-Give scouts better eyes too:
+### Your own numbers for one unit
+
+One `[unit.<name>]` table per unit. `-1`, or simply leaving a line out, keeps the game's own number. `0` is a real value
+where it makes sense (armor, damage, lumber, oil). These are **base** numbers: they replace the game's values first, and
+the multipliers above then apply on top of them.
 
 ```toml
-[vision]
-dragon = 2
-gryphon_rider = 2
-flying_machine = 1
-zeppelin = 1
+[unit.elven_destroyer]
+hit_points = 105        # 1-65535      game: 100
+armor = 11              # 0-255        game: 10
+basic_damage = 37       # 0-255        game: 35
+piercing_damage = 2     # 0-255        game: 0
+range = 5               # 0-20 tiles   game: 4
+sight = 9               # 0-9          game: 8
+gold = 600              # 0-2550, steps of 10   game: 700
+lumber = 300            #                       game: 350
+oil = 500               #                       game: 700
+build_time = 80         # 0-255        game: 90
 ```
 
-Writing a `[vision]` section replaces the default list, so keep the lines you still want. An empty `[vision]` section
-means no sight bonus for anyone.
+The shipped config contains this example for both destroyers so you can see every stat working; delete the two tables to
+get the normal destroyer back. It also gives dragons and gryphon riders `sight = 8` (the game's value is 6).
 
-Vanilla numbers, autocast only (health and prices are already 1.0 by default):
+Names: every unit name from the Polymorph list above, plus `ballista`, `catapult`, `flying_machine`, `zeppelin`, the ships
+(`human_tanker`, `orc_tanker`, `human_transport`, `orc_transport`, `elven_destroyer`, `troll_destroyer`, `battleship`,
+`juggernaught`, `gnomish_submarine`, `giant_turtle`) and the towers (`human_guard_tower`, `orc_guard_tower`,
+`human_cannon_tower`, `orc_cannon_tower`).
+
+### Longbow and Lighter Axes
 
 ```toml
-[vision]
+[range]
+upgrade_bonus = 2     # rangers and berserkers gain +2 range from their upgrade. The game's own bonus is 1
+```
 
+One number for both upgrades: the game uses a single rule for the two. This one applies right away, no new map needed.
+
+Vanilla numbers, autocast only (the multipliers are already 1.0 by default):
+
+```toml
 [heroes]
 regen_hp_per_second = 0
 
@@ -242,6 +277,8 @@ regen_hp_per_second = 0
 auto_harvest = false
 auto_repair = false
 ```
+
+...and delete the `[unit.*]` tables at the bottom of the file.
 
 ### Change or remove the hotkey
 
@@ -290,7 +327,10 @@ Every cast is then written to `x86\autocast.log` with the caster, the target and
 | gold_mines | unlimited | false | Mines never run dry (all mines) |
 | workers | auto_repair / repair_idle_seconds / repair_radius | true / 1 / 10 | Idle workers repair your damaged buildings |
 | workers | auto_harvest / harvest_idle_seconds / harvest_radius | true / 10 / 5 | Idle workers go to the nearest mine or tree |
-| health | units / heroes | 1.0 / 1.0 | Max HP multipliers for units (never structures), cap 65535, applied at map start |
-| costs | units / buildings / building_upgrades | 1.0 each | Price multipliers for units, structures and structure upgrades, cap 2550, applied at map start |
-| costs | melee_upgrades / ranged_upgrades / siege_upgrades / paladin_ogre_mage_upgrades / naval_upgrades / mage_death_knight_spells | 1.0 each | Research price multipliers by group, cap 65535, applied at map start |
-| vision | unit_name = bonus | dragon 2, gryphon_rider 2 | Extra sight range, applied at map start |
+| health / costs / time | all | 1.0 | Master multiplier of the section |
+| health.human / health.orc | all, workers, melee, ranged, siege, casters, air, naval, demolition, heroes | 1.0 each | Unit health by race and group (never structures), cap 65535 |
+| health.neutral | all | 1.0 | Skeletons, daemons, critters, Eye of Kilrogg |
+| costs.human / costs.orc | all, units, research, the 8 unit groups, buildings, building_upgrades, the research groups | 1.0 each | Price multipliers, caps 2550 / 65535 |
+| time.human / time.orc | same keys as costs | 1.0 each | Training, construction, upgrade and research time, cap 255 |
+| range | upgrade_bonus | 1 | Range added by Longbow / Lighter Axes |
+| unit.NAME | hit_points, armor, basic_damage, piercing_damage, range, sight, gold, lumber, oil, build_time | -1 each | Base stats of one unit type, -1 = the game's value |

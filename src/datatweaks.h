@@ -8,4 +8,8 @@ namespace datatweaks {
 // a save carries the tables it was made with, so multiplying there would double-apply.
 void OnNewMapTablesLoaded();
 
+// Keeps the Longbow / Lighter Axes range bonus (a 2-byte code patch) equal to [range] upgrade_bonus, or to the
+// game's own +1 in a multiplayer game. Cheap enough to call every tick; it only writes when the value is off.
+void SyncRangeBonus(bool multiplayer);
+
 }  // namespace datatweaks

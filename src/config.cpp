@@ -17,9 +17,8 @@ Config g;
 const char* const kSpellKeys[kSpellCount] = {"heal",       "exorcism", "slow",         "polymorph", "bloodlust",
                                              "death_coil", "haste",    "unholy_armor", "raise_dead"};
 
-const char* const kCostKeys[kCostGroupCount] = {"units",          "buildings",      "building_upgrades",
-                                                "melee_upgrades", "ranged_upgrades", "siege_upgrades",
-                                                "paladin_ogre_mage_upgrades", "naval_upgrades", "mage_death_knight_spells"};
+const char* const kStatKeys[kStatCount] = {"hit_points", "armor", "basic_damage", "piercing_damage", "range",
+                                           "sight",      "gold",  "lumber",       "oil",             "build_time"};
 
 static wchar_t g_path[MAX_PATH];
 static FILETIME g_mtime;
@@ -57,35 +56,137 @@ static void ReadInt(const toml::table& root, const char* section, const char* ke
     }
 }
 
-static void ReadFactor(const toml::table& root, const char* section, const char* key, double& out) {
-    const auto node = root[section][key];
+// Key names of the multiplier tree. Unit and structure groups are spelled the same for both races; the two
+// race-specific research groups carry the name a player would look for.
+static const char* const kUnitGroupKeys[units::kUnitGroupCount] = {"workers", "melee",      "ranged", "siege", "casters",
+                                                                   "air",     "naval",      "demolition", "heroes", nullptr};
+static const char* const kStructureKeys[units::kStructureGroupCount] = {"buildings", "building_upgrades"};
+static const char* ResearchKey(units::Race race, int group) {
+    static const char* const kShared[] = {"melee_upgrades", "ranged_upgrades", "siege_upgrades", "naval_upgrades"};
+    if (group < 4) return kShared[group];
+    if (group == units::kKnightUpgrades) return race == units::kHuman ? "paladin_upgrades" : "ogre_mage_upgrades";
+    return race == units::kHuman ? "mage_spells" : "death_knight_spells";
+}
+static const char* const kRaceKeys[units::kRaceCount] = {"human", "orc", "neutral"};
+
+static void ReadFactorNode(const toml::node_view<const toml::node> node, const char* where, double& out) {
     if (!node) return;
     const auto v = node.value<double>();  // accepts 2 as well as 2.0
     if (!v || *v < 0.01 || *v > 1000.0) {  // results are clamped to what the engine can store
-        logx::Write("config: [%s] %s must be a number from 0.01 to 1000, keeping %.2f", section, key, out);
+        logx::Write("config: %s must be a number from 0.01 to 1000, keeping %.2f", where, out);
         return;
     }
     out = *v;
 }
 
-static void SetDefaultSight(Config& c) {
-    memset(c.sightBonus, 0, sizeof(c.sightBonus));
-    c.sightBonus[0x2B] = 2;  // dragon
-    c.sightBonus[0x2A] = 2;  // gryphon rider
+// [section] all, [section.human] / [section.orc] all + groups, [section.neutral] all.
+// healthOnly: only unit groups exist (heroes included), no umbrellas, no structures, no research.
+static void ReadMultipliers(const toml::table& root, const char* section, bool healthOnly, Multipliers& m) {
+    const auto sec = root[section];
+    if (!sec) return;
+    char where[96];
+    sprintf_s(where, "[%s] all", section);
+    ReadFactorNode(sec["all"], where, m.all);
+
+    const toml::table* secTable = sec.as_table();
+    if (secTable)
+        for (const auto& [key, unused] : *secTable) {
+            (void)unused;
+            const std::string k(key.str());
+            if (k != "all" && k != "human" && k != "orc" && k != "neutral") logx::Write("config: unknown key [%s] %s ignored", section, k.c_str());
+        }
+
+    for (int r = 0; r < units::kRaceCount; ++r) {
+        const auto raceNode = sec[kRaceKeys[r]];
+        const toml::table* raceTable = raceNode.as_table();
+        if (!raceTable) continue;
+        RaceMultipliers& rm = m.race[r];
+        std::string known = " all ";
+        auto read = [&](const char* key, double& out) {
+            known += key;
+            known += ' ';
+            sprintf_s(where, "[%s.%s] %s", section, kRaceKeys[r], key);
+            ReadFactorNode(raceNode[key], where, out);
+        };
+        sprintf_s(where, "[%s.%s] all", section, kRaceKeys[r]);
+        ReadFactorNode(raceNode["all"], where, rm.all);
+        if (r != units::kNeutral) {
+            if (!healthOnly) {
+                read("units", rm.units);
+                read("research", rm.research);
+            }
+            for (int grp = 0; grp < units::kUnitGroupCount; ++grp) {
+                if (!kUnitGroupKeys[grp] || (!healthOnly && grp == units::kHeroes)) continue;  // heroes are never trained
+                read(kUnitGroupKeys[grp], rm.unit[grp]);
+            }
+            if (!healthOnly) {
+                for (int grp = 0; grp < units::kStructureGroupCount; ++grp) read(kStructureKeys[grp], rm.structure[grp]);
+                for (int grp = 0; grp < units::kResearchGroupCount; ++grp)
+                    read(ResearchKey(static_cast<units::Race>(r), grp), rm.researchGroup[grp]);
+            }
+        }
+        for (const auto& [key, unused] : *raceTable) {
+            (void)unused;
+            const std::string padded = " " + std::string(key.str()) + " ";
+            if (known.find(padded) == std::string::npos)
+                logx::Write("config: unknown key [%s.%s] %s ignored", section, kRaceKeys[r], padded.c_str() + 1);
+        }
+    }
 }
 
-// [vision]: every key is a unit name, the value is the extra sight range. The section replaces the default list.
-static void ReadVision(const toml::table& root, Config& c) {
-    const toml::table* tbl = root["vision"].as_table();
-    if (!tbl) return;
-    memset(c.sightBonus, 0, sizeof(c.sightBonus));
-    for (const auto& [key, node] : *tbl) {
-        const std::string name(key.str());
-        const units::Entry* e = units::FindByName(name.c_str());
+// [range] upgrade_bonus
+static void ReadRange(const toml::table& root, Config& c) {
+    const auto sec = root["range"];
+    if (!sec) return;
+    if (const auto node = sec["upgrade_bonus"]) {
         const auto v = node.value<int64_t>();
-        if (!e) logx::Write("config: [vision] unknown unit \"%s\" ignored", name.c_str());
-        else if (!v || *v < 0 || *v > 9) logx::Write("config: [vision] %s must be a whole number from 0 to 9", name.c_str());
-        else c.sightBonus[e->id] = static_cast<uint8_t>(*v);
+        if (v && *v >= 0 && *v <= 20) c.rangeUpgradeBonus = static_cast<int>(*v);
+        else logx::Write("config: [range] upgrade_bonus must be a whole number from 0 to 20, keeping %d", c.rangeUpgradeBonus);
+    }
+    if (const toml::table* secTable = sec.as_table())
+        for (const auto& [key, unused] : *secTable) {
+            (void)unused;
+            const std::string k(key.str());
+            if (k != "upgrade_bonus") logx::Write("config: unknown key [range] %s ignored", k.c_str());
+        }
+}
+
+// [unit.<name>] stat = value. -1 (or a missing key) keeps the game's own number; 0 is a real value where it makes sense.
+static void ReadUnitStats(const toml::table& root, Config& c) {
+    static const int kMax[kStatCount] = {65535, 255, 255, 255, 20, 9, 2550, 2550, 2550, 255};
+    static const int kMin[kStatCount] = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    const toml::table* all = root["unit"].as_table();
+    if (!all) return;
+    for (const auto& [unitKey, unitNode] : *all) {
+        const std::string name(unitKey.str());
+        const units::Entry* e = units::FindByName(name.c_str());
+        const toml::table* stats = unitNode.as_table();
+        if (!e || !stats) {
+            logx::Write("config: [unit.%s] is not a known unit name, section ignored", name.c_str());
+            continue;
+        }
+        for (const auto& [statKey, statNode] : *stats) {
+            const std::string key(statKey.str());
+            int stat = -1;
+            for (int i = 0; i < kStatCount; ++i)
+                if (key == kStatKeys[i]) stat = i;
+            if (stat < 0) {
+                logx::Write("config: unknown key [unit.%s] %s ignored", name.c_str(), key.c_str());
+                continue;
+            }
+            const auto v = statNode.value<int64_t>();
+            if (!v || *v < -1 || (*v >= 0 && (*v < kMin[stat] || *v > kMax[stat]))) {
+                logx::Write("config: [unit.%s] %s must be -1 (game default) or a whole number from %d to %d", name.c_str(), key.c_str(),
+                            kMin[stat], kMax[stat]);
+                continue;
+            }
+            int value = static_cast<int>(*v);
+            if (value > 0 && stat >= kStatGold && stat <= kStatOil && value % 10 != 0) {
+                value = (value + 5) / 10 * 10;  // the engine stores prices in tens
+                logx::Write("config: [unit.%s] %s rounded to %d (prices move in steps of 10)", name.c_str(), key.c_str(), value);
+            }
+            c.unitStat[e->id][stat] = value;
+        }
     }
 }
 
@@ -185,10 +286,11 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"heroes", " units regen_hp_per_second regen_for "},
         {"eye_of_kilrogg", " cast cast_at_mana max_active auto_scout "},
         {"gold_mines", " unlimited "},
-        {"health", " units heroes "},
-        {"costs", " units buildings building_upgrades melee_upgrades ranged_upgrades siege_upgrades paladin_ogre_mage_upgrades "
-                  "naval_upgrades mage_death_knight_spells "},
-        {"vision", nullptr},  // keys are unit names, checked in ReadVision
+        {"health", nullptr},  // multiplier trees and [range] validate their own keys
+        {"costs", nullptr},
+        {"time", nullptr},
+        {"range", nullptr},
+        {"unit", nullptr},
         {"workers", " auto_harvest harvest_idle_seconds harvest_radius auto_repair repair_idle_seconds repair_radius "},
     };
     for (const auto& [sectionKey, sectionNode] : root) {
@@ -228,7 +330,6 @@ static bool Load() {
     Config c;
     SetPolymorphTargets(c, kDefaultPolymorphTargets, sizeof(kDefaultPolymorphTargets) / sizeof(kDefaultPolymorphTargets[0]));
     SetDefaultHeroes(c);
-    SetDefaultSight(c);
     WarnUnknownKeys(root);
     ReadBool(root, "general", "enabled", c.enabled);
     ReadToggleKey(root, c.toggleKey);
@@ -248,10 +349,11 @@ static bool Load() {
     ReadInt(root, "eye_of_kilrogg", "max_active", 1, 50, c.eyeMaxActive);
     ReadBool(root, "eye_of_kilrogg", "auto_scout", c.eyeAutoScout);
     ReadBool(root, "gold_mines", "unlimited", c.goldMinesUnlimited);
-    ReadFactor(root, "health", "units", c.hpUnits);
-    ReadFactor(root, "health", "heroes", c.hpHeroes);
-    for (int i = 0; i < kCostGroupCount; ++i) ReadFactor(root, "costs", kCostKeys[i], c.cost[i]);
-    ReadVision(root, c);
+    ReadMultipliers(root, "health", true, c.health);
+    ReadMultipliers(root, "costs", false, c.costs);
+    ReadMultipliers(root, "time", false, c.time);
+    ReadRange(root, c);
+    ReadUnitStats(root, c);
     ReadBool(root, "workers", "auto_harvest", c.workerAutoHarvest);
     ReadInt(root, "workers", "harvest_idle_seconds", 0, 3600, c.workerHarvestIdleSeconds);
     ReadInt(root, "workers", "harvest_radius", 1, 64, c.workerHarvestRadius);
@@ -307,7 +409,6 @@ bool Init(const wchar_t* dllDir) {
         defaultsSet = true;
         SetPolymorphTargets(g, kDefaultPolymorphTargets, sizeof(kDefaultPolymorphTargets) / sizeof(kDefaultPolymorphTargets[0]));
         SetDefaultHeroes(g);
-        SetDefaultSight(g);
     }
     return Load();
 }

@@ -517,112 +517,222 @@ int wmain(int argc, wchar_t** argv) {
 
     // Map-start data tweaks, run against real default values (Data\Rez\unitdata.dat / upgrades.dat, typed in here).
     {
+        using namespace units;
         uint16_t* hpT = At<uint16_t>(kRvaMaxHpByType);
         uint32_t* sightT = At<uint32_t>(kRvaSightByType);
         uint8_t* goldT = At<uint8_t>(kRvaGoldCostByType);
         uint8_t* lumberT = At<uint8_t>(kRvaLumberCostByType);
         uint8_t* oilT = At<uint8_t>(kRvaOilCostByType);
+        uint8_t* buildT = At<uint8_t>(kRvaBuildTimeByType);
+        uint8_t* rangeT = At<uint8_t>(kRvaAttackRangeByType);
         uint16_t* upGold = At<uint16_t>(kRvaUpgradeGold);
         uint16_t* upLumber = At<uint16_t>(kRvaUpgradeLumber);
-        constexpr uint8_t kFarmT = 0x3A, kFoundry = 0x4E, kKeep = 0x58, kGuardTower = 0x60, kDestroyer = 0x1E;
+        uint8_t* upTime = At<uint8_t>(kRvaResearchTime);
+        constexpr uint8_t kFarmT = 0x3A, kPigFarm = 0x3B, kFoundry = 0x4E, kKeep = 0x58, kStronghold = 0x59, kGuardTower = 0x60,
+                          kDestroyer = 0x1E, kArcher = 8, kAxethrower = 9, kKnight = 6, kMageT = 0x0A, kDeathwing = 0x23, kGrom = 0x19,
+                          kLothar = 0x32;
         auto resetTables = [&] {
-            hpT[kFootman] = 60; hpT[0x19] = 240; hpT[0x23] = 800; hpT[kFarmT] = 400; hpT[kTypeGoldMine] = 25500; hpT[0x4A] = 1200;
+            hpT[kFootman] = 60; hpT[kGrunt] = 60; hpT[kKnight] = 90; hpT[kOgre] = 90; hpT[kArcher] = 40; hpT[kMageT] = 60;
+            hpT[kGrom] = 240; hpT[kLothar] = 90; hpT[kDeathwing] = 800; hpT[kSkeleton] = 40; hpT[kDragon] = 100;
+            hpT[kFarmT] = 400; hpT[kTypeGoldMine] = 25500; hpT[0x4A] = 1200;
             sightT[kDragon] = 6; sightT[0x2A] = 6; sightT[kFootman] = 4; sightT[0x28] = 9;
-            goldT[kFootman] = 60; lumberT[kFootman] = 0; goldT[8] = 50; lumberT[8] = 5; goldT[kDragon] = 225;
+            goldT[kFootman] = 60; lumberT[kFootman] = 0; goldT[kGrunt] = 60; goldT[kArcher] = 50; lumberT[kArcher] = 5; goldT[kDragon] = 225;
             goldT[kDestroyer] = 70; lumberT[kDestroyer] = 35; oilT[kDestroyer] = 70;
-            goldT[kFarmT] = 50; lumberT[kFarmT] = 25; goldT[kFoundry] = 70; lumberT[kFoundry] = 40; oilT[kFoundry] = 40;
-            goldT[kKeep] = 200; lumberT[kKeep] = 100; oilT[kKeep] = 20; goldT[kGuardTower] = 50; lumberT[kGuardTower] = 15;
-            upGold[0] = 800; upGold[4] = 200; upLumber[4] = 200; upGold[8] = 300; upGold[12] = 700; upGold[20] = 1500;
-            upGold[31] = 1000; upGold[33] = 1000; upGold[35] = 1000; upGold[41] = 2000; upGold[44] = 1000;
-            upGold[34] = 0;  // holy vision is free and must stay free
+            goldT[kFarmT] = 50; lumberT[kFarmT] = 25; goldT[kPigFarm] = 50; goldT[kFoundry] = 70; lumberT[kFoundry] = 40; oilT[kFoundry] = 40;
+            goldT[kKeep] = 200; lumberT[kKeep] = 100; oilT[kKeep] = 20; goldT[kStronghold] = 200; goldT[kGuardTower] = 50; lumberT[kGuardTower] = 15;
+            buildT[kFootman] = 60; buildT[kGrunt] = 60; buildT[kDragon] = 250; buildT[kFarmT] = 100; buildT[kKeep] = 200; buildT[0x4A] = 255;
+            upGold[0] = 800; upGold[2] = 500; upGold[4] = 200; upLumber[4] = 200; upGold[6] = 200; upGold[8] = 300; upGold[12] = 700; upGold[14] = 700;
+            upGold[20] = 1500; upGold[22] = 1500; upGold[31] = 1000; upGold[32] = 1000; upGold[33] = 1000; upGold[35] = 1000; upGold[41] = 2000;
+            upGold[44] = 1000; upGold[46] = 0; upGold[34] = 0;
+            upTime[0] = 200; upTime[2] = 200; upTime[34] = 0;
+            rangeT[kArcher] = 4; rangeT[kAxethrower] = 4; rangeT[4] = 8; rangeT[kGuardTower] = 6; rangeT[kFootman] = 1;
         };
-        auto resetCosts = [&] { for (double& k : config::g.cost) k = 1.0; };
+        auto resetConfig = [&] {
+            config::g.health = Multipliers();
+            config::g.costs = Multipliers();
+            config::g.time = Multipliers();
+            for (auto& row : config::g.unitStat)
+                for (int32_t& v : row) v = -1;
+            config::g.rangeUpgradeBonus = 1;
+        };
         resetTables();
         CHECK(*At<uint8_t>(kRvaMapLoadCallSite) == 0xE8, "map load call site is not a call");
 
+        // The shipped config carries the destroyer example; it must parse into exactly the numbers written there.
+        {
+            const int expect[kStatCount] = {105, 11, 37, 2, 5, 9, 600, 300, 500, 80};
+            bool ok = true;
+            for (int i = 0; i < kStatCount; ++i)
+                ok = ok && config::g.unitStat[0x1E][i] == expect[i] && config::g.unitStat[0x1F][i] == expect[i];
+            CHECK(ok, "default [unit.elven_destroyer] / [unit.troll_destroyer] example did not load as written");
+            CHECK(config::g.unitStat[kFootman][kStatHitPoints] == -1, "units without a table must stay at -1");
+            CHECK(config::g.unitStat[kDragon][kStatSight] == 8 && config::g.unitStat[0x2A][kStatSight] == 8 &&
+                      config::g.unitStat[kDragon][kStatHitPoints] == -1,
+                  "default [unit.dragon] / [unit.gryphon_rider] sight = 8 did not load");
+            datatweaks::OnNewMapTablesLoaded();  // straight from the shipped config
+            CHECK(sightT[kDragon] == 8 && sightT[0x2A] == 8 && sightT[kFootman] == 4 && hpT[kFootman] == 60 && goldT[kFootman] == 60,
+                  "shipped config: dragon / gryphon sight 8, everything else untouched");
+            resetTables();
+        }
+
+        // Classification tables.
+        CHECK(StructureRace(kFarmT) == kHuman && StructureRace(kPigFarm) == kOrc && StructureRace(kKeep) == kHuman &&
+                  StructureRace(kStronghold) == kOrc && StructureRace(0x61) == kOrc && StructureRace(0x67) == kHuman &&
+                  StructureRace(0x68) == kOrc && StructureRace(kTypeGoldMine) == kNeutral && StructureRace(0x66) == kNeutral,
+              "structure race table");
+        CHECK(StructureGroupOf(kKeep) == kBuildingUpgrades && StructureGroupOf(0x63) == kBuildingUpgrades && StructureGroupOf(kFarmT) == kBuildings &&
+                  StructureGroupOf(0x40) == kBuildings,
+              "structure group table");
+        {
+            const int humanRows[] = {0, 1, 4, 5, 8, 9, 12, 13, 16, 17, 22, 23, 24, 25, 26, 27, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42};
+            int humans = 0;
+            for (int i = 0; i < kResearchCount; ++i) humans += ResearchInfoOf(i).race == kHuman;
+            bool rowsOk = humans == 26;
+            for (int i : humanRows) rowsOk = rowsOk && ResearchInfoOf(i).race == kHuman;
+            CHECK(rowsOk, "research race table (%d human rows)", humans);
+            CHECK(ResearchInfoOf(20).group == kSiegeUpgrades && ResearchInfoOf(20).race == kOrc && ResearchInfoOf(22).race == kHuman &&
+                      ResearchInfoOf(32).group == kKnightUpgrades && ResearchInfoOf(44).group == kKnightUpgrades && ResearchInfoOf(50).group == kKnightUpgrades &&
+                      ResearchInfoOf(43).group == kKnightUpgrades && ResearchInfoOf(45).group == kSpells && ResearchInfoOf(51).group == kSpells &&
+                      ResearchInfoOf(14).group == kNavalUpgrades && ResearchInfoOf(10).group == kMeleeUpgrades,
+                  "research group table");
+        }
+
+        // Multiplayer: nothing moves, and the range bonus instruction is forced back to the game's own.
+        resetConfig();
+        config::g.health.all = 2.0;
+        config::g.rangeUpgradeBonus = 3;
         *At<uint8_t>(kRvaNetGameAtLoad) = 1;
-        config::g.hpUnits = 2.0;
         datatweaks::OnNewMapTablesLoaded();
         CHECK(hpT[kFootman] == 60, "data tables were edited for a multiplayer map");
-        config::g.hpUnits = 1.0;
+        CHECK(At<uint8_t>(kRvaRangeBonusInsn)[0] == 0xFE && At<uint8_t>(kRvaRangeBonusInsn)[1] == 0xC0, "range bonus patched in a multiplayer game");
         *At<uint8_t>(kRvaNetGameAtLoad) = 0;
 
-        bool allOne = config::g.hpUnits == 1.0 && config::g.hpHeroes == 1.0;
-        for (double k : config::g.cost) allOne = allOne && k == 1.0;
-        CHECK(allOne, "every health and price multiplier must default to 1.0");
+        // Defaults: every multiplier is 1.0 and nothing but the default sight bonus changes.
+        resetConfig();
         datatweaks::OnNewMapTablesLoaded();
-        CHECK(hpT[kFootman] == 60 && hpT[0x19] == 240 && goldT[kFootman] == 60 && goldT[kFarmT] == 50 && goldT[kKeep] == 200 &&
-                  upGold[0] == 800 && upGold[4] == 200 && upGold[33] == 1000,
-              "defaults must leave health and every price alone");
-        CHECK(sightT[kDragon] == 8 && sightT[0x2A] == 8 && sightT[kFootman] == 4, "sight +2 for dragon and gryphon only");
+        CHECK(hpT[kFootman] == 60 && hpT[kGrom] == 240 && goldT[kFootman] == 60 && goldT[kFarmT] == 50 && goldT[kKeep] == 200 &&
+                  upGold[0] == 800 && upGold[33] == 1000 && buildT[kFootman] == 60 && upTime[0] == 200 && rangeT[kArcher] == 4,
+              "defaults must leave health, prices, times and ranges alone");
 
-        // Health: units and heroes only.
-        resetTables();
-        config::g.hpUnits = 2.0; config::g.hpHeroes = 4.0;
+        // Health: master x race x group, heroes by the hero list, neutral via its own "all", structures never.
+        resetTables(); resetConfig();
+        config::g.health.all = 2.0;
+        config::g.health.race[kOrc].all = 1.5;
+        config::g.health.race[kOrc].unit[kMelee] = 2.0;
+        config::g.health.race[kHuman].unit[kCasters] = 0.5;
+        config::g.health.race[kHuman].unit[kHeroes] = 4.0;
+        config::g.health.race[kNeutral].all = 3.0;
         datatweaks::OnNewMapTablesLoaded();
-        CHECK(hpT[kFootman] == 120 && hpT[0x19] == 960 && hpT[0x23] == 3200, "health: units x2, heroes x4 (footman %u grom %u deathwing %u)", hpT[kFootman], hpT[0x19], hpT[0x23]);
+        CHECK(hpT[kFootman] == 120 && hpT[kKnight] == 180 && hpT[kArcher] == 80, "human units: master only (footman %u)", hpT[kFootman]);
+        CHECK(hpT[kGrunt] == 360 && hpT[kOgre] == 540, "orc melee: 2 x 1.5 x 2 (grunt %u ogre %u)", hpT[kGrunt], hpT[kOgre]);
+        CHECK(hpT[kDragon] == 300, "orc air: 2 x 1.5 (dragon %u)", hpT[kDragon]);
+        CHECK(hpT[kMageT] == 60, "human casters: 2 x 0.5 (mage %u)", hpT[kMageT]);
+        CHECK(hpT[kLothar] == 720 && hpT[kGrom] == 720, "heroes: lothar 90 x2 x4, grom 240 x2 x1.5 (%u, %u)", hpT[kLothar], hpT[kGrom]);
+        CHECK(hpT[kSkeleton] == 240, "neutral: 2 x 3 (skeleton %u)", hpT[kSkeleton]);
         CHECK(hpT[kFarmT] == 400 && hpT[0x4A] == 1200 && hpT[kTypeGoldMine] == 25500, "structures and the gold mine must keep their health");
-        config::g.hpUnits = config::g.hpHeroes = 1.0;
 
-        // Each price group moves its own rows and nothing else.
-        resetTables();
-        config::g.cost[kCostUnits] = 0.5;
+        // Costs: master, race, umbrellas and groups; units never touch oil, structures and research do.
+        resetTables(); resetConfig();
+        config::g.costs.race[kHuman].units = 0.5;
         datatweaks::OnNewMapTablesLoaded();
-        CHECK(goldT[kFootman] == 30 && goldT[8] == 25 && lumberT[8] == 3 && goldT[kDragon] == 113 && lumberT[kFootman] == 0,
-              "unit prices halved, free stays free (archer lumber %u dragon %u)", lumberT[8], goldT[kDragon]);
-        CHECK(goldT[kDestroyer] == 35 && oilT[kDestroyer] == 70, "unit oil price must not move");
-        CHECK(goldT[kFarmT] == 50 && goldT[kKeep] == 200 && upGold[0] == 800, "units multiplier leaked into structures or research");
+        CHECK(goldT[kFootman] == 30 && goldT[kArcher] == 25 && lumberT[kArcher] == 3 && lumberT[kFootman] == 0 && goldT[kDestroyer] == 35 && oilT[kDestroyer] == 70,
+              "human units umbrella: gold and lumber halved, oil and free untouched");
+        CHECK(goldT[kGrunt] == 60 && goldT[kDragon] == 225 && goldT[kFarmT] == 50 && upGold[0] == 800, "human units umbrella leaked");
 
-        resetTables(); resetCosts();
-        config::g.cost[kCostBuildings] = 0.5;
+        resetTables(); resetConfig();
+        config::g.costs.all = 0.5;
+        config::g.costs.race[kOrc].all = 2.0;
         datatweaks::OnNewMapTablesLoaded();
-        CHECK(goldT[kFarmT] == 25 && lumberT[kFarmT] == 13 && goldT[kFoundry] == 35 && oilT[kFoundry] == 20, "building prices halved incl. oil (farm lumber %u)", lumberT[kFarmT]);
-        CHECK(goldT[kKeep] == 200 && goldT[kGuardTower] == 50 && goldT[kFootman] == 60, "buildings multiplier leaked into building upgrades or units");
+        CHECK(goldT[kFootman] == 30 && goldT[kFarmT] == 25 && upGold[0] == 400 && goldT[kKeep] == 100, "cost master halves everything human");
+        CHECK(goldT[kGrunt] == 60 && goldT[kPigFarm] == 50 && upGold[2] == 500 && goldT[kStronghold] == 200, "orc: 0.5 x 2 = unchanged");
 
-        resetTables(); resetCosts();
-        config::g.cost[kCostBuildingUpgrades] = 0.5;
+        resetTables(); resetConfig();
+        config::g.costs.race[kHuman].structure[kBuildings] = 0.5;
+        config::g.costs.race[kOrc].structure[kBuildingUpgrades] = 0.5;
         datatweaks::OnNewMapTablesLoaded();
-        CHECK(goldT[kKeep] == 100 && lumberT[kKeep] == 50 && oilT[kKeep] == 10 && goldT[kGuardTower] == 25 && lumberT[kGuardTower] == 8,
-              "building upgrade prices halved (keep %u tower lumber %u)", goldT[kKeep], lumberT[kGuardTower]);
-        CHECK(goldT[kFarmT] == 50 && goldT[kFoundry] == 70, "building upgrades multiplier leaked into plain buildings");
+        CHECK(goldT[kFarmT] == 25 && lumberT[kFarmT] == 13 && goldT[kFoundry] == 35 && oilT[kFoundry] == 20 && goldT[kPigFarm] == 50 && goldT[kKeep] == 200,
+              "human buildings only, oil included (farm lumber %u)", lumberT[kFarmT]);
+        CHECK(goldT[kStronghold] == 100 && goldT[kGuardTower] == 50, "orc building upgrades only");
 
-        resetTables(); resetCosts();
-        config::g.cost[kCostMeleeUpgrades] = 0.5;
+        resetTables(); resetConfig();
+        config::g.costs.race[kHuman].researchGroup[kNavalUpgrades] = 0.5;
+        config::g.costs.race[kOrc].researchGroup[kMeleeUpgrades] = 0.5;
+        config::g.costs.race[kOrc].research = 0.5;
         datatweaks::OnNewMapTablesLoaded();
-        CHECK(upGold[0] == 400 && upGold[8] == 150, "melee research halved (swords %u shields %u)", upGold[0], upGold[8]);
-        CHECK(upGold[4] == 200 && upGold[20] == 1500 && upGold[33] == 1000 && upGold[12] == 700 && upGold[41] == 2000, "melee multiplier leaked into another group");
+        CHECK(upGold[12] == 350 && upGold[0] == 800 && upGold[33] == 1000 && upGold[41] == 2000, "human: ship research only (%u)", upGold[12]);
+        CHECK(upGold[14] == 350 && upGold[2] == 125 && upGold[20] == 750 && upGold[32] == 500 && upGold[44] == 500 && upGold[46] == 0,
+              "orc: research umbrella 0.5, melee 0.5 on top, free stays free (axes %u)", upGold[2]);
 
-        resetTables(); resetCosts();
-        config::g.cost[kCostRangedUpgrades] = 0.5;
+        // Time: training, construction, structure upgrade and research, capped at 255.
+        resetTables(); resetConfig();
+        config::g.time.race[kHuman].units = 0.5;
+        config::g.time.race[kHuman].structure[kBuildings] = 2.0;
+        config::g.time.race[kHuman].structure[kBuildingUpgrades] = 0.25;
+        config::g.time.race[kHuman].researchGroup[kMeleeUpgrades] = 0.5;
+        config::g.time.race[kOrc].unit[kAir] = 2.0;
         datatweaks::OnNewMapTablesLoaded();
-        CHECK(upGold[4] == 100 && upLumber[4] == 100 && upGold[31] == 500 && upGold[0] == 800, "elf / troll research halved only");
+        CHECK(buildT[kFootman] == 30 && buildT[kGrunt] == 60 && buildT[kFarmT] == 200 && buildT[0x4A] == 255 && buildT[kKeep] == 50,
+              "build times (footman %u farm %u town hall %u keep %u)", buildT[kFootman], buildT[kFarmT], buildT[0x4A], buildT[kKeep]);
+        CHECK(buildT[kDragon] == 255 && upTime[0] == 100 && upTime[2] == 200 && upTime[34] == 0, "time cap 255, research time, zero stays zero");
 
-        resetTables(); resetCosts();
-        config::g.cost[kCostPaladinOgreMage] = 0.5;
+        // Engine caps for health and prices.
+        resetTables(); resetConfig();
+        config::g.health.all = 1000.0;
+        config::g.costs.all = 1000.0;
         datatweaks::OnNewMapTablesLoaded();
-        CHECK(upGold[33] == 500 && upGold[35] == 500 && upGold[44] == 500 && upGold[34] == 0, "paladin / ogre-mage group halved, free stays free");
-        CHECK(upGold[41] == 2000 && upGold[0] == 800, "paladin / ogre-mage multiplier leaked into another group");
-
-        resetTables(); resetCosts();
-        config::g.cost[kCostSiegeUpgrades] = 0.5; config::g.cost[kCostNavalUpgrades] = 0.5; config::g.cost[kCostMageDeathKnightSpells] = 0.5;
-        datatweaks::OnNewMapTablesLoaded();
-        CHECK(upGold[20] == 750 && upGold[12] == 350 && upGold[41] == 1000 && upGold[33] == 1000, "siege / naval / mage spell groups");
-
-        // Engine caps: 16-bit health, byte-of-tens type price, 16-bit research price.
-        resetTables(); resetCosts();
-        config::g.hpUnits = 1000.0; config::g.hpHeroes = 1000.0;
-        config::g.cost[kCostUnits] = 2.0; config::g.cost[kCostBuildingUpgrades] = 2.0; config::g.cost[kCostSiegeUpgrades] = 1000.0;
-        datatweaks::OnNewMapTablesLoaded();
-        CHECK(hpT[kFootman] == 60000 && hpT[0x23] == 65535, "health cap is 65535 (footman %u deathwing %u)", hpT[kFootman], hpT[0x23]);
-        CHECK(goldT[kDragon] == 255 && goldT[kKeep] == 255 && upGold[20] == 65535, "price caps: 2550 for a type, 65535 for research (%u, %u, %u)", goldT[kDragon], goldT[kKeep], upGold[20]);
+        CHECK(hpT[kFootman] == 60000 && hpT[kDeathwing] == 65535, "health cap is 65535 (footman %u deathwing %u)", hpT[kFootman], hpT[kDeathwing]);
+        CHECK(goldT[kDragon] == 255 && goldT[kKeep] == 255 && upGold[20] == 65535, "price caps: 2550 for a type, 65535 for research");
         CHECK(hpT[kFarmT] == 400, "structures must never have their health scaled");
 
-        config::g.sightBonus[0x28] = 5;
+        // Range: listed units only, and the Longbow / Lighter Axes bonus as a 2-byte patch that the UI byte follows.
+        resetTables(); resetConfig();
+        config::g.unitStat[kArcher][kStatRange] = 6;
+        config::g.unitStat[kGuardTower][kStatRange] = 8;
+        config::g.rangeUpgradeBonus = 3;
         datatweaks::OnNewMapTablesLoaded();
-        CHECK(sightT[0x28] == 9, "sight must clamp at 9 (%u)", sightT[0x28]);
-        config::g.sightBonus[0x28] = 0;
-        config::g.hpUnits = config::g.hpHeroes = 1.0;
-        resetCosts();
+        CHECK(rangeT[kArcher] == 6 && rangeT[kGuardTower] == 8 && rangeT[kAxethrower] == 4 && rangeT[4] == 8 && rangeT[kFootman] == 1, "range table");
+        const uint8_t* bonusInsn = At<uint8_t>(kRvaRangeBonusInsn);
+        CHECK(bonusInsn[0] == 0x04 && bonusInsn[1] == 3 && *At<uint8_t>(kRvaRangeBonusDisplay) == 3, "range bonus should be `add al, 3` (%02X %02X)", bonusInsn[0], bonusInsn[1]);
+        CHECK(bonusInsn[2] == 0x5D && bonusInsn[3] == 0xC3, "the patch must not touch the following `pop ebp; ret`");
+        datatweaks::SyncRangeBonus(true);
+        CHECK(bonusInsn[0] == 0xFE && bonusInsn[1] == 0xC0 && *At<uint8_t>(kRvaRangeBonusDisplay) == 1, "multiplayer must restore `inc al`");
+        config::g.rangeUpgradeBonus = 0;
+        datatweaks::SyncRangeBonus(false);
+        CHECK(bonusInsn[0] == 0x04 && bonusInsn[1] == 0, "bonus 0 = `add al, 0`");
+
+        // [unit.<name>]: base stats replace the game's numbers, -1 leaves them, multipliers and sight bonus go on top.
+        {
+            uint8_t* armorT = At<uint8_t>(kRvaArmorByType);
+            uint8_t* basicT = At<uint8_t>(kRvaBasicDamageByType);
+            uint8_t* pierceT = At<uint8_t>(kRvaPiercingDamageByType);
+            auto vanillaDestroyer = [&](uint8_t t) {
+                hpT[t] = 100; armorT[t] = 10; basicT[t] = 35; pierceT[t] = 0; rangeT[t] = 4; sightT[t] = 8;
+                goldT[t] = 70; lumberT[t] = 35; oilT[t] = 70; buildT[t] = 90;
+            };
+            resetTables(); resetConfig();
+            vanillaDestroyer(0x1E); vanillaDestroyer(0x1F);
+            const int example[kStatCount] = {105, 11, 37, 2, 5, 9, 600, 300, 500, 80};
+            for (int i = 0; i < kStatCount; ++i) config::g.unitStat[0x1E][i] = example[i];
+            config::g.unitStat[0x1F][kStatPiercingDamage] = 0;  // 0 is a real value, not "default"
+            config::g.unitStat[0x1F][kStatArmor] = -1;
+            pierceT[0x1F] = 4;
+            datatweaks::OnNewMapTablesLoaded();
+            CHECK(hpT[0x1E] == 105 && armorT[0x1E] == 11 && basicT[0x1E] == 37 && pierceT[0x1E] == 2 && rangeT[0x1E] == 5 && sightT[0x1E] == 9 &&
+                      goldT[0x1E] == 60 && lumberT[0x1E] == 30 && oilT[0x1E] == 50 && buildT[0x1E] == 80,
+                  "elven destroyer example (hp %u armor %u basic %u pierce %u range %u sight %u gold %u lumber %u oil %u time %u)", hpT[0x1E],
+                  armorT[0x1E], basicT[0x1E], pierceT[0x1E], rangeT[0x1E], sightT[0x1E], goldT[0x1E], lumberT[0x1E], oilT[0x1E], buildT[0x1E]);
+            CHECK(pierceT[0x1F] == 0 && armorT[0x1F] == 10 && hpT[0x1F] == 100, "0 must be written, -1 and missing keys must leave the game's value");
+
+            vanillaDestroyer(0x1E);
+            config::g.health.all = 2.0;
+            config::g.costs.race[kHuman].unit[kNaval] = 0.5;
+            datatweaks::OnNewMapTablesLoaded();
+            CHECK(hpT[0x1E] == 210 && goldT[0x1E] == 30 && oilT[0x1E] == 50, "multipliers apply on top of the player's base stats (hp %u gold %u oil %u)",
+                  hpT[0x1E], goldT[0x1E], oilT[0x1E]);
+        }
+
+        resetConfig();
+        datatweaks::SyncRangeBonus(false);
         resetTables();  // what the later scenarios expect
     }
 

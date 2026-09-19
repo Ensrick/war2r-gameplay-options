@@ -40,9 +40,9 @@ The computer in Warcraft II has near perfect spell micro. Now your casters do to
 [list]
 [*]Unlimited gold mines (OFF by default). A computer opponent that runs out of gold can stall a long game; starving a mine is also a real campaign tactic, so this one is your call.
 [*]Heroes regenerate 1 HP per second.
-[*]Health multipliers for units and for heroes (default 1.0 = unchanged). Set units to 2.0 and heroes to 4.0 for slower, weightier combat.
-[*]Dragons and gryphon riders see 2 tiles further.
-[*]Price multipliers (default 1.0 = unchanged, 0.5 = half price) for units, buildings, building upgrades, and research by group: melee, troll / elf, siege, paladin / ogre-mage, naval, mage / death knight spells.
+[*]Multipliers for health, prices and build / research time, all 1.0 (unchanged) by default: a master value, one per race (human / orc), and one per group (workers, melee, ranged, siege, casters, air, naval, demolition, heroes, buildings, building upgrades, and each research line). They multiply into each other, so "everything double health, orcs a bit more" is two lines.
+[*]Your own base stats for any unit: hit points, armor, basic and piercing damage, range, sight, gold, lumber, oil, build time. Dragons and gryphon riders ship with sight 8 instead of 6.
+[*]Choose how much range Longbow and Lighter Axes add.
 [/list]
 Every item above has its own switch and numbers in the config file.
 

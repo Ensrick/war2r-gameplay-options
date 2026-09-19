@@ -78,3 +78,17 @@ running action step ends, and +0x2F goes back to 0x3C ("none"). The game's UI re
 | `research/eye_of_kilrogg.md` | spell action table `0x8C1590`, unit creation, AI order table `0x8C3E10`, explored / fog maps `0x91AD60` / `0x91AD5C`, player command path, Remastered resume-order byte +0x8D |
 | `research/workers_and_gold.md` | order handler table `0x8C1498` and action table `0x8C13A0`, gold left at unit+0x82, region map `0x91AD7C` (0xFFFE = tree), worker flags +0x75, repair rules, idle detection, IssueOrder lock table |
 | `research/data_tables.md` | every UDTA / UGRD runtime table, loaders, the new-map-only `call FinalizeTables` at `0x4D2C46` vs the savegame one at `0x4C4602`, sight function pointers, HP readers, game speed table |
+
+## Attack range and the range upgrade (found 2026-09-18)
+
+- `FUN_004ee660(unit)` = GetAttackRange, cdecl, two callers (`0x4A8E65`, `0x4D94D1`). It returns
+  `range[type]` (u8[110] at `0x917E40`), and for type 0x12 / 0x13 (ranger / berserker) whose owner has the group-8
+  counter `0x918C7C[owner]` set, `range[type] + 1`. The `+ 1` is the 2-byte `inc al` (`FE C0`) at `0x4EE689`,
+  followed by `pop ebp; ret` (`5D C3`). `add al, imm8` (`04 nn`) is the same size, so the bonus is patched in place.
+- Per-upgrade-group effect bytes at `0x8C11DC` (index = group): 2 missile damage, 2 melee damage, 2 shields, 5 ship
+  cannons, 5 ship armor, 10, 15 catapult / ballista, 0, **1 range (`0x8C11E4`)**, 0xFF, 3. Both status panels
+  (`FUN_004e4d70` classic, `FUN_0052dd20` Remastered) print counter x this byte, so the mod writes the configured bonus
+  there too. The other entries are what the damage / armor code reads (`0x4BDA8E`, `0x4BDBA4`, `0x4BD7CD` ...):
+  a future "upgrade strength" setting would edit them.
+- More per-type tables used by `[unit.NAME]`: armor u8 `0x917F90`, basic damage u8 `0x9180E0`, piercing damage u8
+  `0x918150`, build time u8 `0x917910`, oil cost u8 `0x917A60`, research time u8[52] `0x9188A8`.
