@@ -8,6 +8,7 @@ The Nexus texts live in `nexus/` as plain BBCode text files, ready to paste:
 |---|---|
 | `nexus/NEXUS_SUMMARY.txt` | the short summary line (350 characters max) |
 | `nexus/NEXUS_DESCRIPTION.txt` | the description editor in BBCode mode: installation and how to use `gameplay_options.toml` |
+| `nexus/NEXUS_COMMENT_WELCOME.txt` | the comments tab: a welcome, what to attach for a bug, how to ask for a feature (post once, then pin it) |
 | `nexus/NEXUS_CHANGELOG.txt` | the changelog / release notes |
 
 Keep them in step with `docs/USER_README.txt`, `docs/CONFIG_TUTORIAL.md` and `CHANGELOG.md` whenever a setting changes.

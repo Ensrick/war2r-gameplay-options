@@ -55,6 +55,8 @@ Open source under the [MIT license](LICENSE): use it, change it, build on it, as
 Download for players: the [Nexus Mods page](https://www.nexusmods.com/warcraft2/mods/8) or the
 [Releases](https://github.com/Ensrick/war2r-gameplay-options/releases) here (the same zip).
 
+Mirror: [gitlab.com/ensrick7/war2r-gameplay-options](https://gitlab.com/ensrick7/war2r-gameplay-options) (issues there too).
+
 Found a bug? [Open an issue](https://github.com/Ensrick/war2r-gameplay-options/issues) and attach
 `x86\gameplay_options.log` and your `gameplay_options.toml`. Releases and their notes: [CHANGELOG.md](CHANGELOG.md).
 

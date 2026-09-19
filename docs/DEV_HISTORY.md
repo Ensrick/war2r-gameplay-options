@@ -3,6 +3,18 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## Community set-up (2026-09-19, no version: nothing in the mod changed)
+
+- Author: "could you draft a BBCode instruction on how to report bugs and a personal welcome, they'll need links to
+  github and gitlab and we'll need to set things up so they can attach the files you need", plus "people might request
+  features too".
+- `nexus/NEXUS_COMMENT_WELCOME.txt` for the comments tab, GitLab mirror `gitlab.com/ensrick7/war2r-gameplay-options`
+  (public, issues on, both tags pushed), issue templates on both sites for bugs and features. Nexus comments cannot
+  carry files, which is why the post sends people to a tracker and says exactly which three files to attach.
+- GitLab quirk: the anonymous issues page 404s while the API reports issues public and both templates registered; the
+  "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
+  neither.
+
 ## 1.7.3 (2026-09-19)
 
 - Author: "make the tier auto-production weight based, so it doesn't have to add up to 100%, is that how it works?"
