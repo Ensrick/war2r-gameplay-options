@@ -3,6 +3,19 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.4.0 (2026-09-19, UNTESTED in game)
+
+- Author: "units that are injured are often just a waste of food, what if we add 1 second regen to all units not just
+  heroes? And then keep the section we have for heroes separate? I'm thinking 1hp a second by default, and change the
+  default for heroes to 2 per second." and "Ships included, not structures."
+- `[unit_regen] enabled / hp_per_second / regen_for`; `[heroes] regen` switch added, amount default 2. Both switches
+  ship OFF (the author's standing rule since 1.0.2 that nothing but four autocasts and auto-repair is on out of the
+  box); 1 and 2 are the amounts a player gets when switching them on. Legacy rule: a file without the `regen` key and
+  with `regen_hp_per_second` above 0 still means on, so 1.0.0 configs keep their hero regeneration.
+- One pass in `tweaks.cpp` (`Regenerate`): hero rule first (list, switch, regen_for), everything else that has no
+  building flag follows the unit rule; never both. Built on a separate branch in a worktree while the tree agent
+  owned the main working tree, merged after 1.3.0.
+
 ## 1.3.0 (2026-09-19, UNTESTED in game)
 
 - Author: "the multiplier takes care of gold and oil, but not lumber. What if trees could grow back? ... they have to

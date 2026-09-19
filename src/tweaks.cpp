@@ -11,24 +11,33 @@ namespace {
 
 unsigned g_regenAccumMs = 0;
 
-// [heroes] regen_hp_per_second: paced by real time that the simulation was actually stepping.
-void HeroRegen(const World& w, unsigned elapsedMs) {
-    const int perSecond = config::g.heroRegenPerSecond;
-    if (perSecond <= 0) {
+// [heroes] regen and [unit_regen]: hit points per second of play, paced by the time the simulation was actually
+// stepping. A hero follows [heroes] while that is on (and covers him), everything else that is not a structure follows
+// [unit_regen]: land units, flyers, ships, the computer's too unless regen_for = "mine". The two never add up.
+void Regenerate(const World& w, unsigned elapsedMs) {
+    const int heroRate = config::g.heroRegen ? config::g.heroRegenPerSecond : 0;
+    const int unitRate = config::g.unitRegen ? config::g.unitRegenPerSecond : 0;
+    if (heroRate <= 0 && unitRate <= 0) {
         g_regenAccumMs = 0;
         return;
     }
     g_regenAccumMs += elapsedMs;
     if (g_regenAccumMs < 1000) return;
-    const int gain = static_cast<int>(g_regenAccumMs / 1000) * perSecond;
+    const int seconds = static_cast<int>(g_regenAccumMs / 1000);
     g_regenAccumMs %= 1000;
 
     for (unsigned i = 0; i < w.unitCount; ++i) {
         Unit* u = UnitAt(w, i);
-        if (!IsActive(u) || !config::g.isHero[TypeOf(u)]) continue;
-        if (config::g.heroRegenMineOnly && OwnerOf(u) != w.localPlayer) continue;
+        if (!IsActive(u)) continue;
+        const uint8_t type = TypeOf(u);
+        const bool mine = OwnerOf(u) == w.localPlayer;
+        int rate = 0;
+        if (heroRate > 0 && config::g.isHero[type] && (mine || !config::g.heroRegenMineOnly)) rate = heroRate;
+        else if (unitRate > 0 && !(w.typeFlags[type] & kTfBuilding) && (mine || !config::g.unitRegenMineOnly)) rate = unitRate;
+        if (rate <= 0) continue;
         const int hp = Field<uint16_t>(u, kOffHp), maxHp = MaxHp(w, u);
         if (hp <= 0 || hp >= maxHp) continue;
+        const int gain = seconds * rate;
         Field<uint16_t>(u, kOffHp) = static_cast<uint16_t>(hp + gain > maxHp ? maxHp : hp + gain);
     }
 }
@@ -147,7 +156,7 @@ void SyncHallFood() {
 }  // namespace
 
 void OnTick(const World& w, unsigned elapsedMs) {
-    HeroRegen(w, elapsedMs);
+    Regenerate(w, elapsedMs);
     SyncHallFood();
     ScaleNewMapSources(w);  // before the refill, so "unlimited" remembers the scaled amount as the peak
     RefillSources(w);

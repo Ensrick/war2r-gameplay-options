@@ -1,0 +1,2 @@
+New [unit_regen] (off by default): every unit regenerates hp_per_second (1) hit points per second: land units, flyers and ships, never a structure. regen_for = "all" or "mine".
+[heroes] gains a regen switch (off by default) and its amount now defaults to 2. A hero follows [heroes] while that switch is on and is an ordinary unit otherwise; the two rates never add up.

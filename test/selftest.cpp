@@ -109,6 +109,7 @@ static void EnableEverythingForTests() {
     for (int i = 0; i < kSpellCount; ++i) config::g.spell[i] = i != kSpellUnholyArmor;
     config::g.eyeCast = config::g.eyeAutoScout = true;
     config::g.workerAutoHarvest = config::g.workerAutoRepair = true;
+    config::g.heroRegen = true;
     config::g.heroRegenPerSecond = 1;
 }
 
@@ -377,7 +378,7 @@ int wmain(int argc, wchar_t** argv) {
         for (int i = 0; i < kSpellCount; ++i) spellsOk = spellsOk && config::g.spell[i] == expectSpell[i];
         CHECK(config::g.enabled && spellsOk, "default spells must be heal, slow, bloodlust, raise_dead only");
         CHECK(!config::g.eyeCast && !config::g.eyeAutoScout && !config::g.workerAutoHarvest && config::g.workerAutoRepair &&
-                  config::g.heroRegenPerSecond == 0 && !config::g.goldMinesUnlimited && !config::g.oilPlatformsUnlimited && config::g.rangeUpgradeBonus == 1,
+                  !config::g.heroRegen && config::g.heroRegenPerSecond == 2 && !config::g.unitRegen && config::g.unitRegenPerSecond == 1 && !config::g.goldMinesUnlimited && !config::g.oilPlatformsUnlimited && config::g.rangeUpgradeBonus == 1,
               "default options: everything off except worker auto-repair");
         bool noStats = true;
         for (const auto& row : config::g.unitStat)
@@ -1211,6 +1212,48 @@ int wmain(int argc, wchar_t** argv) {
     Sleep(700);  // a pause: the long gap must not be credited as play time
     mod::OnTick();
     CHECK(Field<uint16_t>(grom, kOffHp) <= gromHp + 1, "a pause was credited as regeneration time");
+
+    // [unit_regen]: every unit and ship, never a structure; a hero keeps his own rate while [heroes] regen is on; the
+    // two rates never add up; regen_for = "mine" leaves the enemy alone.
+    {
+        ResetWorld();
+        defType(0x3A, kTfBuilding, 400);                       // farm
+        defType(0x1E, kTfAttacker, 100);                       // elven destroyer: a ship is a unit
+        defType(kDragon, kTfFleshy | kTfAttacker | kTfFlyer, 100);
+        Unit* hero = AddUnit(0x19, 0, 5, 5, 100, 0, kOrderStand);
+        Unit* myGrunt = AddUnit(kGrunt, 0, 7, 5, 10, 0, kOrderStand);
+        Unit* myShip = AddUnit(0x1E, 0, 9, 5, 40, 0, kOrderStand);
+        Unit* regenDragon = AddUnit(kDragon, 0, 11, 5, 40, 0, kOrderStand);
+        Unit* myFarm = AddUnit(0x3A, 0, 13, 5, 200, 0, kOrderStand);
+        Unit* foe = AddUnit(kFootman, 1, 15, 5, 10, 0, kOrderStand);
+        config::g.heroRegen = true;
+        config::g.heroRegenPerSecond = 2;
+        config::g.unitRegen = true;
+        config::g.unitRegenPerSecond = 1;
+        config::g.unitRegenMineOnly = true;
+        mod::OnTick();
+        for (int i = 0; i < 25; ++i) { Sleep(100); mod::OnTick(); }
+        const int gained = Field<uint16_t>(myGrunt, kOffHp) - 10;
+        CHECK(gained >= 2 && gained <= 3, "unit regen ~1 HP/s (grunt +%d)", gained);
+        CHECK(Field<uint16_t>(myShip, kOffHp) == 40 + gained && Field<uint16_t>(regenDragon, kOffHp) == 40 + gained, "ships and flyers regenerate like any unit (%u, %u)",
+              Field<uint16_t>(myShip, kOffHp), Field<uint16_t>(regenDragon, kOffHp));
+        CHECK(Field<uint16_t>(hero, kOffHp) == 100 + 2 * gained, "a hero follows [heroes] (2/s), not the sum (%u)", Field<uint16_t>(hero, kOffHp));
+        CHECK(Field<uint16_t>(myFarm, kOffHp) == 200, "structures must never regenerate (%u)", Field<uint16_t>(myFarm, kOffHp));
+        CHECK(Field<uint16_t>(foe, kOffHp) == 10, "regen_for = \"mine\" must leave the enemy alone (%u)", Field<uint16_t>(foe, kOffHp));
+        config::g.heroRegen = false;  // hero switch off: he is a unit like any other now
+        const int heroBefore = Field<uint16_t>(hero, kOffHp), gruntBefore = Field<uint16_t>(myGrunt, kOffHp);
+        for (int i = 0; i < 15; ++i) { Sleep(100); mod::OnTick(); }
+        CHECK(Field<uint16_t>(hero, kOffHp) - heroBefore == Field<uint16_t>(myGrunt, kOffHp) - gruntBefore && Field<uint16_t>(hero, kOffHp) > heroBefore,
+              "with [heroes] regen off a hero regenerates at the unit rate (hero +%d grunt +%d)", Field<uint16_t>(hero, kOffHp) - heroBefore,
+              Field<uint16_t>(myGrunt, kOffHp) - gruntBefore);
+        config::g.unitRegen = false;
+        config::g.unitRegenMineOnly = false;
+        const int off = Field<uint16_t>(myGrunt, kOffHp);
+        for (int i = 0; i < 12; ++i) { Sleep(100); mod::OnTick(); }
+        CHECK(Field<uint16_t>(myGrunt, kOffHp) == off, "both switches off: nobody regenerates (%u)", Field<uint16_t>(myGrunt, kOffHp));
+        config::g.heroRegen = true;   // what the later scenarios expect (EnableEverythingForTests)
+        config::g.heroRegenPerSecond = 1;
+    }
 
     // Tree regrowth ([trees], src/trees.cpp). Play time goes straight into trees::OnTick in 250 ms steps, so minutes
     // cost nothing here. Forests are built the way the map editor builds them (forest corner points), trees are felled

@@ -6,6 +6,14 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 **On Nexus Mods right now: 1.0.0.** Later versions are built and tested offline and are in this repository; they reach
 Nexus together with the next upload.
 
+## 1.4.0 - 2026-09-19
+
+- New `[unit_regen]` (off by default): every unit regenerates `hp_per_second` (1) hit points per second of play: land
+  units, flyers and ships, never a structure. `regen_for = "all"` or `"mine"`.
+- `[heroes]` gains a `regen` switch (off by default) and its amount now defaults to 2. A hero follows `[heroes]` while
+  that switch is on and is an ordinary unit otherwise; the two rates never add up. A config from an older version
+  with `regen_hp_per_second` above 0 keeps regenerating.
+
 ## 1.3.0 - 2026-09-19
 
 - New, EXPERIMENTAL, off by default: `[trees] regrow`. Felled forest grows back, so lumber never runs out for good.

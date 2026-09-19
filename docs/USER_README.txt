@@ -55,7 +55,8 @@ WORKERS
   - "Idle" means stopped with nothing queued. Stand Ground is respected, so that is how you park a worker.
 
 OPTIONS (all off or neutral until you change them)
-  - Hero regeneration (for example 1 HP per second).
+  - Regeneration: heroes (2 HP per second when switched on) and, separately, every unit and ship (1 HP per
+    second), never structures.
   - More gold and oil: a multiplier for what every mine, oil patch and platform holds when a new map starts.
   - Unlimited gold mines, and separately unlimited oil platforms.
   - EXPERIMENTAL: forests that grow back (every stump after its own 10 to 20 minutes), never close to a building, a
