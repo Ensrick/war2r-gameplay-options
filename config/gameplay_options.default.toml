@@ -9,7 +9,8 @@
 #  CONTENTS    1. GENERAL          2. AUTOCAST (spells, heal, polymorph, haste, eye of kilrogg)
 #              3. WORKERS          4. RESOURCES           5. HEROES AND REGENERATION
 #              6. HEALTH           7. PRICES              8. BUILD AND RESEARCH TIME
-#              9. RANGE UPGRADE   10. YOUR OWN NUMBERS FOR ONE UNIT OR ONE BUILDING
+#              9. RANGE UPGRADE   10. SPELL POWER AND MANA
+#             11. YOUR OWN NUMBERS FOR ONE UNIT OR ONE BUILDING
 # ==============================================================================================================
 
 # ==============================================================================================================
@@ -435,7 +436,53 @@ death_knight_spells = 1.0   # raise dead, death coil, whirlwind, haste, unholy a
 upgrade_bonus = 1
 
 # ==============================================================================================================
-#  10. YOUR OWN NUMBERS FOR ONE UNIT OR ONE BUILDING
+#  10. SPELL POWER AND MANA
+# ==============================================================================================================
+
+[spell_damage]
+# Damage of every damage spell, and the healing of Heal, x this: 2.0 = double. The per-spell numbers below replace
+# the game's own first (-1 = the game's), then this multiplier applies. Everyone gets these numbers, the computer too.
+all = 1.0
+fireball = -1          # per explosion, 5 explosions per cast (game: 40, at most 254)
+flame_shield = -1      # per flame hit (game: 4, at most 254)
+blizzard = -1          # per hit (game: 10, at most 254)
+death_and_decay = -1   # per hit (game: 10, at most 254)
+whirlwind = -1         # per hit (game: 4, at most 254)
+death_coil = -1        # per cast, shared by the enemies hit; the caster heals as much (game: 50, at most 127)
+runes = -1             # per rune (game: 50, at most 128)
+heal = -1              # the most hit points one Heal restores (game: 40, at most 255)
+
+[spell_cost]
+# Mana cost of every spell x this, rounded up. The per-spell numbers below replace the game's own first (-1 = the
+# game's), then this multiplier applies. 1 to 255. Heal and Exorcism cost mana PER HIT POINT, and
+# [spell_damage] all lowers that price further (x2 damage = half the price). Everyone gets these costs.
+all = 1.0
+holy_vision = -1       # game: 70
+heal = -1              # game: 5 per hit point healed
+exorcism = -1          # game: 4 per hit point of damage
+flame_shield = -1      # game: 80
+fireball = -1          # game: 100
+slow = -1              # game: 50
+invisibility = -1      # game: 200
+polymorph = -1         # game: 200
+blizzard = -1          # game: 25 per wave
+eye_of_kilrogg = -1    # game: 70
+bloodlust = -1         # game: 60
+raise_dead = -1        # game: 50
+death_coil = -1        # game: 100
+whirlwind = -1         # game: 100
+haste = -1             # game: 50
+unholy_armor = -1      # game: 100
+runes = -1             # game: 200
+death_and_decay = -1   # game: 30 per wave
+
+[mana]
+# How fast casters regain mana: 2.0 = twice as fast (the game: 1 point every 40 steps). Mana stops at 255, that
+# limit is part of the game. Everyone gets it, the computer too.
+regen = 1.0
+
+# ==============================================================================================================
+#  11. YOUR OWN NUMBERS FOR ONE UNIT OR ONE BUILDING
 #  One [unit.<name>] table per unit, one [building.<name>] table per structure. -1 (or leaving a line out) keeps
 #  the game's own number; 0 is a real value where it makes sense (armor, damage, lumber, oil ...). These replace the
 #  game's base numbers first; the multipliers above then apply on top of them. Applied when a new map starts.

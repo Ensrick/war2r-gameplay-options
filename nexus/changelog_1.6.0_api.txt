@@ -1,0 +1,4 @@
+New [spell_damage]: all multiplies the damage of every damage spell and the healing of Heal; per-spell numbers replace the game's own first.
+New [spell_cost]: all multiplies every spell's mana cost, rounded up; one number per spell replaces the game's cost first. Heal and Exorcism cost mana per hit point.
+New [mana] regen: casters regain mana faster. Mana stops at 255, that is part of the game.
+All of it is global (the computer gets the same numbers); the game's values come back in multiplayer.

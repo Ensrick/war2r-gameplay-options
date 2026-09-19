@@ -7,6 +7,17 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-19). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.6.0 - 2026-09-19
+
+- New `[spell_damage]`: `all` multiplies the damage of every damage spell and the healing of Heal; per-spell numbers
+  (`fireball`, `flame_shield`, `blizzard`, `death_and_decay`, `whirlwind`, `death_coil`, `runes`, and `heal` = the most
+  HP one Heal restores) replace the game's own first. -1 = the game's value.
+- New `[spell_cost]`: `all` multiplies every spell's mana cost, rounded up; one number per spell (all 18) replaces the
+  game's cost first. 1 to 255. Heal and Exorcism cost mana per hit point, and the damage multiplier lowers that price.
+- New `[mana] regen`: casters regain mana faster (2.0 = twice as fast). Mana stops at 255, that is part of the game.
+- Everything is global (the computer's casters get the same numbers) and the game's own values come back in
+  multiplayer. The config file gains part 10, "SPELL POWER AND MANA"; "YOUR OWN NUMBERS" is part 11 now.
+
 ## 1.5.0 - 2026-09-19
 
 - Autocast for every remaining spell, each its own switch under `[spells]`, all off by default: `fireball`,

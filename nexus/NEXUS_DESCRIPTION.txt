@@ -82,6 +82,20 @@ auto_harvest = true
 harvest_idle_seconds = 10
 harvest_radius = 5[/code]
 
+[size=4][b]Spell power and mana[/b][/size]
+Spells deal fixed damage, so with more health on the field they fall behind. [b][spell_damage][/b] multiplies the damage of every damage spell and the healing of Heal; [b][spell_cost][/b] multiplies every mana cost (rounded up); both also take a number per spell that replaces the game's own first. [b][mana] regen[/b] makes casters regain mana faster. Mana stops at 255, that limit is part of the game. Everyone gets these numbers, the computer too, and the game's own values come back in multiplayer.
+[code][spell_damage]
+all = 2.0            # every damage spell and Heal x2
+death_coil = -1      # or set one spell's damage yourself (-1 = the game's)
+
+[spell_cost]
+all = 1.0
+fireball = 50        # the game: 100
+heal = 3             # Heal and Exorcism cost mana PER HIT POINT (the game: 5 and 4)
+
+[mana]
+regen = 1.5          # 50% faster mana regeneration[/code]
+
 [size=4][b]Autocast for every spell[/b][/size]
 Every spell has its own switch under [b][spells][/b]. The eight area and utility spells (fireball, blizzard, death_and_decay, whirlwind, flame_shield, runes, invisibility, holy_vision) are off by default. Area spells hurt your own units and buildings in the game, so the mod only casts them with no friendly unit, building or wall in the blast area, and it stops a Blizzard or Death and Decay it started as soon as a friendly walks in. Raise Dead works like the computer's: any fresh corpse within 15 tiles.
 [code][spells]

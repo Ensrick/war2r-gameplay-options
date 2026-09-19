@@ -29,6 +29,9 @@ Ensrick/war2r-gameplay-options (public since 2026-09-18).
   search treat off-map tiles as anything but "nothing".
 - Crash reports from the game: `<game>\x86\Errors\<date time id>\Crash.txt` + `War2_Remastered.dmp` (a minidump with
   the exception context; the image base of that session is in the DBG-MODULE line, subtract it to get RVAs).
+- Spell numbers (`src/spells.cpp`) patch game CODE bytes: every site is byte-verified, written as a group, and restored
+  to the game's bytes in multiplayer. Keep the ranges from docs/research/spells.md (cost 1..255, splash damage <= 254,
+  death coil <= 127, runes <= 128): outside them the game divides by zero or wraps.
 - Orders: `SetOrder` writes the NEXT-order byte (+0x2F). Always read orders through `game::EffectiveOrder`.
 - Map-start data tweaks run ONLY from the new-map hook (0x4D2C46). Never apply table edits from the tick: savegames
   store the tables, so that double-applies.

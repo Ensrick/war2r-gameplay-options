@@ -2,6 +2,7 @@
 // then drives the autocast pass over a fake world built inside the image's own globals. IssueOrder is swapped for a
 // recorder so nothing of the game executes. Usage: selftest.exe "<path to Warcraft II.exe>"
 #include <windows.h>
+#include <share.h>
 #include <cstdio>
 #include <cstring>
 
@@ -12,6 +13,7 @@
 #include "../src/game.h"
 #include "../src/hook.h"
 #include "../src/log.h"
+#include "../src/spells.h"
 #include "../src/trees.h"
 
 using namespace game;
@@ -290,6 +292,309 @@ static int CheckRegrowth(const TerrainSnap& was, const char* what) {
 
 // Fake unit types used by the scenarios.
 constexpr uint8_t kFootman = 0, kGrunt = 1, kOgre = 7, kSkeleton = 0x37, kPeon = 3, kDragon = 0x2B, kDaemon = 0x38;
+
+// ---- [spell_cost] / [spell_damage] / [mana] regen (src/spells.cpp, docs/research/spells.md) ----
+// The bytes below are typed in from the research disassembly, not taken from spells.cpp, so a wrong RVA or a wrong
+// original in either place fails here.
+struct SpellSite {
+    uint32_t rva;
+    int len;
+    uint8_t bytes[16];
+};
+enum { kSiteFireball, kSiteMarker, kSiteFlame, kSiteBlizzard, kSiteDecay, kSiteWhirlwind, kSiteCoil0, kSiteCoil1, kSiteCoil2,
+       kSiteCoil3, kSiteCoil4, kSiteRunesKill, kSiteRunesSub, kSiteHealCap, kSiteRegen0, kSiteRegen1, kSiteRegen2, kSpellSiteCount };
+static const SpellSite kSpellSites[kSpellSiteCount] = {
+    {kRvaFireballDamageInsn, 2, {0xB0, 0x28}},                                                     // mov al, 0x28
+    {kRvaFireballMarker, 16, {0xB8, 0x28, 0x00, 0x00, 0x00, 0x38, 0x47, 0x37, 0xB9, 0x19, 0x00, 0x00, 0x00, 0x0F, 0x44, 0xC8}},
+    {kRvaFlameShieldDamageInsn, 4, {0xC6, 0x40, 0x37, 0x04}},                                      // mov byte [eax+0x37], 4
+    {kRvaBlizzardDamageInsn, 4, {0xC6, 0x47, 0x37, 0x0A}},                                         // mov byte [edi+0x37], 10
+    {kRvaDeathAndDecayDamageInsn, 4, {0xC6, 0x46, 0x37, 0x0A}},                                    // mov byte [esi+0x37], 10
+    {kRvaWhirlwindDamageInsn, 4, {0xC6, 0x46, 0x37, 0x04}},                                        // mov byte [esi+0x37], 4
+    {kRvaDeathCoilBudgetInsns[0], 3, {0x83, 0xF8, 0x32}},                                          // cmp eax, 50
+    {kRvaDeathCoilBudgetInsns[1], 3, {0x83, 0xFB, 0x32}},                                          // cmp ebx, 50
+    {kRvaDeathCoilBudgetInsns[2], 3, {0x83, 0xF8, 0x32}},                                          // cmp eax, 50
+    {kRvaDeathCoilBudgetInsns[3], 5, {0xB8, 0x32, 0x00, 0x00, 0x00}},                              // mov eax, 50
+    {kRvaDeathCoilBudgetInsns[4], 5, {0xBB, 0x32, 0x00, 0x00, 0x00}},                              // mov ebx, 50
+    {kRvaRunesDamageInsn, 5, {0xB9, 0x32, 0x00, 0x00, 0x00}},                                      // mov ecx, 50
+    {kRvaRunesSubtractInsn, 3, {0x83, 0xC0, 0xCE}},                                                // add eax, -50
+    {kRvaHealCapInsn, 5, {0xB8, 0x28, 0x00, 0x00, 0x00}},                                          // mov eax, 40
+    {kRvaManaRegenReloadInsn, 4, {0xC6, 0x46, 0x74, 0x28}},                                        // mov byte [esi+0x74], 40
+    {kRvaManaRegenCreateInsn, 4, {0xC6, 0x46, 0x74, 0x28}},
+    {kRvaManaRegenConvertInsn, 4, {0xC6, 0x42, 0x74, 0x28}},
+};
+static const uint16_t kGameSpellCosts[19] = {70, 5, 5, 4, 80, 100, 50, 200, 200, 25, 70, 60, 50, 100, 100, 50, 100, 200, 30};  // orders 0x26..0x38
+
+static bool SiteIs(int site, const uint8_t* bytes) {
+    return memcmp(At<uint8_t>(kSpellSites[site].rva), bytes, kSpellSites[site].len) == 0;
+}
+static bool SiteIsGame(int site) { return SiteIs(site, kSpellSites[site].bytes); }
+static bool AllSitesAreGame() {
+    for (int i = 0; i < kSpellSiteCount; ++i)
+        if (!SiteIsGame(i)) return false;
+    return true;
+}
+static bool CostsAreGame() { return memcmp(At<uint16_t>(kRvaManaCostByOrder) + 0x26, kGameSpellCosts, sizeof(kGameSpellCosts)) == 0; }
+static void ResetSpellConfig() {
+    config::g.spellCostAll = config::g.spellDamageAll = config::g.manaRegen = 1.0;
+    for (int& v : config::g.spellCost) v = -1;
+    for (int& v : config::g.spellDamage) v = -1;
+}
+
+// The expected bytes of every damage site for one set of numbers (fireball, flame, blizzard, decay, whirlwind, coil,
+// runes, heal cap). A number equal to the game's must give the game's bytes.
+static bool DamageSitesAre(int fireball, int flame, int blizzard, int decay, int whirlwind, int coil, int runes, int healCap) {
+    auto one = [](int site, int at, int value) {
+        uint8_t b[16];
+        memcpy(b, kSpellSites[site].bytes, sizeof(b));
+        b[at] = static_cast<uint8_t>(value);
+        return SiteIs(site, b);
+    };
+    bool ok = one(kSiteFireball, 1, fireball);
+    if (fireball == 40) {
+        ok = ok && SiteIsGame(kSiteMarker);
+    } else {  // mov al, D / cmp [edi+0x37], al / push 0x19 / pop ecx / jne +3 / push 0x28 / pop ecx / nop x3
+        const uint8_t marker[16] = {0xB0, static_cast<uint8_t>(fireball), 0x38, 0x47, 0x37, 0x6A, 0x19, 0x59, 0x75, 0x03, 0x6A, 0x28, 0x59, 0x90, 0x90, 0x90};
+        ok = ok && SiteIs(kSiteMarker, marker);
+    }
+    ok = ok && one(kSiteFlame, 3, flame) && one(kSiteBlizzard, 3, blizzard) && one(kSiteDecay, 3, decay) && one(kSiteWhirlwind, 3, whirlwind);
+    ok = ok && one(kSiteCoil0, 2, coil) && one(kSiteCoil1, 2, coil) && one(kSiteCoil2, 2, coil) && one(kSiteCoil3, 1, coil) && one(kSiteCoil4, 1, coil);
+    ok = ok && one(kSiteRunesKill, 1, runes) && one(kSiteRunesSub, 2, -runes);
+    return ok && one(kSiteHealCap, 1, healCap);
+}
+static bool RegenSitesAre(int interval) {
+    for (int site = kSiteRegen0; site <= kSiteRegen2; ++site) {
+        uint8_t b[16];
+        memcpy(b, kSpellSites[site].bytes, sizeof(b));
+        b[3] = static_cast<uint8_t>(interval);
+        if (!SiteIs(site, b)) return false;
+    }
+    return true;
+}
+// Costs by order id 0x26..0x38 (0x28 is the unused slot, always 5).
+static bool CostsAre(const uint16_t (&want)[19]) { return memcmp(At<uint16_t>(kRvaManaCostByOrder) + 0x26, want, sizeof(want)) == 0; }
+static void PrintCosts(const char* what) {
+    const uint16_t* t = At<uint16_t>(kRvaManaCostByOrder) + 0x26;
+    printf("  %s costs 0x26..0x38:", what);
+    for (int i = 0; i < 19; ++i) printf(" %u", t[i]);
+    printf("\n");
+}
+static void PokeCode(uint32_t rva, uint8_t value) {
+    DWORD old;
+    VirtualProtect(At<uint8_t>(rva), 1, PAGE_EXECUTE_READWRITE, &old);
+    *At<uint8_t>(rva) = value;
+    VirtualProtect(At<uint8_t>(rva), 1, old, &old);
+}
+static bool LogContains(const wchar_t* dir, const char* text) {
+    wchar_t path[MAX_PATH];
+    swprintf_s(path, L"%s\\gameplay_options.log", dir);
+    FILE* f = _wfsopen(path, L"rb", _SH_DENYNO);  // the log is still open for writing; _wfopen_s would not share it
+    if (!f) return false;
+    static char buf[1 << 20];
+    const size_t n = fread(buf, 1, sizeof(buf) - 1, f);
+    fclose(f);
+    buf[n] = '\0';
+    return strstr(buf, text) != nullptr;
+}
+
+static void SpellNumberTests(const wchar_t* dir, const wchar_t* ini) {
+    // The real exe: every patch site and the 19 cost words are what the research found.
+    for (int i = 0; i < kSpellSiteCount; ++i) CHECK(SiteIsGame(i), "spell patch site %d at RVA 0x%X is not the game's instruction", i, kSpellSites[i].rva);
+    CHECK(CostsAreGame(), "the mana cost table 0x26..0x38 is not 70,5,5,4,80,100,50,200,200,25,70,60,50,100,100,50,100,200,30");
+    // Everything before this ran with the shipped config: not one word or byte may have been written.
+    CHECK(spells::WriteCount() == 0, "the shipped config wrote %u spell table word(s) / patch(es)", spells::WriteCount());
+
+    ResetSpellConfig();
+    spells::Sync(false);
+    datatweaks::OnNewMapTablesLoaded();
+    spells::Sync(false);
+    CHECK(spells::WriteCount() == 0 && AllSitesAreGame() && CostsAreGame(), "defaults must write nothing");
+
+    // all = 2 in both sections. Costs round up and stop at 255; heal / exorcism get half the doubled per-HP price.
+    config::g.spellCostAll = 2.0;
+    config::g.spellDamageAll = 2.0;
+    spells::Sync(false);
+    {
+        const uint16_t want[19] = {140, 5, 5, 4, 160, 200, 100, 255, 255, 50, 140, 120, 100, 200, 200, 100, 200, 255, 60};
+        CHECK(CostsAre(want), "all = 2: cost table");
+        if (!CostsAre(want)) PrintCosts("all = 2");
+    }
+    CHECK(DamageSitesAre(80, 8, 20, 20, 8, 100, 100, 80) && RegenSitesAre(40), "all = 2: damage bytes");
+    const unsigned writes = spells::WriteCount();
+    spells::Sync(false);
+    spells::Sync(false);
+    CHECK(spells::WriteCount() == writes, "a second Sync must not write again (%u -> %u)", writes, spells::WriteCount());
+
+    // Multiplayer, through all three ways it arrives: the game's bytes and costs come back at once.
+    spells::Sync(true);
+    CHECK(AllSitesAreGame() && CostsAreGame(), "Sync(multiplayer) must restore every site and cost");
+    spells::Sync(false);
+    CHECK(DamageSitesAre(80, 8, 20, 20, 8, 100, 100, 80), "single player again: patched again");
+    *At<uint8_t>(kRvaNetGameAtLoad) = 1;
+    datatweaks::OnNewMapTablesLoaded();
+    *At<uint8_t>(kRvaNetGameAtLoad) = 0;
+    CHECK(AllSitesAreGame() && CostsAreGame(), "a multiplayer map load must restore every site and cost");
+    spells::Sync(false);
+    *At<uint32_t>(kRvaNetGame) = 1;  // a multiplayer game started from a savegame never passes the new-map hook
+    mod::OnTick();
+    *At<uint32_t>(kRvaNetGame) = 0;
+    CHECK(AllSitesAreGame() && CostsAreGame(), "the first multiplayer tick must restore every site and cost");
+    mod::OnTick();
+    CHECK(DamageSitesAre(80, 8, 20, 20, 8, 100, 100, 80) && !CostsAreGame(), "the tick re-applies the config in single player");
+
+    // Back to the defaults: everything is the game's again.
+    ResetSpellConfig();
+    spells::Sync(false);
+    CHECK(AllSitesAreGame() && CostsAreGame(), "switching back to the defaults must restore every site and cost");
+
+    // Rounding: costs round UP, damage to the nearest; per-spell values replace the base before the multiplier.
+    config::g.spellCostAll = 1.5;
+    config::g.spellCost[kCostFireball] = 7;  // 10.5 -> 11
+    config::g.spellDamage[kDamageRunes] = 30;
+    config::g.spellDamage[kDamageHeal] = 60;
+    config::g.spellDamageAll = 1.5;  // runes 45, heal cap 90, fireball 60, flame 6, blizzard 15, coil 75, whirlwind 6
+    spells::Sync(false);
+    {
+        // heal 5 x 1.5 = 7.5 -> 8, then / 1.5 = 5.33 -> 6; exorcism 4 x 1.5 = 6, / 1.5 = 4
+        const uint16_t want[19] = {105, 6, 5, 4, 120, 11, 75, 255, 255, 38, 105, 90, 75, 150, 150, 75, 150, 255, 45};
+        CHECK(CostsAre(want), "x1.5: costs round up, fireball's own 7 before the multiplier");
+        if (!CostsAre(want)) PrintCosts("x1.5");
+    }
+    CHECK(DamageSitesAre(60, 6, 15, 15, 6, 75, 45, 90), "x1.5 damage: rounded to nearest, per-spell runes 30 and heal cap 60 first");
+
+    // x1.1: 70 x 1.1 is 77.00000000000001 in floating point and must still cost 77; 4.4 rounds UP for a cost, DOWN
+    // (to the nearest) for a damage number.
+    ResetSpellConfig();
+    config::g.spellCostAll = 1.1;
+    config::g.spellDamageAll = 1.1;  // fireball 44, flame 4, blizzard 11, decay 11, whirlwind 4, coil 55, runes 55, heal cap 44
+    spells::Sync(false);
+    {
+        // heal 5.5 -> 6, / 1.1 = 5.45 -> 6; exorcism 4.4 -> 5, / 1.1 = 4.55 -> 5
+        const uint16_t want[19] = {77, 6, 5, 5, 88, 110, 55, 220, 220, 28, 77, 66, 55, 110, 110, 55, 110, 220, 33};
+        CHECK(CostsAre(want), "x1.1: costs round up without floating-point noise");
+        if (!CostsAre(want)) PrintCosts("x1.1");
+    }
+    CHECK(DamageSitesAre(44, 4, 11, 11, 4, 55, 55, 44), "x1.1 damage: rounded to the nearest");
+
+    // A zero multiplier cannot come from the file (the reader refuses it), but the engine limits must hold anyway.
+    config::g.spellCostAll = 0.0;
+    config::g.spellDamageAll = 0.0;
+    config::g.manaRegen = 0.0;
+    spells::Sync(false);
+    {
+        const uint16_t want[19] = {1, 1, 5, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+        CHECK(CostsAre(want), "multiplier 0: every cost at least 1");
+        if (!CostsAre(want)) PrintCosts("x0");
+    }
+    CHECK(DamageSitesAre(1, 1, 1, 1, 1, 1, 1, 1) && RegenSitesAre(40), "multiplier 0: damage at least 1, regen left at the game's");
+
+    // Clamps: 1 / 255 for costs, 254 / 127 / 128 / 255 for the damage sites.
+    ResetSpellConfig();
+    config::g.spellCostAll = 1000.0;
+    config::g.spellDamageAll = 1000.0;
+    spells::Sync(false);
+    {
+        // heal and exorcism: 255 / 1000 = 0.255 -> 1
+        const uint16_t want[19] = {255, 1, 5, 1, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255};
+        CHECK(CostsAre(want), "x1000: costs stop at 255, heal / exorcism prices at 1");
+        if (!CostsAre(want)) PrintCosts("x1000");
+    }
+    CHECK(DamageSitesAre(254, 254, 254, 254, 254, 127, 128, 255), "x1000 damage: 254 / 127 / 128 / 255");
+    CHECK(At<uint8_t>(kRvaRunesSubtractInsn)[2] == 0x80 && At<uint8_t>(kRvaDeathCoilBudgetInsns[0])[2] == 0x7F,
+          "runes subtract -128, death coil 127: both still positive as signed bytes");
+    config::g.spellCostAll = 0.01;
+    config::g.spellDamageAll = 0.01;
+    spells::Sync(false);
+    {
+        // heal 0.05 -> 1, then 1 / 0.01 = 100; exorcism 0.04 -> 1 -> 100
+        const uint16_t want[19] = {1, 100, 5, 100, 1, 1, 1, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1};
+        CHECK(CostsAre(want), "x0.01: nothing below 1 (a free heal divides by zero)");
+        if (!CostsAre(want)) PrintCosts("x0.01");
+    }
+    CHECK(DamageSitesAre(1, 1, 1, 1, 1, 1, 1, 1), "x0.01 damage: nothing below 1");
+    ResetSpellConfig();
+    config::g.spellDamage[kDamageFireball] = 41;  // the marker follows any value but 40
+    spells::Sync(false);
+    CHECK(DamageSitesAre(41, 4, 10, 10, 4, 50, 50, 40), "fireball 41: marker rewrite");
+    config::g.spellDamage[kDamageFireball] = 40;  // an explicit game value is the game's bytes
+    spells::Sync(false);
+    CHECK(AllSitesAreGame(), "fireball 40 must put the original 16 marker bytes back");
+
+    // [mana] regen: 40 steps per point divided by the multiplier, rounded, 1..255, the three stores agree.
+    const struct { double k; int interval; } kRegen[] = {{2.0, 20}, {3.0, 13}, {1.5, 27}, {40.0, 1}, {0.1, 255}, {1.0, 40}};
+    for (const auto& r : kRegen) {
+        config::g.manaRegen = r.k;
+        spells::Sync(false);
+        CHECK(RegenSitesAre(r.interval), "[mana] regen %.1f must reload the counter with %d", r.k, r.interval);
+    }
+    CHECK(AllSitesAreGame(), "regen 1.0 is the game's bytes");
+
+    // The author's config, through the file reader.
+    WriteFileText(ini,
+                  "[spell_damage]\nall = 2.0\n"
+                  "[spell_cost]\nall = 1.0\nfireball = 50\nflame_shield = 40\nblizzard = 13\ndeath_and_decay = 15\nwhirlwind = 50\n"
+                  "death_coil = 50\nrunes = 100\nexorcism = 2\nheal = 3\n");
+    CHECK(config::Init(dir), "the author's spell config was rejected");
+    CHECK(config::g.spellDamageAll == 2.0 && config::g.spellCostAll == 1.0 && config::g.spellCost[kCostFireball] == 50 &&
+              config::g.spellCost[kCostHeal] == 3 && config::g.spellCost[kCostExorcism] == 2 && config::g.spellCost[kCostRunes] == 100 &&
+              config::g.spellCost[kCostSlow] == -1 && config::g.spellDamage[kDamageFireball] == -1 && config::g.manaRegen == 1.0,
+          "the author's spell config did not load");
+    datatweaks::OnNewMapTablesLoaded();
+    {
+        // holy vision 70, heal 3 / 2 -> 2, (0x28) 5, exorcism 2 / 2 -> 1, flame 40, fireball 50, slow 50, invisibility 200,
+        // polymorph 200, blizzard 13, eye 70, bloodlust 60, raise dead 50, coil 50, whirlwind 50, haste 50, unholy 100,
+        // runes 100, decay 15
+        const uint16_t want[19] = {70, 2, 5, 1, 40, 50, 50, 200, 200, 13, 70, 60, 50, 50, 50, 50, 100, 100, 15};
+        CHECK(CostsAre(want), "the author's config: cost table");
+        PrintCosts("author's config");
+    }
+    CHECK(DamageSitesAre(80, 8, 20, 20, 8, 100, 100, 80) && RegenSitesAre(40), "the author's config: damage x2 and heal cap 80");
+    CHECK(LogContains(dir, "spells: mana cost heal 5->2 exorcism 4->1 flame_shield 80->40 fireball 100->50") &&
+              LogContains(dir, "spells: damage fireball 40->80 flame_shield 4->8 blizzard 10->20 death_and_decay 10->20 whirlwind 4->8 "
+                               "death_coil 50->100 runes 50->100 heal_cap 40->80"),
+          "the new-map log lines");
+
+    // Bad values: 0 and < -1 refused, above the engine's limit clamped, a typo reported.
+    WriteFileText(ini,
+                  "[spell_cost]\nheal = 0\nexorcism = 300\nfirebal = 5\n"
+                  "[spell_damage]\ndeath_coil = 500\nruns = 5\nrunes = -5\nfireball = 254\nall = 0\n"
+                  "[mana]\nregen = 100\n");
+    CHECK(config::Init(dir), "bad spell values must not be a syntax error");
+    CHECK(config::g.spellCost[kCostHeal] == -1 && config::g.spellCost[kCostExorcism] == 255 && config::g.spellDamage[kDamageDeathCoil] == 127 &&
+              config::g.spellDamage[kDamageRunes] == -1 && config::g.spellDamage[kDamageFireball] == 254 && config::g.spellDamageAll == 1.0 &&
+              config::g.manaRegen == 1.0,
+          "bad spell values (heal %d exorcism %d coil %d runes %d regen %.2f)", config::g.spellCost[kCostHeal], config::g.spellCost[kCostExorcism],
+          config::g.spellDamage[kDamageDeathCoil], config::g.spellDamage[kDamageRunes], config::g.manaRegen);
+    CHECK(LogContains(dir, "unknown key [spell_cost] firebal") && LogContains(dir, "unknown key [spell_damage] runs"), "spell key typos must be logged");
+    DeleteFileW(ini);
+    CHECK(config::Init(dir), "default config did not come back");
+    EnableEverythingForTests();
+    spells::Sync(false);
+    CHECK(AllSitesAreGame() && CostsAreGame(), "the default file must restore everything");
+
+    // A byte that is neither the game's nor the mod's: that group (and that cost word) is left alone for the session,
+    // everything else still follows the config. Last, because a refusal is permanent.
+    PokeCode(kRvaFireballMarker + 13, 0xCC);
+    At<uint16_t>(kRvaManaCostByOrder)[0x2B] = 123;
+    config::g.spellDamageAll = 2.0;
+    config::g.spellCostAll = 2.0;
+    spells::Sync(false);
+    CHECK(SiteIsGame(kSiteFireball) && At<uint8_t>(kRvaFireballMarker)[13] == 0xCC && At<uint8_t>(kRvaFireballMarker)[0] == 0xB8,
+          "a foreign byte in the fireball marker: both fireball sites must stay untouched");
+    CHECK(At<uint16_t>(kRvaManaCostByOrder)[0x2B] == 123 && At<uint16_t>(kRvaManaCostByOrder)[0x2C] == 100,
+          "a foreign cost word stays, the others follow the config");
+    {
+        uint8_t flame[4] = {0xC6, 0x40, 0x37, 0x08};
+        CHECK(SiteIs(kSiteFlame, flame) && RegenSitesAre(40), "the other groups must still be patched");
+    }
+    PokeCode(kRvaFireballMarker + 13, 0x0F);
+    At<uint16_t>(kRvaManaCostByOrder)[0x2B] = 100;
+    spells::Sync(false);
+    CHECK(SiteIsGame(kSiteFireball) && SiteIsGame(kSiteMarker) && At<uint16_t>(kRvaManaCostByOrder)[0x2B] == 100,
+          "a refused group stays refused even when its bytes look right again");
+    ResetSpellConfig();
+    spells::Sync(false);
+    CHECK(AllSitesAreGame() && CostsAreGame(), "the test must leave the image as the game made it");
+}
 
 int wmain(int argc, wchar_t** argv) {
     const wchar_t* exe = argc > 1 ? argv[1] : L"C:\\Program Files (x86)\\Warcraft II Remastered\\x86\\Warcraft II.exe";
@@ -2454,6 +2759,8 @@ int wmain(int argc, wchar_t** argv) {
         config::g.treesUnitDistance = 3;
         ResetWorld();
     }
+
+    SpellNumberTests(dir, ini);
 
     // TOML config: a custom file is honoured, typos and bad values are survivable, a syntax error keeps old settings.
     WriteFileText(ini,

@@ -3,6 +3,20 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.6.0 (2026-09-19, UNTESTED in game)
+
+- Author: heroes "NEED to be fairly strong"; asked whether max mana can go above 255, and for "a multiplier for all
+  spell damage, and then individual tweaks ... individual spell cost and a spell cost mult", rounding costs up, and
+  "make sure we're not opening the doors to more bugs like the outside the map stuff".
+- Research docs/research/spells.md (agent; costs re-checked here against the exe): mana is a byte, capped by the regen
+  code at 255 and treated as full by every UI bar, so the maximum cannot rise; regen is +1 per 40 steps (reload byte
+  0x4EF589). The cost table is u16 per order, never saved or reloaded, valid 1..255 (0 divides by zero in heal /
+  exorcism). Every damage number is an instruction immediate; heal and exorcism are priced per HP.
+- Implemented by the same agent in a worktree (src/spells.cpp), merged after 1.5.0: cost table from verified base
+  values; byte-verified group patches (fireball incl. a 16-byte marker rewrite, death coil 5 sites, runes 2 sites, heal
+  cap, regen 3 sites), each group all-or-nothing and refused on unknown bytes; synced at the new-map hook and every tick
+  before the multiplayer return, game values in multiplayer and at defaults. No patch touches a coordinate or an index.
+
 ## 1.5.0 (2026-09-19, UNTESTED in game)
 
 - Author: "include options for autocast for all spells" and, on Raise Dead not firing, "Yes" to matching the computer

@@ -7,6 +7,8 @@ Steps (each one only when the file still needs it):
   1.1.0  adds "amount = 1.0" to [gold_mines] and [oil_platforms]
   1.2.0  adds the [food] block after [oil_platforms]
   1.3.0  adds the [trees] block after [food]
+  1.6.0  adds part "10. SPELL POWER AND MANA" ([spell_damage], [spell_cost], [mana], all neutral) in front of
+         "YOUR OWN NUMBERS", which becomes part 11
   1.5.0  adds the eight new [spells] switches (false) and three [autocast] keys; the Raise Dead comment is updated
   1.4.0  [heroes] gains the "regen" switch (true when the old regen_hp_per_second was above 0, so nothing changes) and
          the [unit_regen] block is added after [heroes]
@@ -36,6 +38,8 @@ SPELLS_NEW = ['# Area spells hurt YOUR units and buildings too. They are only ca
 AUTOCAST_NEW = ['# Blizzard and Death and Decay keep casting wave after wave. The mod stops the ones it started when a friendly walks', "# in, when no enemy is left, or when the caster's mana drops below this (0 = let them run until the game stops them).", 'channel_mana_reserve = 0', '# Blizzard, Death and Decay and Whirlwind need at least this many enemies close together.', 'area_min_enemies = 3', "# Fireball needs at least this many enemies along its path (1 = the computer's own rule).", 'fireball_min_enemies = 2']
 RAISE_DEAD_COMMENT = "# Raise Dead works like the computer's: any fresh corpse within 15 tiles, enemies around or not."
 OLD_RAISE_DEAD_COMMENT = '# Raise Dead is only cast while an enemy is within search_radius, so skeletons are not wasted.'
+SPELL_POWER = ['[spell_damage]', '# Damage of every damage spell, and the healing of Heal, x this: 2.0 = double. The per-spell numbers below replace', "# the game's own first (-1 = the game's), then this multiplier applies. Everyone gets these numbers, the computer too.", 'all = 1.0', 'fireball = -1          # per explosion, 5 explosions per cast (game: 40, at most 254)', 'flame_shield = -1      # per flame hit (game: 4, at most 254)', 'blizzard = -1          # per hit (game: 10, at most 254)', 'death_and_decay = -1   # per hit (game: 10, at most 254)', 'whirlwind = -1         # per hit (game: 4, at most 254)', 'death_coil = -1        # per cast, shared by the enemies hit; the caster heals as much (game: 50, at most 127)', 'runes = -1             # per rune (game: 50, at most 128)', 'heal = -1              # the most hit points one Heal restores (game: 40, at most 255)', '', '[spell_cost]', "# Mana cost of every spell x this, rounded up. The per-spell numbers below replace the game's own first (-1 = the", "# game's), then this multiplier applies. 1 to 255. Heal and Exorcism cost mana PER HIT POINT, and", '# [spell_damage] all lowers that price further (x2 damage = half the price). Everyone gets these costs.', 'all = 1.0', 'holy_vision = -1       # game: 70', 'heal = -1              # game: 5 per hit point healed', 'exorcism = -1          # game: 4 per hit point of damage', 'flame_shield = -1      # game: 80', 'fireball = -1          # game: 100', 'slow = -1              # game: 50', 'invisibility = -1      # game: 200', 'polymorph = -1         # game: 200', 'blizzard = -1          # game: 25 per wave', 'eye_of_kilrogg = -1    # game: 70', 'bloodlust = -1         # game: 60', 'raise_dead = -1        # game: 50', 'death_coil = -1        # game: 100', 'whirlwind = -1         # game: 100', 'haste = -1             # game: 50', 'unholy_armor = -1      # game: 100', 'runes = -1             # game: 200', 'death_and_decay = -1   # game: 30 per wave', '', '[mana]', '# How fast casters regain mana: 2.0 = twice as fast (the game: 1 point every 40 steps). Mana stops at 255, that', '# limit is part of the game. Everyone gets it, the computer too.', 'regen = 1.0']
+SPELL_POWER_TITLE = '10. SPELL POWER AND MANA'
 AMOUNT = {
     'gold_mines': ['# Multiplies the gold in every mine when a NEW map starts: 3.0 = three times as much, for both sides. "Gold left"', '# shows the real number. A mine holds up to 6,553,500, ten times what the map editor allows, so 10.0 always fits.'],
     'oil_platforms': ['# The same for oil: every oil patch and platform, when a NEW map starts.'],
@@ -182,6 +186,22 @@ def spells_150(lines, tree, notes):
     append_missing(lines, tree, 'autocast', AUTOCAST_NEW, notes)
 
 
+def spell_power_160(lines, tree, notes):
+    if any(k in tree for k in ('spell_damage', 'spell_cost', 'mana')):
+        return
+    bar = '# ' + '=' * 110
+    block = [bar, '#  ' + SPELL_POWER_TITLE, bar, ''] + SPELL_POWER + ['']
+    for i, line in enumerate(lines):
+        if line.startswith('#  10. YOUR OWN NUMBERS'):
+            lines[i] = line.replace('#  10.', '#  11.', 1)
+            at = i - 1 if i > 0 and lines[i - 1].startswith('# ====') else i
+            lines[at:at] = block
+            notes.append('added [spell_damage], [spell_cost] and [mana] (all neutral)')
+            return
+    lines += [''] + block  # a file without the banner: at the end
+    notes.append('added [spell_damage], [spell_cost] and [mana] at the end (all neutral)')
+
+
 def health_units(lines, tree, notes):
     health = tree.get('health', {})
     for table, who in (('health', None), ('health.human', 'human'), ('health.orc', 'orc')):
@@ -237,9 +257,12 @@ def main():
     add_trees(lines, before, notes)
     add_regen(lines, before, notes)
     spells_150(lines, before, notes)
+    spell_power_160(lines, before, notes)
     health_units(lines, before, notes)
     text = LF.join(lines)
     text = text.replace('#  5. HEROES' + LF, '#  5. HEROES AND REGENERATION' + LF, 1)
+    text = text.replace('9. RANGE UPGRADE   10. YOUR OWN NUMBERS FOR ONE UNIT OR ONE BUILDING' + LF,
+                        '9. RANGE UPGRADE   10. SPELL POWER AND MANA' + LF + '#             11. YOUR OWN NUMBERS FOR ONE UNIT OR ONE BUILDING' + LF, 1)
     for old_title in ('#  4. GOLD MINES' + LF, '#  4. GOLD MINES AND OIL' + LF, '#  4. GOLD, OIL AND FOOD' + LF):
         text = text.replace(old_title, '#  4. RESOURCES' + LF + '#  Gold mines, oil, food and trees.' + LF, 1)
     for old_contents in ('4. GOLD MINES          5. HEROES', '4. GOLD MINES AND OIL  5. HEROES', '4. GOLD, OIL AND FOOD  5. HEROES',
@@ -254,7 +277,9 @@ def main():
     allowed = {('oil_platforms', 'unlimited'), ('oil_platforms', 'amount'), ('gold_mines', 'amount'), ('food', 'hall_food'),
                ('food', 'hall_food_amount'), ('heroes', 'regen'), ('unit_regen', 'enabled'), ('unit_regen', 'hp_per_second'),
                ('unit_regen', 'regen_for')} | {('spells', l.split('=')[0].strip()) for l in SPELLS_NEW if not l.startswith('#')} | {
-               ('autocast', l.split('=')[0].strip()) for l in AUTOCAST_NEW if not l.startswith('#')} | {('trees', k) for k in ('regrow', 'regrow_min_minutes', 'regrow_max_minutes',
+               ('autocast', l.split('=')[0].strip()) for l in AUTOCAST_NEW if not l.startswith('#')} | {
+               (sec, l.split('=')[0].strip()) for sec in ('spell_damage', 'spell_cost', 'mana') for l in SPELL_POWER
+               if l and not l.startswith(('#', '['))} | {('trees', k) for k in ('regrow', 'regrow_min_minutes', 'regrow_max_minutes',
                'building_distance', 'unit_distance')} | {t + (k,) for t in (('health',), ('health', 'human'), ('health', 'orc')) for k in ('all', 'units')}
     hero_amount = ('heroes', 'regen_hp_per_second')
     if old.get(hero_amount) == 0 and new.get(('heroes', 'regen')) is False:

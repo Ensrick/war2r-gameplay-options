@@ -31,6 +31,10 @@ WHAT IT DOES
 OUT OF THE BOX only this is switched on:
   - Autocast for Heal, Slow, Bloodlust and Raise Dead.
   - Idle workers repair damaged buildings nearby.
+NEW IN 1.6: spell power and mana. [spell_damage] and [spell_cost] set the damage and mana cost of every spell (a
+multiplier for all of them plus a number per spell), [mana] regen makes casters regain mana faster. Mana itself stops
+at 255: that limit is part of the game.
+
 NEW IN 1.5: autocast switches for every remaining spell (Fireball, Blizzard, Death and Decay, Whirlwind, Flame Shield,
 Runes, Invisibility, Holy Vision), all off. Area spells hurt your own units, so the mod only casts them with nothing
 friendly in the blast area.
