@@ -1,3 +1,8 @@
+[size=4][b]1.0.4[/b][/size]
+[list]
+[*]Readme: what to check when nothing happens and no gameplay_options.log appears (the game you started is not the install the mod is in). No change to the mod's behaviour.
+[/list]
+
 [size=4][b]1.0.3[/b][/size]
 [list]
 [*]New "all structures" multipliers: a structures key at the top of [health], [costs] and [time] for both races, and under [x.human] / [x.orc] for one race. [costs] and [time] also get units and research masters at the top. All 1.0 by default; in [health] the "all" values stay unit-only.

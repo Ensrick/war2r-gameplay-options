@@ -94,4 +94,8 @@ GOOD TO KNOW
 - Game updates: the mod only activates on the exact game build it was made for (1.0.2.2818). After a Blizzard
   patch it does nothing (the game runs normally) until the mod is updated. gameplay_options.log says "staying inert".
 - Battle.net "Scan and Repair" may remove version.dll. Just extract the zip again.
+- Nothing happens at all, no Ctrl+F9 banner, and there is NO x86\gameplay_options.log after you started the game?
+  Then the game you started is not the copy the mod is in. Check your shortcut: it must start "Warcraft II.exe" from
+  the same x86 folder that holds version.dll (a second or older install elsewhere on the disk is the usual reason).
+  Starting from the Battle.net app always runs the right one.
 - Trouble? Look at x86\gameplay_options.log first, and include it when you report a problem.

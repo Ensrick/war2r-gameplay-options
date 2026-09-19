@@ -3,6 +3,21 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.0.4 (release build, staged 2026-09-18, NOT uploaded)
+
+- Author report 20:21: "I loaded up the campaign, I didn't see any changes in health to units when I restarted a loaded
+  mission." Evidence: no `x86\gameplay_options.log` existed although the game had just run (`Saved Games\
+  Warcraft2Remastered\Autosave.sav` 20:20:52). File access times show the session ran from a SECOND install elsewhere on the disk (a different game build, no mod files; its exe 20:20:20, its ogre voice
+  files 20:20:55), which the author's own desktop shortcut points at, and the Battle.net agent log has no w2r launch
+  request in that window. The mod lives in the Battle.net install (`C:\Program Files (x86)\...\x86`, build
+  1.0.2.2818). So the mod was never in that session; the restart-after-load path is still UNTESTED, not disproven.
+- The mod supports build 1.0.2.2818 only: in any other build it stays inert (PE timestamp gate).
+- Hardening: `test/activation_host.cpp` + `test/activation_test.ps1`, a stand-in exe NAMED "Warcraft II.exe" that
+  imports version.dll. Proves DllMain takes the game path and writes the log (the proxy load test only covers the
+  inert path). The installed 1.0.3 DLL passed it, which ruled the DLL out.
+- Readme + Nexus description gain the "no log = wrong install" troubleshooting entry.
+- The author's desktop shortcut to the old copy was renamed so the two identical icons can be told apart.
+
 ## 1.0.3 (release build, staged 2026-09-18, NOT uploaded, UNTESTED in game)
 
 - Author: "where is the health and cost configs for structures? I'm looking for the all option for structures but I

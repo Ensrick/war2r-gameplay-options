@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(war2r_gameplay_options VERSION 1.0.3 LANGUAGES CXX RC)
+project(war2r_gameplay_options VERSION 1.0.4 LANGUAGES CXX RC)
 
 # Pre-release builds carry a -dev.N suffix; every change bumps N (docs/DEV_HISTORY.md). Empty for a release build.
 set(MOD_PRERELEASE "")
@@ -28,3 +28,12 @@ add_executable(selftest test/selftest.cpp ${CORE_SOURCES})
 target_compile_definitions(selftest PRIVATE ${COMMON_DEFS})
 target_compile_options(selftest PRIVATE /W4 /permissive- /utf-8)
 target_link_options(selftest PRIVATE /SAFESEH:NO)
+
+# Stand-in for the game (an exe NAMED "Warcraft II.exe" that imports version.dll): proves the proxy takes the game
+# path in DllMain and writes its log. Run through test/activation_test.ps1.
+add_executable(activation_host test/activation_host.cpp)
+set_target_properties(activation_host PROPERTIES OUTPUT_NAME "Warcraft II"
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/activation RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/activation)
+target_compile_definitions(activation_host PRIVATE WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
+# The Windows SDK import library, NOT our "version" target: its .def exports carry no stdcall decoration.
+target_link_libraries(activation_host PRIVATE Version.lib)

@@ -8,12 +8,14 @@ Ensrick/war2r-gameplay-options (private).
 - Build: `.\build.ps1` -> `build\Release\version.dll` + `selftest.exe`. Deploy: `.\deploy.ps1` (`-Disable` to turn off).
   Package: `.\package.ps1` -> `dist\*.zip` (drag-and-drop layout).
 - NEVER launch the game from a session. Stage, then ask the user to start it from Battle.net.
-- Run `selftest.exe "<game exe>"` and `test\proxy_load_test.ps1` before every deploy. A failed build leaves the OLD
+- Run `selftest.exe "<game exe>"`, `test\proxy_load_test.ps1` and `test\activation_test.ps1` before every deploy. A failed build leaves the OLD
   selftest.exe in place: check the build output for errors before trusting "ALL CHECKS PASSED".
 - Every address lives in `src/game.h` as an RVA; evidence in `docs/RE_NOTES.md` + `docs/research/*.md`. Do not add an
   address without decompile evidence. After ANY game patch the PE timestamp gate makes the mod inert; re-derive all
   RVAs (mana-table xref walk for the AI code, `rez\unitdata.dat` string xref for the data tables), update
   `kPeTimestamp`, re-run `selftest.exe`.
+- "The mod does nothing" report: FIRST check that `x86\gameplay_options.log` exists and is newer than the session. No
+  log = the DLL never activated = wrong exe. A second install elsewhere on the disk, started from an old shortcut, is the usual reason; compare the file LastAccessTime of both installs to see which one ran.
 - Multiplayer gates (`kRvaNetGame` per tick, `kRvaNetGameAtLoad` at map load) are hard safety rules. Never remove them
   or make them configurable.
 - Orders: `SetOrder` writes the NEXT-order byte (+0x2F). Always read orders through `game::EffectiveOrder`.

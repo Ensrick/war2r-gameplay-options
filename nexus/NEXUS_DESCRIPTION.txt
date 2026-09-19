@@ -151,6 +151,7 @@ upgrade_bonus = 2       # range that Longbow / Lighter Axes add. The game's own 
 [*][b]Single-player only.[/b] What the mod does is local and would desync a network game, so it turns itself off there.
 [*]Made for game build [b]1.0.2.2818[/b]. After a Blizzard patch the mod does nothing (the game runs normally) until it is updated. gameplay_options.log then says "staying inert".
 [*]Battle.net "Scan and Repair" may remove version.dll. Just extract the zip again; your gameplay_options.toml is not touched.
+[*][b]Nothing happens and there is no x86\gameplay_options.log after starting the game?[/b] Then the game you started is not the copy the mod is in. Check your shortcut: it must start Warcraft II.exe from the same x86 folder that holds version.dll (a second or older install elsewhere on the disk is the usual reason). Starting from the Battle.net app always runs the right one.
 [*]Trouble? Look at x86\gameplay_options.log first and include it when you report a problem.
 [/list]
 

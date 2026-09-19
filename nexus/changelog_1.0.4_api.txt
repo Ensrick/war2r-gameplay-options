@@ -1,0 +1,1 @@
+Readme: what to check when nothing happens and no gameplay_options.log appears (the game you started is not the install the mod is in). No change to the mod's behaviour.

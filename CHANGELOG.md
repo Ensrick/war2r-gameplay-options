@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.4 - staged 2026-09-18, not uploaded yet
+
+- Readme and Nexus description: what to check when nothing happens and no `gameplay_options.log` appears (the game
+  that was started is not the install the mod is in). No change to the mod's behaviour.
+
 ## 1.0.3 - staged 2026-09-18, not uploaded yet
 
 - "All structures" multipliers: a `structures` key at the top of `[health]`, `[costs]` and `[time]` (both races) and
