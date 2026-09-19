@@ -1,8 +1,5 @@
----
-name: Bug report
-about: Something does not work, or the game misbehaves with the mod installed
-labels: bug
----
+<!-- GitLab picks this up as the "Bug" description template. Keep it in step with
+     .github/ISSUE_TEMPLATE/bug_report.md -->
 
 **What happened, and what did you expect instead?**
 
@@ -25,3 +22,5 @@ was produced.
 
 **No `gameplay_options.log` at all?** Then the game you started is not the copy the mod is in. Check that your
 shortcut starts `Warcraft II.exe` from the same `x86` folder that holds `version.dll`.
+
+/label ~bug

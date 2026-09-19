@@ -1,0 +1,40 @@
+[size=4][b]Welcome, and thanks for trying it[/b][/size]
+Hello! I am Ensrick, the author. This started as a wish for Warcraft II casters to use their spells on their own, the way the computer's do, and it grew into a single text file that lets you retune most of the game: autocast for every spell, idle workers that go back to work, forests that grow back, buildings that train by themselves, and multipliers for health, prices, build times, spell damage and mana. Everything is off or neutral out of the box, so the game stays exactly as Blizzard made it until you switch something on.
+
+Tell me what you would like it to do. Half of what is in the mod came from someone saying "it would be nice if...". Questions and ideas are welcome right here in the comments.
+
+[size=4][b]Found a bug? Here is what I need[/b][/size]
+Nexus comments cannot carry files, and a bug is almost always solved by two small text files. Please open a report on either tracker (both are mine, pick whichever you already have an account for):
+[list]
+[*][url=https://github.com/Ensrick/war2r-gameplay-options/issues/new?template=bug_report.md]Report it on GitHub[/url]
+[*][url=https://gitlab.com/ensrick7/war2r-gameplay-options/-/issues/new?issuable_template=Bug]Report it on GitLab[/url]
+[/list]
+Both open a short form with the questions below already in it. Drag the files straight into the box.
+
+[b]What to attach[/b]
+[list]
+[*][b]x86\gameplay_options.log[/b] from the session where it happened. It sits next to the game exe, in your Warcraft II Remastered\x86 folder.
+[*]Your [b]x86\gameplay_options.toml[/b], so I can see your settings.
+[*]If the game crashed: the newest folder in [b]x86\Errors\[/b] (Crash.txt and the .dmp file). That is the game's own crash report and it usually points straight at the cause.
+[/list]
+
+[b]Want the log to say more?[/b] Open gameplay_options.toml, set [b]log_casts = true[/b] under [general], save, and play until it happens again. The log then writes a line for every spell cast, every unit auto-production starts, and a line explaining why nothing was produced.
+
+[b]Nothing in the log at all?[/b] Then the game you started is not the copy the mod is in. Check that your shortcut starts Warcraft II.exe from the same x86 folder that holds version.dll.
+
+[b]No account on either site?[/b] Post the comment here anyway with your mod version (the first line of the log), your game build, what you did and what happened. I will ask for anything else I need.
+
+[size=4][b]Got an idea? Ask for it[/b][/size]
+Feature requests are just as welcome as bug reports, and most of what is in here started as one. Tell me what you keep doing by hand, or what you wish the game did, and how it should behave once it is switched on:
+[list]
+[*][url=https://github.com/Ensrick/war2r-gameplay-options/issues/new?template=feature_request.md]Ask on GitHub[/url]
+[*][url=https://gitlab.com/ensrick7/war2r-gameplay-options/-/issues/new?issuable_template=Feature]Ask on GitLab[/url]
+[/list]
+Or just say it here in the comments, whichever is easier. Two things worth knowing: the mod only touches single-player games, and it can only do what the engine itself can do. If an idea needs something Warcraft II simply does not have, I will say so plainly instead of leaving you waiting.
+
+[size=4][b]Source code[/b][/size]
+Everything is open, MIT licensed, including the reverse-engineering notes behind each feature:
+[list]
+[*][url=https://github.com/Ensrick/war2r-gameplay-options]github.com/Ensrick/war2r-gameplay-options[/url]
+[*][url=https://gitlab.com/ensrick7/war2r-gameplay-options]gitlab.com/ensrick7/war2r-gameplay-options[/url] (mirror)
+[/list]
