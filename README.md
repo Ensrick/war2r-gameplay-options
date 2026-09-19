@@ -45,6 +45,16 @@ on, and drives all features over a fake world built inside the image's own globa
 - Orders are issued through the game's own `IssueOrder` with the entries of its order handler table, the same path the
   computer AI and the player's command executor use.
 
+## License and reporting problems
+
+Source-available, **not** open source: see [LICENSE](LICENSE). The conditions are the same as on the
+[Nexus Mods page](https://www.nexusmods.com/warcraft2/mods/8): personal use, no re-uploads, no conversions, no reuse of
+the code or files in other mods, ask before releasing a modified version, credit Ensrick. toml++ in `third_party/` is
+MIT-licensed.
+
+Found a bug? [Open an issue](https://github.com/Ensrick/war2r-gameplay-options/issues) and attach
+`x86\gameplay_options.log` and your `gameplay_options.toml`. Releases and their notes: [CHANGELOG.md](CHANGELOG.md).
+
 ## Layout
 
 ```

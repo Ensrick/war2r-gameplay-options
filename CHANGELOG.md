@@ -1,34 +1,47 @@
 # Changelog
 
-## 1.0.8 - staged 2026-09-18, not uploaded yet
+Semantic versioning: patch = fixes and documentation, minor = new settings or features, major = a change that breaks
+existing `gameplay_options.toml` files. Every change gets its own version and entry here, newest first.
+
+**On Nexus Mods right now: 1.0.0.** Later versions are built and tested offline and are in this repository; they reach
+Nexus together with the next upload.
+
+## 1.0.9 - 2026-09-18
+
+- The repository is public: https://github.com/Ensrick/war2r-gameplay-options, with the issue tracker for bug reports.
+- `LICENSE`: source-available under the same conditions as the Nexus Mods page (personal use, no re-uploads, no
+  conversions, no reuse in other mods, ask before releasing a modified version, credit Ensrick). Readme and Nexus
+  description say so and point bug reports at GitHub issues. No change to the mod's behaviour.
+
+## 1.0.8 - 2026-09-18
 
 - `[health] all` now covers EVERYTHING (units, ships and structures), exactly like `[costs] all` and `[time] all`.
   New `[health] units` (and `[health.human] units` / `[health.orc] units`) is the units-only master.
 - **Changed meaning:** up to 1.0.7 `[health] all` meant units only. If you had set it, move the number to
   `[health] units` to keep your buildings as they were. `tools/migrate_config.py` (GitHub) does it in place.
 
-## 1.0.7 - staged 2026-09-18, not uploaded yet
+## 1.0.7 - 2026-09-18
 
 - Fixed: autocast never saw flying units. The game keeps flyers in a separate air layer that the mod did not scan, so
   no Bloodlust, Haste or Heal went onto your dragons and gryphon riders, no Death Coil, Polymorph, Slow or Exorcism
   onto enemy flyers, and an enemy flyer did not count as "enemy nearby". Both layers are scanned now.
 
-## 1.0.6 - staged 2026-09-18, not uploaded yet
+## 1.0.6 - 2026-09-18
 
 - New `[oil_platforms] unlimited` (off by default): oil platforms never run dry, the computer's too. Independent of
   `[gold_mines] unlimited`, which never covered oil.
 
-## 1.0.5 - staged 2026-09-18, not uploaded yet
+## 1.0.5 - 2026-09-18
 
 - `[building.watch_tower]` and `[building.orc_watch_tower]` are accepted for the orc scout tower (the game calls it
   Watch Tower), `[building.scout_tower]` for the human one.
 
-## 1.0.4 - staged 2026-09-18, not uploaded yet
+## 1.0.4 - 2026-09-18
 
 - Readme and Nexus description: what to check when nothing happens and no `gameplay_options.log` appears (the game
   that was started is not the install the mod is in). No change to the mod's behaviour.
 
-## 1.0.3 - staged 2026-09-18, not uploaded yet
+## 1.0.3 - 2026-09-18
 
 - "All structures" multipliers: a `structures` key at the top of `[health]`, `[costs]` and `[time]` (both races) and
   under each race table (umbrella over `buildings` and `building_upgrades`). `[costs]` and `[time]` also gain top-level
@@ -37,7 +50,7 @@
   the top; every race table has UNITS / STRUCTURES / RESEARCH sub-headers.
 - Neutral structures (gold mine, dark portal, runestone) are never scaled.
 
-## 1.0.2 - staged 2026-09-18, not uploaded yet
+## 1.0.2 - 2026-09-18
 
 - Quieter defaults, on the author's call that players should not have to switch features off: only Heal, Slow,
   Bloodlust and Raise Dead autocast and worker auto-repair are on out of the box. Exorcism, Polymorph, Death Coil,
@@ -45,7 +58,7 @@
 - The unit examples in the shipped config (dragon / gryphon rider sight 8, the destroyer) are comments.
 - An existing `gameplay_options.toml` is never overwritten, so an updating player keeps their behaviour.
 
-## 1.0.1 - built 2026-09-18, never uploaded (ships together with 1.0.2)
+## 1.0.1 - 2026-09-18
 
 - `[building.<name>]` tables: the same ten base stats as `[unit.<name>]` for every structure (hit points, armor,
   basic and piercing damage, range, sight, gold, lumber, oil, build time). Towers moved here from the unit names.
@@ -55,7 +68,7 @@
 - The `[heroes] units` list is grouped by side, and unit names accept short and in-game spellings
   (`uther`, `grom`, `grommash_hellscream`, `teron`, `korgath`, `gryphon` ...).
 
-## 1.0.0 - 2026-09-18 - Initial release (published by the author on Nexus, build dev.23)
+## 1.0.0 - 2026-09-18 - Initial release
 
 For Warcraft II: Remastered 1.0.2.2818, single-player.
 

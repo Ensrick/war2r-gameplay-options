@@ -3,7 +3,7 @@
 Native autocast + tweaks mod for Warcraft II: Remastered (single-player). `version.dll` proxy, 32-bit MSVC, CMake.
 The user named the mod "gameplay_options" on 2026-09-18 (everything mod-level carries that name; "autocast" now only
 means the spell-casting feature: `[autocast]` section, `src/autocast.*`, the Ctrl+F9 banner). GitHub:
-Ensrick/war2r-gameplay-options (private).
+Ensrick/war2r-gameplay-options (public since 2026-09-18).
 
 - Build: `.\build.ps1` -> `build\Release\version.dll` + `selftest.exe`. Deploy: `.\deploy.ps1` (`-Disable` to turn off).
   Package: `.\package.ps1` -> `dist\*.zip` (drag-and-drop layout).
@@ -15,7 +15,8 @@ Ensrick/war2r-gameplay-options (private).
   RVAs (mana-table xref walk for the AI code, `rez\unitdata.dat` string xref for the data tables), update
   `kPeTimestamp`, re-run `selftest.exe`.
 - "The mod does nothing" report: FIRST check that `x86\gameplay_options.log` exists and is newer than the session. No
-  log = the DLL never activated = wrong exe. A second install elsewhere on the disk, started from an old shortcut, is the usual reason; compare the file LastAccessTime of both installs to see which one ran.
+  log = the DLL never activated = wrong exe (a second install elsewhere on the disk, started from an old shortcut, is
+  the usual reason); compare the file LastAccessTime of both installs to see which one ran.
 - Multiplayer gates (`kRvaNetGame` per tick, `kRvaNetGameAtLoad` at map load) are hard safety rules. Never remove them
   or make them configurable.
 - Units sit in TWO tile grids: land / sea at `0x91AD6C`, flyers ONLY in the air grid `0x91AD70`. Any per-tile lookup
@@ -23,8 +24,13 @@ Ensrick/war2r-gameplay-options (private).
 - Orders: `SetOrder` writes the NEXT-order byte (+0x2F). Always read orders through `game::EffectiveOrder`.
 - Map-start data tweaks run ONLY from the new-map hook (0x4D2C46). Never apply table edits from the tick: savegames
   store the tables, so that double-applies.
-- Versioning: public CHANGELOG starts at 1.0.0. Pre-release builds are `1.0.0-dev.N` (`MOD_PRERELEASE` in
-  CMakeLists.txt); every change bumps N with an entry in `docs/DEV_HISTORY.md`. Pending work = GitHub issues.
+- Versioning (repo PUBLIC since 2026-09-18, author: "increment the changelog properly"): semantic versioning. Patch =
+  fixes / docs, minor = new settings or features, major = breaks existing config files. EVERY change gets its own
+  version in CMakeLists.txt, a dated entry in `CHANGELOG.md` (keep its "On Nexus Mods right now" line true), the same
+  entry in `nexus/NEXUS_CHANGELOG.txt` + `nexus/changelog_<ver>_api.txt`, and the why in `docs/DEV_HISTORY.md`.
+  Everything in the repo and the issues is public: no local paths, user names or keys. Pending work = GitHub issues.
+- License: source-available custom `LICENSE` mirroring the Nexus permissions (NOT GPL / open source; the author chose
+  that on 2026-09-18). Do not describe the project as open source.
 - A config written by an older version: `py -3 tools/migrate_config.py <file>` brings it up to date in place without
   changing behaviour (adds `[oil_platforms]`, moves a pre-1.0.8 `[health] all` into `units`). Extend it whenever a key
   is added or changes meaning.

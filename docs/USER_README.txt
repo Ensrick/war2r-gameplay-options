@@ -98,4 +98,13 @@ GOOD TO KNOW
   Then the game you started is not the copy the mod is in. Check your shortcut: it must start "Warcraft II.exe" from
   the same x86 folder that holds version.dll (a second or older install elsewhere on the disk is the usual reason).
   Starting from the Battle.net app always runs the right one.
-- Trouble? Look at x86\gameplay_options.log first, and include it when you report a problem.
+- Trouble? Look at x86\gameplay_options.log first, and include it (and your gameplay_options.toml) when you report
+  a problem: https://github.com/Ensrick/war2r-gameplay-options/issues
+
+
+PERMISSIONS
+-----------
+Copyright (c) 2026 Ensrick. Same conditions as on the Nexus Mods page: for your personal use; do not upload it
+anywhere else, do not convert it to other games, do not reuse its files or code in other mods; ask before you release
+a modified version. The source code is on GitHub (link above) under the same terms. The TOML reader toml++ by Mark
+Gillard is used under the MIT license.

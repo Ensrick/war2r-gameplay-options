@@ -3,6 +3,19 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.0.9 (2026-09-18, NOT uploaded)
+
+- Author: "Make it public so people can report issues." Pre-publication scan of the tracked files and the whole
+  history: no keys or tokens, no binaries or game files, no e-mail or user name. Local-PC details in CLAUDE.md, this
+  file and one issue comment were reworded first.
+- License: he first asked for GPL, then pasted the Nexus permissions ("make it match the nexus license conditions",
+  then "whichever license most makes sense for that, maybe not to include one is best"). GPL grants exactly what those
+  permissions forbid (re-upload, modification, reuse), so it was dropped. No LICENSE file at all would also mean "all
+  rights reserved", but says nothing about what IS allowed (building it, issues, pull requests) or about credit, so
+  the repository carries a short plain-language LICENSE mirroring the Nexus conditions. toml++ stays MIT.
+- Author: "From now on we increment the changelog properly since it's now public." CHANGELOG.md: semantic versioning
+  rule, clean dated headings, one line saying which version is on Nexus.
+
 ## 1.0.8 (release build, staged 2026-09-18, NOT uploaded, UNTESTED in game)
 
 - Author: "We could [use] a multiplier that covers the health of all buildings, units, and ships. Basically everything.
@@ -61,10 +74,11 @@ Every change gets its own build number; newest first.
 
 - Author report 20:21: "I loaded up the campaign, I didn't see any changes in health to units when I restarted a loaded
   mission." Evidence: no `x86\gameplay_options.log` existed although the game had just run (`Saved Games\
-  Warcraft2Remastered\Autosave.sav` 20:20:52). File access times show the session ran from a SECOND install elsewhere on the disk (a different game build, no mod files; its exe 20:20:20, its ogre voice
-  files 20:20:55), which the author's own desktop shortcut points at, and the Battle.net agent log has no w2r launch
-  request in that window. The mod lives in the Battle.net install (`C:\Program Files (x86)\...\x86`, build
-  1.0.2.2818). So the mod was never in that session; the restart-after-load path is still UNTESTED, not disproven.
+  Warcraft2Remastered\Autosave.sav` 20:20:52). File access times show the session ran from a SECOND install elsewhere
+  on the disk (a different game build, no mod files; its exe read at 20:20:20, its ogre voice files at 20:20:55), which
+  a desktop shortcut pointed at, and the Battle.net agent log has no w2r launch request in that window. The mod lives
+  in the Battle.net install (`...\Warcraft II Remastered\x86`, build 1.0.2.2818). So the mod was never in that session;
+  the restart-after-load path is still UNTESTED, not disproven.
 - The mod supports build 1.0.2.2818 only: in any other build it stays inert (PE timestamp gate).
 - Hardening: `test/activation_host.cpp` + `test/activation_test.ps1`, a stand-in exe NAMED "Warcraft II.exe" that
   imports version.dll. Proves DllMain takes the game path and writes the log (the proxy load test only covers the
