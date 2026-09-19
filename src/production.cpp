@@ -261,6 +261,10 @@ uint8_t AsTrainer(uint8_t buildingType) {
 // What the player has, for the requirement rules. Buildings are counted complete and alive, like the game's counters.
 struct Owned {
     int buildings[units::kTypeCount];
+    // Buildings of that type that are not already paying for a research or a building upgrade (job kind 1, 2 or 3).
+    // The research buttons want an idle building (research_at, docs/research/production.md); one that is TRAINING is
+    // counted anyway, because the unit it is making has nothing to do with the upgrade money the reserve protects.
+    int freeForResearch[units::kTypeCount];
     uint8_t player;
     bool paladins;     // paladin / ogre-mage upgrade known (0x919250 & 0x100000)
     int rangerLevel;   // 0x918C6C: ranger / berserker upgrade done
@@ -323,6 +327,9 @@ bool RequirementsMet(uint8_t type, const Owned& o) {
 }
 
 // Can this type be trained at all right now: allowed by the map, requirements met, a building that trains it exists.
+// StartProduction itself checks NONE of this (docs/research/production.md section 1): a mission that forbids a unit
+// would happily build it and the mod must be the one to refuse. The mask is read fresh every pass, so it follows a
+// new map, a loaded savegame and anything that changes it while the mission runs.
 bool CanTrain(uint8_t type, const Owned& o) {
     const uint8_t at = At<uint8_t>(kRvaTrainedAt)[type];
     if (at == kNotTrainable || !AllowBit(type)) return false;
@@ -360,7 +367,8 @@ uint8_t Level(uint8_t player, int line) { return At<uint8_t>(kRvaUpgradeLevels +
 
 bool ResearchPurchasable(int id, const Owned& o) {
     const uint8_t p = o.player;
-    if (!o.buildings[At<uint8_t>(kRvaResearchAt)[id]]) return false;  // no building of the type that researches it
+    // No building of the type that researches it, or the only one is already paying for another research.
+    if (!o.freeForResearch[At<uint8_t>(kRvaResearchAt)[id]]) return false;
     if (id < 24) {
         const uint32_t flag = kPairFlag[id / 4] << (id & 1);
         return (At<uint32_t>(kRvaUpgradesAllowed)[p] & flag) && !(At<uint32_t>(kRvaUpgradesInResearch)[p] & flag) &&
@@ -384,6 +392,8 @@ bool ResearchPurchasable(int id, const Owned& o) {
 // Items for the reserve. Building upgrades count once per building that could take one: keep on a hall (ALOW 0x8000000,
 // barracks), castle on a keep (ALOW 0x10000000, stables, lumber mill, blacksmith: 4E36F0), and on a scout tower the
 // dearer of guard tower (lumber mill) / cannon tower (blacksmith) (4E37B0). A building already doing one is skipped.
+// The keep / castle ALOW bits are the same units-allowed mask a unit is checked against; the tower button (4E37B0)
+// tests no ALOW bit at all in this build, only the lumber mill / blacksmith counter, so neither does this.
 int Purchasable(const World& w, const Owned& o, Price* out, int max) {
     int n = 0;
     for (int id = 0; id < units::kResearchCount && n < max; ++id)
@@ -532,10 +542,12 @@ void Pass(const World& w, unsigned nowMs) {
         }
         if (!(Field<uint16_t>(u, kOffStateFlags) & kStateComplete)) continue;
         ++o.buildings[type];
+        const bool busy = (Field<uint16_t>(u, kOffJobFlags) & kJobProducing) != 0;
+        if (!busy || Field<uint8_t>(u, kOffJobKind) == 0) ++o.freeForResearch[type];
         if (w.typeFlags[type] & kTfOilPlatform) ownsPlatform = true;
         if (!ClassesAt(type)) continue;
         if (race < 0) race = type & 1;
-        if (Field<uint16_t>(u, kOffJobFlags) & kJobProducing) {
+        if (busy) {
             if (Field<uint8_t>(u, kOffJobKind) == 0) {
                 const int cls = ClassOfType(Field<uint8_t>(u, kOffJobId));
                 if (cls >= 0) ++plan.count[cls];

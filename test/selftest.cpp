@@ -1198,6 +1198,44 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
     }
     CHECK(StartsOf(0x08) > 0, "archers allowed again: they come");
 
+    // A campaign mission that forbids knights / ogres (0x8) and battleships / juggernaughts (0x200): those two are
+    // never trained, and their shares go to what is left instead of being lost.
+    ProdWorld();
+    ProdWaterMap(50, 0);
+    AddProd(0x58, 0, 5, 5);  // keep: tier 2, where knights are 60 % of the land army
+    {
+        int x = 8;
+        for (int t : {0x3C, 0x42, 0x52, 0x4C, 0x48, 0x4E}) AddProd(static_cast<uint8_t>(t), 0, x += 3, 5);
+    }
+    for (int i = 0; i < 12; ++i) AddProd(0x02, 0, i, 25);
+    At<uint32_t>(kRvaUnitsAllowed)[0] = 0x07FFFFFF & ~(0x8u | 0x200u);
+    for (int round = 0; round < 12; ++round) {
+        ProdPass(1000 + round * 1000);
+        FinishTraining(0);
+    }
+    CHECK(StartsOf(0x06) == 0 && StartsOf(0x0C) == 0 && StartsOf(0x20) == 0,
+          "mission mask: no knights (%d), no paladins (%d), no battleships (%d)", StartsOf(0x06), StartsOf(0x0C), StartsOf(0x20));
+    CHECK(StartsOf(0x08) > StartsOf(0x00) && StartsOf(0x00) > 0 && StartsOf(0x1E) > 0,
+          "the knights' 60 %% goes to the rest of the mix: archers %d > footmen %d > 0, destroyers %d", StartsOf(0x08),
+          StartsOf(0x00), StartsOf(0x1E));
+
+    // A mask that forbids everything a building could make: it stays idle and the mod never even asks.
+    ProdWorld();
+    Unit* onlyBarracks = AddProd(0x3C, 0, 5, 5);
+    AddProd(0x4C, 0, 10, 5);
+    AddProd(0x52, 0, 15, 5);
+    AddProd(0x42, 0, 20, 5);
+    for (int i = 0; i < 6; ++i) AddProd(0x02, 0, i, 25);
+    AddProd(0x4A, 0, 30, 5);  // a hall, so the workers are done and only the barracks is left to do anything
+    At<uint32_t>(kRvaUnitsAllowed)[0] = 0x07FFFFFF & ~(0x1u | 0x4u | 0x8u | 0x10u);  // no footmen, siege, knights, archers
+    for (int round = 0; round < 4; ++round) ProdPass(1000 + round * 1000);
+    CHECK(g_prodAttempts == 0 && g_prodStartCount == 0 && !(Field<uint16_t>(onlyBarracks, kOffJobFlags) & 0x10),
+          "every barracks unit forbidden: the building stays idle and StartProduction is never called (%d attempts)",
+          g_prodAttempts);
+    At<uint32_t>(kRvaUnitsAllowed)[0] = 0x07FFFFFF;
+    ProdPass(20000);
+    CHECK(StartsAt(onlyBarracks) == 1, "the same barracks works again once the mask allows something");
+
     // The computer's buildings are never touched, and a selected building is left to the player.
     ProdWorld();
     Unit* enemyBarracks = AddProd(0x3D, 1, 40, 40);
@@ -1238,12 +1276,24 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
     // The upgrade reserve from the real tables: purchasable only, done and in research do not count.
     ProdWorld();
     AddProd(0x3C, 0, 5, 5);
-    AddProd(0x52, 0, 10, 5);  // blacksmith: swords 0 / 1
+    Unit* smith = AddProd(0x52, 0, 10, 5);  // blacksmith: swords 0 / 1
     At<uint16_t>(kRvaUpgradeGold)[0] = 800;
     At<uint16_t>(kRvaUpgradeGold)[1] = 2400;
     At<uint32_t>(kRvaUpgradesAllowed)[0] = 0x4 | 0x8;
     ProdPass(1000);
     CHECK(production::LastPlan().reserve.r[0] == 800, "swords 1 purchasable: reserve 800 (%d)", production::LastPlan().reserve.r[0]);
+    At<uint32_t>(kRvaUpgradesAllowed)[0] = 0;  // a mission that forbids the upgrade
+    ProdPass(1100);
+    CHECK(production::LastPlan().reserve.r[0] == 0, "an upgrade the mission forbids must not raise the reserve (%d)",
+          production::LastPlan().reserve.r[0]);
+    At<uint32_t>(kRvaUpgradesAllowed)[0] = 0x4 | 0x8;
+    Field<uint16_t>(smith, kOffJobFlags) |= 0x10;  // the only blacksmith is already paying for a research
+    Field<uint8_t>(smith, kOffJobKind) = 2;
+    ProdPass(1200);
+    CHECK(production::LastPlan().reserve.r[0] == 0, "the only blacksmith is already researching: nothing to reserve for (%d)",
+          production::LastPlan().reserve.r[0]);
+    Field<uint16_t>(smith, kOffJobFlags) &= ~0x10;
+    Field<uint8_t>(smith, kOffJobKind) = 0;
     At<uint32_t>(kRvaUpgradesInResearch)[0] = 0x4;
     ProdPass(2000);
     CHECK(production::LastPlan().reserve.r[0] == 0, "in research: not in the reserve");
@@ -1260,6 +1310,11 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
     At<uint32_t>(kRvaSpellsAllowed)[0] = 0x100000 | 0x2;
     ProdPass(5000);
     CHECK(production::LastPlan().reserve.r[0] == 1000, "church: the paladin upgrade, not yet healing (%d)", production::LastPlan().reserve.r[0]);
+    At<uint32_t>(kRvaSpellsAllowed)[0] = 0;  // a mission that forbids the paladin upgrade and healing
+    ProdPass(5100);
+    CHECK(production::LastPlan().reserve.r[0] == 0, "a research the spell mask forbids must not raise the reserve (%d)",
+          production::LastPlan().reserve.r[0]);
+    At<uint32_t>(kRvaSpellsAllowed)[0] = 0x100000 | 0x2;
     At<uint32_t>(kRvaSpellsResearched)[0] = 0x100000;
     ProdPass(6000);
     CHECK(production::LastPlan().reserve.r[0] == 1000, "paladins known: healing is what is next");
@@ -1272,6 +1327,14 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
     CHECK(production::LastPlan().reserve.r[0] == 2750 && production::LastPlan().reserve.r[1] == 1150,
           "the towers and the keep raise the reserve (%d gold, %d lumber)", production::LastPlan().reserve.r[0],
           production::LastPlan().reserve.r[1]);
+    // The keep is a building upgrade, and it obeys the same mask a unit does (bit 0x8000000, button 0x4E36F0).
+    At<uint32_t>(kRvaUnitsAllowed)[0] = 0xFFFFFFFF & ~0x8000000u;
+    ProdPass(7100);
+    CHECK(production::LastPlan().reserve.r[0] == 1500 && production::LastPlan().reserve.r[1] == 375,
+          "a mission that forbids the keep: only healing and the two cannon towers are left (%d gold, %d lumber)",
+          production::LastPlan().reserve.r[0], production::LastPlan().reserve.r[1]);
+    At<uint32_t>(kRvaUnitsAllowed)[0] = 0xFFFFFFFF;
+    ProdPass(7200);
     // The gate uses it: a footman needs four prices of spare bank on top of the reserve.
     FinishTraining(0);
     for (int i = 0; i < 18; ++i) AddProd(0x02, 0, i, 30);  // no worker business
