@@ -515,8 +515,33 @@ Proposed caster order (the AI's, minus its invisible-caster branches, which the 
 5. `selftest`: synthetic grids with a friendly flyer in the air grid inside the clearance (must refuse), an enemy
    cluster at the map edge (tile must stay on the map), and a channel whose area a friendly enters (watchdog stop).
 
+## 6. Raise Dead: where corpses live (added after 1.6.0: zero casts in a real session)
+
+Short answers: a corpse is the dead unit's own slot retyped to 0x69; it is in NEITHER unit grid; the computer's own
+Raise Dead search (ground grid) therefore never finds one; Raise Dead is a research (0x919250 starts at 0x4020 on every
+new map). `TryRaiseDead` scans the unit array since then.
+
+| VA | What | Evidence |
+|---|---|---|
+| `0x4EE380` | Kill(unit). Mobile unit (flags & 0x1F): `FUN_004b5000(unit)` takes it off its grid tile, then order = 1 (`*(u16*)(unit+0x2E) = 0x3C01`), `state = (state & 0xE7FF) \| 2` | decompile |
+| `0x4B5000` | Unfile: clears the tile's grid entry only while it still points at this unit, clears square flag 0x100 / 0x200 | decompile |
+| `0x4B4A00` | File into a grid. Callers: `0x4D9794`, `0x4D98F3`, `0x4D9DCC` (movement), `0x4EDF26` (CreateUnit), `0x4EE90B`, `0x4EEA60`: none on the death / corpse path | `find_calls` |
+| `0x8C13A4` -> `0x4BDFC0` | Step action of order 1, run when the unit's animation script ends (`FUN_004eea80`, `call [order*4+0x8C13A0]` at `0x4EEDF2`). Unit type < 0x3A with corpse animation `0x8C1208[type] != 0`: `type = 0x69` (the only write of 0x69 into +0x27 in the exe, `0x4BE0A5`), `state \|= 2`, corpse animation. Type 0x69 on a later call: footprint cleared (`FUN_004b4f50`, zeroes the grid entries of the type's footprint unconditionally) and the slot becomes type 0x6A ("jjklm"[w], `0x8C1200`) | decompile, capstone scan |
+| `0x8C1208` | Corpse animation by type: 1 human, 2 orc, 3 ship (0x1A..0x27: a sunk ship becomes type 0x69 too), 0 = no corpse: mage 0x0A, death knight 0x0B, ballista, catapult, dwarves, sappers, every flyer, most heroes, skeleton, daemon, critter | dump |
+| `0x4EF480` | Timer pass skips every unit with `(state & 7) != 0`: corpses do not decay there; their life is the corpse animation script (runtime data, length not decoded) | decompile |
+| `0x4E2420` | Raise Dead hit frame: walks the UNIT ARRAY, every corpse (type 0x69, `(state & 0x0F) == 2`) with `dx*dx + dy*dy < 0x25` from the order tile becomes a skeleton of the caster (CreateUnit type 0x37), `state \|= 8`, 50 mana each while mana lasts | decompile (section 2 era dump) |
+| `0x4CB3E0` / `0x4CA8D0` | The computer's search: ground grid `0x91AD6C` only, 31 x 31 box. With corpses never filed there, its Raise Dead branch in `FUN_004cac80` cannot fire [inferred from the code; not observed in game] | decompile |
+| `0x4D2B9E` | New map (`FUN_004d2b40`): `mov [eax+0x919290], 0x4020` with eax = -0x40..-4 fills `0x919250[16]` with 0x4020 (fireball 0x20, death coil 0x4000). Raise Dead 0x2000 / Haste 0x10000 only through research (`FUN_004acbc0` ORs the flag in at `0x4ACC24`); holy vision 1 / eye 0x400 come with the paladin / ogre-mage upgrade (`0x4ACC41`, `0x4ACC6D`) | disassembly |
+| `0x4D19D0` | PUD ALOW handler (length 0x180): copies six player tables `0x919210` units, `0x919250` known spells, `0x919290` allowed spells, `0x9192D0` spells being researched, `0x919310`, `0x919350` upgrades: a map can grant Raise Dead from the start | decompile |
+
+Consequences for the mod (`src/autocast.cpp`): corpses are searched in the unit array (type 0x69, state nibble 2) in the
+computer's 15-tile box, corpses on water tiles (wrecks) are skipped, a raise already under way claims every corpse within
+its `0x25` reach, and with `log_casts` a death knight that did not raise the dead logs why (once per 30 s of play).
+
 ## [unverified]
 
+- How long a corpse stays raisable in steps (the corpse animation script is runtime data).
+- Whether a skeleton raised from a wreck would stand in water (`FUN_004edb10` places at the pixel; not traced).
 - How often the random-10 helper actually fires (depends on what free unit slots hold; free-slot contents not read).
 - Missile updates per simulation step: class handlers run when the missile's animation interpreter reports a frame end
   (`0x4EEE6A`); frame lengths come from the missile scripts, not decoded. Durations above are in missile updates.

@@ -102,6 +102,7 @@ void __cdecl OnTick() {
     tweaks::OnTick(w, elapsedMs);
     workers::OnTick(w, elapsedMs);
     trees::OnTick(w, elapsedMs);
+    autocast::AddPlayTime(elapsedMs);
     if (g_tick % static_cast<unsigned>(config::g.intervalTicks) == 0) {
         if (config::g.enabled) {
             autocast::Pass(w);

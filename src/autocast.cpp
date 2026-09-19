@@ -1,6 +1,8 @@
 #include "autocast.h"
 
 #include <windows.h>
+#include <cstdarg>
+#include <cstdio>
 #include <cstdlib>
 
 #include "config.h"
@@ -343,42 +345,118 @@ bool CastAtTile(const World& w, Unit* caster, Spell spell, int x, int y, int ene
     return true;
 }
 
-// Raise Dead follows the computer's own rule (FUN_004cac80 -> FUN_004cb3e0 with filter FUN_004ca8d0): a corpse (type
-// 0x69, state 2, not hidden) in the GROUND grid inside the 31 x 31 tiles around the death knight, whatever [autocast]
-// search_radius says, and no enemy has to be near. Cast at the corpse's own tile, which is on the map. The computer marks
-// the corpse (+0x4C |= 0x20); the mod claims the tile instead and writes nothing into the unit. The nearest corpse wins
-// (the computer takes the first one in its scan order).
-constexpr int kRaiseDeadBox = 15;  // FUN_004cb3e0: x-15 .. x+15, y-15 .. y+15
+// Raise Dead, the computer's rule (FUN_004cac80: research bit 0x2000, mana, a corpse within the 31 x 31 tiles around the
+// death knight, whatever [autocast] search_radius says, no enemy needed), with the search done where corpses really are.
+// A dying unit is taken off its grid tile (FUN_004ee380 -> FUN_004b5000) and the step action that then turns the same
+// slot into type 0x69 (FUN_004bdfc0) never files it back, so no corpse is ever in a unit grid: the computer's own search
+// (FUN_004cb3e0, ground grid) finds none. The spell's hit-frame action (FUN_004e2420) walks the unit array instead, and so
+// does this. Cast at the corpse's own tile (a unit's tile, on the map). The computer marks the corpse (+0x4C |= 0x20); the
+// mod claims the tile instead and writes nothing into the unit. The nearest corpse wins.
+constexpr int kRaiseDeadBox = 15;         // FUN_004cb3e0: x-15 .. x+15, y-15 .. y+15
+constexpr int kRaiseDeadReach2 = 0x25;    // FUN_004e2420 raises every corpse with dx*dx + dy*dy < 0x25 around its tile
+constexpr uint32_t kRaiseNoteEveryMs = 30000;
+
+// A raise already under way (the player's or the mod's) takes every corpse within its reach.
+bool RaiseDeadClaimed(int x, int y) {
+    for (int i = 0; i < g_claimCount; ++i) {
+        const Claim& c = g_claims[i];
+        const int dx = c.x - x, dy = c.y - y;
+        if (c.order == kSpells[kSpellRaiseDead].order && !c.target && dx * dx + dy * dy < kRaiseDeadReach2) return true;
+    }
+    return false;
+}
+
+// With log_casts on: why a death knight did not raise the dead, once per death knight per 30 s of play.
+struct RaiseNote {
+    uint32_t serial;
+    uint32_t lastMs;
+    bool logged;
+};
+constexpr unsigned kMaxNoteSlots = 2048;
+RaiseNote g_raiseNotes[kMaxNoteSlots];
+uint32_t g_playMs = 0;
+unsigned g_raiseNoteCount = 0;
+char g_lastRaiseNote[160] = "";
+
+void NoteRaiseDead(const World& w, Unit* caster, const char* fmt, ...) {
+    if (!config::g.logCasts) return;
+    const unsigned slot = static_cast<unsigned>((reinterpret_cast<uintptr_t>(caster) - reinterpret_cast<uintptr_t>(w.units)) / kUnitSize);
+    if (slot >= kMaxNoteSlots) return;
+    RaiseNote& n = g_raiseNotes[slot];
+    const uint32_t serial = Field<uint32_t>(caster, kOffSerial);
+    if (n.logged && n.serial == serial && g_playMs - n.lastMs < kRaiseNoteEveryMs) return;
+    n = {serial, g_playMs, true};
+    va_list args;
+    va_start(args, fmt);
+    vsprintf_s(g_lastRaiseNote, fmt, args);
+    va_end(args);
+    ++g_raiseNoteCount;
+    logx::Write("raise_dead not cast: death knight at %d,%d mana %u: %s", X(caster), Y(caster), Field<uint8_t>(caster, kOffMana),
+                g_lastRaiseNote);
+}
 
 bool TryRaiseDead(const World& w, Unit* caster) {
-    if (!config::g.spell[kSpellRaiseDead]) return false;
     const SpellDef& def = kSpells[kSpellRaiseDead];
+    if (!config::g.spell[kSpellRaiseDead]) {
+        NoteRaiseDead(w, caster, "switched off in [spells]");
+        return false;
+    }
     const uint8_t me = Field<uint8_t>(caster, kOffOwner);
-    if (!(At<uint32_t>(kRvaSpellsResearched)[me] & def.researchBit)) return false;
-    if (Field<uint8_t>(caster, kOffMana) < At<uint16_t>(kRvaManaCostByOrder)[def.order]) return false;
+    const uint32_t known = At<uint32_t>(kRvaSpellsResearched)[me];
+    if (!(known & def.researchBit)) {
+        // A new map starts every player on 0x4020 (fireball, death coil; FUN_004d2b40 at 0x4D2B9E); Raise Dead comes from
+        // research (FUN_004acbc0) or from the map's ALOW section (FUN_004d19d0).
+        NoteRaiseDead(w, caster, "not researched (known spells 0x%08X)", known);
+        return false;
+    }
+    const int cost = At<uint16_t>(kRvaManaCostByOrder)[def.order];
+    if (Field<uint8_t>(caster, kOffMana) < cost) {
+        NoteRaiseDead(w, caster, "mana below the cost of %d", cost);
+        return false;
+    }
 
+    const uint16_t* sq = *At<uint16_t*>(kRvaSquareFlags);
     Unit* best = nullptr;
-    int bestDistance = 1 << 30;
+    int bestDistance = 1 << 30, onMap = 0, inBox = 0, onWater = 0, claimed = 0;
     const int cx = X(caster), cy = Y(caster);
-    for (int y = cy - kRaiseDeadBox; y <= cy + kRaiseDeadBox; ++y)
-        for (int x = cx - kRaiseDeadBox; x <= cx + kRaiseDeadBox; ++x) {
-            if (!OnMap(w, x, y)) continue;
-            Unit* t = w.grid[y * w.mapSize + x];  // the ground grid only, as the computer reads it
-            if (!t || t == caster || TypeOf(t) != kTypeCorpse) continue;
-            const uint8_t state = Field<uint8_t>(t, kOffStateFlags);
-            if ((state & 0x0F) != kStateDying || (state & 0x08)) continue;
-            if (IsTileClaimed(def.order, Field<int16_t>(t, kOffX), Field<int16_t>(t, kOffY))) continue;
-            const int d = Distance(caster, t);
-            if (d < bestDistance) {
-                bestDistance = d;
-                best = t;
-            }
+    for (unsigned i = 0; i < w.unitCount; ++i) {
+        Unit* t = UnitAt(w, i);
+        if (TypeOf(t) != kTypeCorpse) continue;
+        // State 2 from death on (FUN_004ee380 sets it, FUN_004bdfc0 keeps it); +8 = raised already (FUN_004e2420) or gone.
+        const uint8_t state = Field<uint8_t>(t, kOffStateFlags);
+        if ((state & 0x0F) != kStateDying) continue;
+        const int x = X(t), y = Y(t);
+        if (!OnMap(w, x, y)) continue;
+        ++onMap;
+        if (abs(x - cx) > kRaiseDeadBox || abs(y - cy) > kRaiseDeadBox) continue;
+        // A sunk ship becomes type 0x69 too (0x8C1208: 3 for every ship): never aim at a wreck in the water.
+        if (sq && (sq[y * w.mapSize + x] & kSqWater)) {
+            ++onWater;
+            continue;
         }
-    if (!best || !OnMap(w, X(best), Y(best))) return false;
+        ++inBox;
+        if (RaiseDeadClaimed(x, y)) {
+            ++claimed;
+            continue;
+        }
+        const int d = Distance(caster, t);
+        if (d < bestDistance) {
+            bestDistance = d;
+            best = t;
+        }
+    }
+    if (!best) {
+        if (inBox) NoteRaiseDead(w, caster, "all %d corpses within 15 tiles are claimed by a raise under way", claimed);
+        else NoteRaiseDead(w, caster, "no corpse within 15 tiles (%d on the map, %d wrecks on water in reach)", onMap, onWater);
+        return false;
+    }
 
     const int16_t x = Field<int16_t>(best, kOffX), y = Field<int16_t>(best, kOffY);
     IssueSpell(caster, def.order, x, y, nullptr);
-    if (OrderOf(caster) != def.order) return false;
+    if (OrderOf(caster) != def.order) {
+        NoteRaiseDead(w, caster, "the game kept order %u instead", OrderOf(caster));
+        return false;
+    }
     if (g_claimCount < kMaxClaims) g_claims[g_claimCount++] = {def.order, nullptr, x, y};
     ++g_castCount;
     if (config::g.logCasts)
@@ -704,6 +782,10 @@ void PassImpl(const World& w) {
 }  // namespace
 
 void Pass(const game::World& w) { PassImpl(w); }
+
+void AddPlayTime(unsigned ms) { g_playMs += ms; }
+unsigned RaiseDeadNoteCount() { return g_raiseNoteCount; }
+const char* LastRaiseDeadNote() { return g_lastRaiseNote; }
 
 void GuardChannels(const game::World& w) {
     CollectFriendlyBuildings(w);

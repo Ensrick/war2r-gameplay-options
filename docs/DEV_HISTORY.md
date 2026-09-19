@@ -3,6 +3,22 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.6.1 (2026-09-19) - Raise Dead fix, UNTESTED in game
+
+- Author: "Raise dead auto doesn't work. It has to target a grid square with a decaying body". Log of his 1.6.0
+  session (log_casts on, orcs): Death Coil 338, Bloodlust 573, Eye 12, Raise Dead 0.
+- Evidence (agent, the two key instructions re-checked here): a dying unit's slot is retyped to 0x69 at `0x4BE0A5`
+  (`mov byte [ecx], 0x69`, the only such write) when its death animation ends; death unfiles it from the grid
+  (FUN_004b5000) and nothing files a corpse again, so corpses are in NO grid. The computer's search FUN_004cb3e0 reads
+  only the ground grid: its Raise Dead cannot fire either. The spell FUN_004e2420 itself walks the unit array. Every
+  new map grants only fireball + death coil (`0x4D2B9E mov [eax+0x919290], 0x4020`), so Raise Dead needs research.
+- Fix: TryRaiseDead walks the unit array (type 0x69, state 2, 15-tile box, not on water, not inside a raise under
+  way), nearest wins, tile claim kept. Diagnostic line per death knight per 30 s of play with log_casts. The 1.5.0
+  tests had filed corpses in the grid, which is how the bug passed them; the tests now place corpses the engine's way.
+  Five mutation checks caught, grid-only search = 13 failures.
+- Class note: the tree research had already said "corpses are in neither grid"; the Raise Dead design followed the
+  computer AI's code instead of checking. Any "where does the engine keep X" assumption gets a code check now.
+
 ## 1.6.0 (2026-09-19, UNTESTED in game)
 
 - Author: heroes "NEED to be fairly strong"; asked whether max mana can go above 255, and for "a multiplier for all

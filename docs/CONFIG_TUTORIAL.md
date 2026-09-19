@@ -168,7 +168,10 @@ search_radius = 5
 ```
 
 Raise Dead is the exception: it works exactly like the computer's death knights. A death knight raises any corpse up
-to 15 tiles away in any direction, whatever `search_radius` says, and it does not wait for an enemy to show up.
+to 15 tiles away in any direction, whatever `search_radius` says, and it does not wait for an enemy to show up. Raise
+Dead has to be researched first (Temple of the Damned), unless the map grants it; the spell raises every corpse within
+about 6 tiles of the one it is aimed at. Mages, death knights, machines, flyers, skeletons and daemons leave no corpse,
+and the wreck of a sunk ship is never a target.
 
 ### Keep casters swinging instead of casting mid-fight
 
@@ -551,7 +554,9 @@ toggle_key = "F7"     # "F1" to "F12"
 log_casts = true
 ```
 
-Every cast is then written to `x86\gameplay_options.log` with the caster, the target and the map position.
+Every cast is then written to `x86\gameplay_options.log` with the caster, the target and the map position. A death
+knight that could not raise the dead also says why ("not researched", "mana below the cost", "no corpse within 15
+tiles", "all corpses ... are claimed", "switched off"), at most once every 30 seconds of play per death knight.
 
 ## Every setting
 

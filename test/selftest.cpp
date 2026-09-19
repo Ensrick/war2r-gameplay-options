@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include "../src/mod.h"
+#include "../src/autocast.h"
 #include "../src/world.h"
 #include "../src/config.h"
 #include "../src/datatweaks.h"
@@ -937,10 +938,14 @@ int wmain(int argc, wchar_t** argv) {
     CHECK(OrderOf(dk) == 0x35 && TargetOf(dk) == fighter, "haste_flyers_only=0 should haste the defending grunt");
     config::g.hasteFlyersOnly = true;
 
-    // Raise Dead, the computer's own rule (FUN_004cac80 -> FUN_004cb3e0 / FUN_004ca8d0): a corpse in the ground grid
-    // within 15 tiles (31 x 31 box, not search_radius), cast at its tile, no enemy needed; one death knight per corpse.
+    // Raise Dead, the computer's rule (FUN_004cac80): research, mana, a corpse within 15 tiles (31 x 31 box, not
+    // search_radius), cast at its tile, no enemy needed; one death knight per corpse. A corpse is the dead unit's own slot
+    // retyped to 0x69 (FUN_004bdfc0) and is in NEITHER grid (FUN_004ee380 -> FUN_004b5000 took it off), so the test puts
+    // corpses into the unit array only, the way the game keeps them.
     auto corpseAt = [&](int x, int y) {
+        Unit* below = g_grid[y * kMap + x];
         Unit* c = AddUnit(kTypeCorpse, 1, x, y, 0, 0, 0);
+        g_grid[y * kMap + x] = below;
         Field<uint8_t>(c, kOffStateFlags) = kStateDying;
         return c;
     };
@@ -971,16 +976,38 @@ int wmain(int argc, wchar_t** argv) {
     ResetWorld();
     dk = AddUnit(kTypeDeathKnight, 0, 20, 20, 60, 255, kOrderStand);
     Unit* hiddenCorpse = corpseAt(22, 20);
-    Field<uint8_t>(hiddenCorpse, kOffStateFlags) = kStateDying | 0x08;
+    // Decay states: only state 2 is raisable (FUN_004e2420 checks (state & 0x0F) == 2); +8 = raised already / gone.
+    const struct {
+        uint8_t type, state;
+        bool raisable;
+        const char* what;
+    } corpseStates[] = {{kTypeCorpse, kStateDying | 0x08, false, "a hidden / already raised corpse (state 0x0A)"},
+                        {kTypeCorpse, 0, false, "a type-0x69 slot in state 0"},
+                        {kTypeCorpse, 3, false, "a type-0x69 slot in state 3"},
+                        {0x6A, kStateDying, false, "the 1x1 remains a corpse turns into at the end (type 0x6A)"},
+                        {kTypeCorpse, kStateDying, true, "a fresh corpse (type 0x69, state 2)"}};
+    for (const auto& cs : corpseStates) {
+        Idle(dk);
+        Field<uint8_t>(hiddenCorpse, kOffType) = cs.type;
+        Field<uint8_t>(hiddenCorpse, kOffStateFlags) = cs.state;
+        mod::RunAutocastPass();
+        CHECK((OrderOf(dk) == 0x32) == cs.raisable, "%s: order %u", cs.what, OrderOf(dk));
+    }
+    Idle(dk);
+    CHECK(g_grid[20 * kMap + 22] == nullptr && g_airGrid[20 * kMap + 22] == nullptr, "test world: the corpse must be in no grid");
+    Unit* onCorpse = AddUnit(kFootman, 0, 22, 20, 60, 0, kOrderStand);  // a living unit on the corpse's tile owns the grid entry
     mod::RunAutocastPass();
-    CHECK(OrderOf(dk) == kOrderStand, "raised a hidden corpse");
-    Field<uint8_t>(hiddenCorpse, kOffStateFlags) = kStateDying;
-    g_airGrid[20 * kMap + 22] = hiddenCorpse;  // the computer reads the ground grid only
-    g_grid[20 * kMap + 22] = nullptr;
+    CHECK(raisedAt(dk, 22, 20) && g_grid[20 * kMap + 22] == onCorpse, "a corpse under a living footman must still be found (order %u)",
+          OrderOf(dk));
+    Idle(dk);
+    uint16_t* const savedSqRd = *At<uint16_t*>(kRvaSquareFlags);
+    static uint16_t sqRd[kMap * kMap];
+    memset(sqRd, 0, sizeof(sqRd));
+    sqRd[20 * kMap + 22] = kSqWater;  // a sunk ship is type 0x69 too: never aim at a wreck
+    *At<uint16_t*>(kRvaSquareFlags) = sqRd;
     mod::RunAutocastPass();
-    CHECK(OrderOf(dk) == kOrderStand, "raised a corpse that is only in the air grid");
-    g_airGrid[20 * kMap + 22] = nullptr;
-    g_grid[20 * kMap + 22] = hiddenCorpse;
+    CHECK(OrderOf(dk) == kOrderStand, "raised a wreck on a water tile");
+    *At<uint16_t*>(kRvaSquareFlags) = savedSqRd;
     At<uint32_t>(kRvaSpellsResearched)[0] = 0xFFFFFFFF & ~0x2000u;
     mod::RunAutocastPass();
     CHECK(OrderOf(dk) == kOrderStand, "raise dead without the research");
@@ -1005,6 +1032,15 @@ int wmain(int argc, wchar_t** argv) {
     corpseAt(12, 11);
     mod::RunAutocastPass();
     CHECK(raisedAt(dk, 12, 11) && OrderOf(dk2) != 0x32, "two death knights raised the same corpse (second order %u)", OrderOf(dk2));
+    ResetWorld();  // a raise takes every corpse within dx*dx + dy*dy < 0x25 of its tile (FUN_004e2420): the second one looks further
+    dk = AddUnit(kTypeDeathKnight, 0, 10, 10, 60, 255, kOrderStand);
+    dk2 = AddUnit(kTypeDeathKnight, 0, 11, 12, 60, 255, kOrderStand);
+    corpseAt(12, 11);
+    corpseAt(16, 13);  // 4*4 + 2*2 = 20: raised by the first cast anyway
+    corpseAt(18, 15);  // 6*6 + 4*4 = 52: out of its reach
+    mod::RunAutocastPass();
+    CHECK(raisedAt(dk, 12, 11) && raisedAt(dk2, 18, 15), "second death knight should skip the corpse the first raise takes (%d,%d)",
+          Field<int16_t>(dk2, kOffOrderX), Field<int16_t>(dk2, kOffOrderY));
     ResetWorld();  // a corpse on the map edge and in the corner is a tile on the map
     dk = AddUnit(kTypeDeathKnight, 0, 2, 2, 60, 255, kOrderStand);
     corpseAt(0, 0);
@@ -1015,6 +1051,59 @@ int wmain(int argc, wchar_t** argv) {
     corpseAt(kMap - 1, 30);
     mod::RunAutocastPass();
     CHECK(raisedAt(dk, kMap - 1, 30), "raise dead at a corpse on the east edge (order %u)", OrderOf(dk));
+
+    // The diagnostic behind [general] log_casts: why a death knight did not raise the dead, at most once per death knight
+    // per 30 s of play.
+    {
+        const bool savedLog = config::g.logCasts;
+        auto notes = [] { return autocast::RaiseDeadNoteCount(); };
+        auto lastIs = [](const char* text) { return strstr(autocast::LastRaiseDeadNote(), text) != nullptr; };
+        config::g.logCasts = false;
+        ResetWorld();
+        dk = AddUnit(kTypeDeathKnight, 0, 20, 20, 60, 255, kOrderStand);
+        Field<uint32_t>(dk, kOffSerial) = 9001;
+        At<uint32_t>(kRvaSpellsResearched)[0] = 0xFFFFFFFF & ~0x2000u;
+        const unsigned before = notes();
+        mod::RunAutocastPass();
+        CHECK(notes() == before, "raise-dead diagnostic written with log_casts off");
+        config::g.logCasts = true;
+        mod::RunAutocastPass();
+        CHECK(notes() == before + 1 && lastIs("not researched"), "diagnostic: not researched (%u lines, \"%s\")", notes() - before,
+              autocast::LastRaiseDeadNote());
+        mod::RunAutocastPass();
+        autocast::AddPlayTime(29999);
+        mod::RunAutocastPass();
+        CHECK(notes() == before + 1, "diagnostic: more than one line within 30 s of play (%u)", notes() - before);
+        autocast::AddPlayTime(1);
+        mod::RunAutocastPass();
+        CHECK(notes() == before + 2, "diagnostic: no new line after 30 s of play (%u)", notes() - before);
+        At<uint32_t>(kRvaSpellsResearched)[0] = 0xFFFFFFFF;
+        Field<uint8_t>(dk, kOffMana) = 49;
+        autocast::AddPlayTime(30000);
+        mod::RunAutocastPass();
+        CHECK(notes() == before + 3 && lastIs("mana below"), "diagnostic: mana (\"%s\")", autocast::LastRaiseDeadNote());
+        Field<uint8_t>(dk, kOffMana) = 255;
+        corpseAt(20, 36);  // 16 tiles away
+        autocast::AddPlayTime(30000);
+        mod::RunAutocastPass();
+        CHECK(notes() == before + 4 && lastIs("no corpse within 15 tiles (1 on the map"), "diagnostic: no corpse in the box (\"%s\")",
+              autocast::LastRaiseDeadNote());
+        config::g.spell[kSpellRaiseDead] = false;
+        autocast::AddPlayTime(30000);
+        mod::RunAutocastPass();
+        CHECK(notes() == before + 5 && lastIs("switched off"), "diagnostic: switched off (\"%s\")", autocast::LastRaiseDeadNote());
+        config::g.spell[kSpellRaiseDead] = true;
+        ResetWorld();  // a second death knight whose only corpse a raise under way already takes: its own first line
+        dk = AddUnit(kTypeDeathKnight, 0, 20, 20, 60, 255, kOrderStand);
+        dk2 = AddUnit(kTypeDeathKnight, 0, 21, 21, 60, 255, kOrderStand);
+        Field<uint32_t>(dk, kOffSerial) = 9003;
+        Field<uint32_t>(dk2, kOffSerial) = 9004;
+        corpseAt(22, 20);
+        mod::RunAutocastPass();
+        CHECK(raisedAt(dk, 22, 20) && notes() == before + 6 && lastIs("claimed"), "diagnostic: all claimed (%u, \"%s\")", notes() - before,
+              autocast::LastRaiseDeadNote());
+        config::g.logCasts = savedLog;
+    }
 
     // Neutral units are never enemies. Targets outside search_radius are ignored.
     ResetWorld();

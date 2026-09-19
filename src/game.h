@@ -158,6 +158,8 @@ constexpr int kMisOffType = 0x34;          // uint8
 constexpr int kMisOffFlags = 0x35;         // uint8, bit 0 = free slot
 constexpr uint8_t kMissileWhirlwind = 0x0C;  // FUN_004af5c0
 constexpr uint8_t kStateDying = 2;     // low nibble of kOffStateFlags; a raisable corpse is type kTypeCorpse in this state
+// A corpse is the dead unit's own slot, retyped by the death step action FUN_004bdfc0 (0x4BE0A5). It is in NEITHER unit
+// grid (taken off at death, FUN_004ee380 -> FUN_004b5000, never filed back): find corpses in the unit array.
 constexpr uint8_t kTypeCorpse = 0x69;   // what the game AI's raise-dead filter (FUN_004ca8d0) looks for
 
 // Unit type flags (PUD UDTA layout; defaults ship in Data\Rez\unitdata.dat at file offset 0x1486).

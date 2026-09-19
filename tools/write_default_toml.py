@@ -82,7 +82,7 @@ bloodlust = true
 death_coil = false
 haste = false
 unholy_armor = false
-# Raise Dead works like the computer's: any fresh corpse within 15 tiles, enemies around or not.
+# Raise Dead: any fresh corpse within 15 tiles, enemies around or not. It must be researched unless the map grants it.
 raise_dead = true
 # Area spells hurt YOUR units and buildings too. They are only cast with no friendly unit, building or wall in the
 # blast area, and a Blizzard / Death and Decay the mod started is stopped when a friendly walks in (see [autocast]).

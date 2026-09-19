@@ -7,6 +7,15 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-19). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.6.1 - 2026-09-19
+
+- Fixed: Raise Dead autocast never fired. The game keeps corpses out of its unit map, where the mod was looking (the
+  computer's own Raise Dead has the same blind spot). The mod now finds every fresh corpse within 15 tiles, also one
+  with a living unit standing on it, and skips wrecks on water.
+- Raise Dead has to be researched (Temple of the Damned) unless the map grants it; every new map starts with only
+  Fireball and Death Coil known. With `[general] log_casts` on, each death knight logs at most every 30 s why it did
+  not raise the dead (not researched, mana, no corpse in reach, all claimed).
+
 ## 1.6.0 - 2026-09-19
 
 - New `[spell_damage]`: `all` multiplies the damage of every damage spell and the healing of Heal; per-spell numbers

@@ -1,0 +1,2 @@
+Fixed: Raise Dead autocast never fired. The game keeps corpses out of its unit map, where the mod was looking. The mod now finds every fresh corpse within 15 tiles, also one with a unit standing on it, and skips wrecks on water.
+Raise Dead must be researched at the Temple of the Damned unless the map grants it. With log_casts on, death knights log why they did not raise the dead.

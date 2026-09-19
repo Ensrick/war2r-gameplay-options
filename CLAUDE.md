@@ -32,6 +32,8 @@ Ensrick/war2r-gameplay-options (public since 2026-09-18).
 - Spell numbers (`src/spells.cpp`) patch game CODE bytes: every site is byte-verified, written as a group, and restored
   to the game's bytes in multiplayer. Keep the ranges from docs/research/spells.md (cost 1..255, splash damage <= 254,
   death coil <= 127, runes <= 128): outside them the game divides by zero or wraps.
+- Corpses (type 0x69) live only in the unit ARRAY, in no grid (retyped at `0x4BE0A5`, unfiled at death). Anything
+  that looks for corpses scans the unit array; test worlds must not file corpses in a grid.
 - Orders: `SetOrder` writes the NEXT-order byte (+0x2F). Always read orders through `game::EffectiveOrder`.
 - Map-start data tweaks run ONLY from the new-map hook (0x4D2C46). Never apply table edits from the tick: savegames
   store the tables, so that double-applies.

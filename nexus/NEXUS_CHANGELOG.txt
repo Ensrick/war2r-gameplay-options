@@ -1,3 +1,9 @@
+[size=4][b]1.6.1[/b][/size]
+[list]
+[*]Fixed: Raise Dead autocast never fired. The game keeps corpses out of its unit map, where the mod was looking. The mod now finds every fresh corpse within 15 tiles, also one with a unit standing on it, and skips wrecks on water.
+[*]Raise Dead must be researched at the Temple of the Damned unless the map grants it. With log_casts on, death knights log why they did not raise the dead.
+[/list]
+
 [size=4][b]1.6.0[/b][/size]
 [list]
 [*]New [spell_damage]: all multiplies the damage of every damage spell and the healing of Heal; per-spell numbers (fireball, flame_shield, blizzard, death_and_decay, whirlwind, death_coil, runes, heal) replace the game's own first.

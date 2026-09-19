@@ -10,4 +10,10 @@ void Pass(const game::World& w);
 // unsafe while autocasting is switched off (Ctrl+F9 or [general] enabled = false).
 void GuardChannels(const game::World& w);
 
+// Play time (ms per simulation step, 0 across pauses) for the log throttle of the Raise Dead diagnostic.
+void AddPlayTime(unsigned ms);
+// With [general] log_casts on, a death knight that could not raise the dead logs why, once per 30 s of play.
+unsigned RaiseDeadNoteCount();   // lines written so far (tests, diagnostics)
+const char* LastRaiseDeadNote();  // the reason of the last one
+
 }  // namespace autocast
