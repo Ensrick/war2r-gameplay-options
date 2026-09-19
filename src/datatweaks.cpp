@@ -7,6 +7,7 @@
 #include "config.h"
 #include "log.h"
 #include "mod.h"
+#include "trees.h"
 #include "tweaks.h"
 #include "units.h"
 #include "world.h"
@@ -148,6 +149,7 @@ void OnNewMapTablesLoaded() {
         return;
     }
     tweaks::OnNewMap();
+    trees::OnNewMap();
     const int statsSet = ApplyUnitStats();
     ScaleUnits();
     ScaleStructures();

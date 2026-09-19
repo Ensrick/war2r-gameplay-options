@@ -58,6 +58,8 @@ OPTIONS (all off or neutral until you change them)
   - Hero regeneration (for example 1 HP per second).
   - More gold and oil: a multiplier for what every mine, oil patch and platform holds when a new map starts.
   - Unlimited gold mines, and separately unlimited oil platforms.
+  - EXPERIMENTAL: forests that grow back (every stump after its own 10 to 20 minutes), never close to a building, a
+    wall or a ground unit, never where it would close a passage.
   - Halls that give food (5 by default when switched on), so a custom game that starts with one worker can train
     from the town hall right away.
   - Multipliers for HEALTH, PRICES and BUILD / RESEARCH TIME, all 1.0 (unchanged) by default. Each has master
@@ -66,7 +68,7 @@ OPTIONS (all off or neutral until you change them)
     naval research, paladin or ogre-mage research, mage or death knight spells). They multiply into each other.
     "all" is everything (units, ships, structures, research), "units" and "structures" are the masters per kind.
     So [health] all, [costs] all and [time] all are the three one-line "whole game" settings.
-  - The config file is split into numbered, labeled parts (GENERAL, AUTOCAST, WORKERS, GOLD OIL AND FOOD, HEROES, HEALTH,
+  - The config file is split into numbered, labeled parts (GENERAL, AUTOCAST, WORKERS, RESOURCES, HEROES, HEALTH,
     PRICES, BUILD AND RESEARCH TIME, RANGE UPGRADE, YOUR OWN NUMBERS) with UNITS / STRUCTURES / RESEARCH sub-headers.
   - Your own base stats for any unit in a [unit.<name>] table, and for any structure in a [building.<name>] table:
     hit points, armor, basic and piercing damage, range, sight, gold, lumber, oil, build time. The file contains

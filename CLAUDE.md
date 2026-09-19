@@ -21,6 +21,9 @@ Ensrick/war2r-gameplay-options (public since 2026-09-18).
   or make them configurable.
 - Units sit in TWO tile grids: land / sea at `0x91AD6C`, flyers ONLY in the air grid `0x91AD70`. Any per-tile lookup
   must read both (`ScanGridRaw` does). The selftest's `AddUnit` files flyers into the air grid for that reason.
+- Tree regrowth (`src/trees.cpp`) writes terrain directly. The one state the game cannot survive is a forest region
+  word (0xFFFE) over a tile id outside the tree range (unchecked table read in `FUN_004eb400`): keep the tile-id-first
+  write order, the state 1..24 guard and the table byte-match. Evidence: docs/research/tree_regrowth.md.
 - Orders: `SetOrder` writes the NEXT-order byte (+0x2F). Always read orders through `game::EffectiveOrder`.
 - Map-start data tweaks run ONLY from the new-map hook (0x4D2C46). Never apply table edits from the tick: savegames
   store the tables, so that double-applies.

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(war2r_gameplay_options VERSION 1.2.0 LANGUAGES CXX RC)
+project(war2r_gameplay_options VERSION 1.3.0 LANGUAGES CXX RC)
 
 # Pre-release builds carry a -dev.N suffix; every change bumps N (docs/DEV_HISTORY.md). Empty for a release build.
 set(MOD_PRERELEASE "")
@@ -12,7 +12,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")  # static CRT, no redist needed
 
-set(CORE_SOURCES src/autocast.cpp src/config.cpp src/datatweaks.cpp src/eye.cpp src/hook.cpp src/log.cpp src/mod.cpp src/tweaks.cpp src/units.cpp src/workers.cpp
+set(CORE_SOURCES src/autocast.cpp src/config.cpp src/datatweaks.cpp src/eye.cpp src/hook.cpp src/log.cpp src/mod.cpp src/trees.cpp src/tweaks.cpp src/units.cpp src/workers.cpp
     src/world.cpp src/resources.rc)
 # The .rc embeds the default config; rebuild the resource when the toml changes.
 set_source_files_properties(src/resources.rc PROPERTIES OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/config/gameplay_options.default.toml)

@@ -318,6 +318,7 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"unit", nullptr},
         {"building", nullptr},
         {"workers", " auto_harvest harvest_idle_seconds harvest_radius auto_repair repair_idle_seconds repair_radius "},
+        {"trees", " regrow regrow_min_minutes regrow_max_minutes building_distance unit_distance "},
     };
     for (const auto& [sectionKey, sectionNode] : root) {
         const std::string section(sectionKey.str());
@@ -392,6 +393,18 @@ static bool Load() {
     ReadBool(root, "workers", "auto_repair", c.workerAutoRepair);
     ReadInt(root, "workers", "repair_idle_seconds", 0, 3600, c.workerRepairIdleSeconds);
     ReadInt(root, "workers", "repair_radius", 1, 64, c.workerRepairRadius);
+    ReadBool(root, "trees", "regrow", c.treesRegrow);
+    ReadInt(root, "trees", "regrow_min_minutes", 1, 600, c.treesRegrowMinMinutes);
+    ReadInt(root, "trees", "regrow_max_minutes", 1, 600, c.treesRegrowMaxMinutes);
+    if (c.treesRegrowMaxMinutes < c.treesRegrowMinMinutes) {
+        // Only worth a note when the file asked for it; a lone regrow_min_minutes above the default maximum is fine.
+        if (root["trees"]["regrow_max_minutes"])
+            logx::Write("config: [trees] regrow_max_minutes = %d is below regrow_min_minutes = %d, using %d for both",
+                        c.treesRegrowMaxMinutes, c.treesRegrowMinMinutes, c.treesRegrowMinMinutes);
+        c.treesRegrowMaxMinutes = c.treesRegrowMinMinutes;
+    }
+    ReadInt(root, "trees", "building_distance", 0, 10, c.treesBuildingDistance);
+    ReadInt(root, "trees", "unit_distance", 0, 10, c.treesUnitDistance);
     ReadInt(root, "heroes", "regen_hp_per_second", 0, 1000, c.heroRegenPerSecond);
     ReadHeroes(root, c);
     g = c;

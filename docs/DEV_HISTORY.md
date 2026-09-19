@@ -3,6 +3,30 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.3.0 (2026-09-19, UNTESTED in game)
+
+- Author: "the multiplier takes care of gold and oil, but not lumber. What if trees could grow back? ... they have to
+  not be able to grow back within 3 squares of a building", then "units also block regrowth, nothing should regrow
+  within 3 of a unit either", "Ground unit specifically", and "maybe we make the tree regrowth a bit more random, like it
+  can take between a certain number of minutes".
+- Research and implementation by a research agent, reviewed and re-run here (docs/research/tree_regrowth.md). Felling
+  (`FUN_004eb400`) writes three maps: tile id, square flag 0x80, region word. The neighbour fix-up is a per-tileset
+  removal table, a 4-corner automaton that only ever removes; the engine has no code that places a tree. A felled tile
+  is always tile id 0x7E and nothing else ever is, which is how the mod knows where a forest stood. All three maps are
+  stored verbatim in savegames.
+- `src/trees.cpp`: "corner painting", the inverse of felling, with raw writes from the tick (no game function called):
+  tile id (only ever a forest state 1..24), then `sq |= 0x80`, then region `0xFFFE`. Preconditions: plain land, no unit
+  or building in the first grid, land region, the ring test (open neighbours form one unbroken run, so nothing is cut
+  off and the merge-only region ids stay true), building / wall box, ground-unit box, no corpse. The loaded table must
+  byte-match the known rows 0..25, tree base 0x66, stride 10, map at most 128: otherwise the feature is off for that
+  map with one log line.
+- Per stump: first-seen play time + one random byte; wait = min + (max - min) x byte / 255, evaluated at check time.
+  One full map pass per 4 s of play, at most 8 due stumps per pass, a blocked stump is retried every 8th pass.
+- Tests: exact timing, the three writes, distances, flyers ignored, passage rule, pockets, resets (new map, load into
+  the same buffers), six sanity failures, a seeded stress run over 20 random forests (3349 tiles), relocation-aware
+  instruction pins, and 15 deliberate breakages of the module that each fail a test.
+- Labelled EXPERIMENTAL for players: edge art, minimap, harvesting a regrown tree and re-pathing are in-game questions.
+
 ## 1.2.0 (2026-09-19, NOT uploaded, UNTESTED in game)
 
 - Author: halls providing food "is a way to speed up custom matches. You typically start with a peasant and have to

@@ -1,0 +1,2 @@
+New, EXPERIMENTAL, off by default: [trees] regrow. Felled forest grows back, so lumber never runs out for good. Every stump waits its own time between regrow_min_minutes (10) and regrow_max_minutes (20).
+A tree never grows back within 3 tiles of a building, wall or ground unit (both distances are settings), never where it would close a passage, and only where a forest stood before.

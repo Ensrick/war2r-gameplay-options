@@ -7,7 +7,7 @@
 #  settings and is reported in gameplay_options.log. Single-player only: the mod switches itself off in multiplayer.
 #  
 #  CONTENTS    1. GENERAL          2. AUTOCAST (spells, heal, polymorph, haste, eye of kilrogg)
-#              3. WORKERS          4. GOLD, OIL AND FOOD  5. HEROES
+#              3. WORKERS          4. RESOURCES           5. HEROES
 #              6. HEALTH           7. PRICES              8. BUILD AND RESEARCH TIME
 #              9. RANGE UPGRADE   10. YOUR OWN NUMBERS FOR ONE UNIT OR ONE BUILDING
 # ==============================================================================================================
@@ -108,7 +108,8 @@ harvest_idle_seconds = 10
 harvest_radius = 5
 
 # ==============================================================================================================
-#  4. GOLD, OIL AND FOOD
+#  4. RESOURCES
+#  Gold mines, oil, food and trees.
 # ==============================================================================================================
 
 [gold_mines]
@@ -132,6 +133,18 @@ amount = 1.0
 # without waiting for a farm. A farm still gives 4, the 200 food limit stays. The computer gets the same.
 hall_food = false
 hall_food_amount = 5
+
+[trees]
+# EXPERIMENTAL. true = felled forest grows back, so lumber never runs out for good (the computer's too). Every stump
+# waits its own time between regrow_min_minutes and regrow_max_minutes of play, so a felled patch fills back in bit
+# by bit. A tree never grows back close to a building, a wall or a ground unit, never where it would close a
+# passage, and only where a forest stood before. Flyers do not hold it up.
+regrow = false
+regrow_min_minutes = 10
+regrow_max_minutes = 20
+# No regrowth within this many tiles of a building or wall / of a ground unit of any player.
+building_distance = 3
+unit_distance = 3
 
 # ==============================================================================================================
 #  5. HEROES

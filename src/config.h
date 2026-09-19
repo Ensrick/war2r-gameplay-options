@@ -100,6 +100,13 @@ struct Config {
     int workerRepairIdleSeconds = 1;
     int workerRepairRadius = 10;
 
+    // [trees]
+    bool treesRegrow = false;         // felled forest grows back
+    int treesRegrowMinMinutes = 10;   // play time a stump waits, counted from when the mod first saw it: every stump
+    int treesRegrowMaxMinutes = 20;   // draws its own wait from min..max, so a felled patch fills back in gradually
+    int treesBuildingDistance = 3;    // no regrowth this close (in tiles) to a building or a wall
+    int treesUnitDistance = 3;        // nor this close to a ground unit (flyers do not count)
+
     // [health] [costs] [time] [unit.*]: applied once when a NEW map starts (a savegame keeps the values it was made with)
     // 1.0 = the game's own numbers. In [health], "all" and the unit groups never touch structures; structures only
     // follow their own two keys (buildings, building_upgrades).

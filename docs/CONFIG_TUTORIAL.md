@@ -162,6 +162,37 @@ harvest_idle_seconds = 10
 harvest_radius = 5       # raise this if your idle workers stand far from the trees
 ```
 
+### Forests that grow back
+
+Off by default. A felled tree grows back after some minutes of play time, so lumber never runs out for good. Every
+stump draws its own wait between `regrow_min_minutes` and `regrow_max_minutes`, so a patch that was felled together
+fills back in bit by bit instead of all at once. It covers the whole map, the computer's forests too.
+
+```toml
+[trees]
+regrow = true
+regrow_min_minutes = 10  # 1 to 600
+regrow_max_minutes = 20  # 1 to 600; the same number as the minimum = a fixed wait
+building_distance = 3    # 0 to 10: no tree grows back this close to a building or a wall
+unit_distance = 3        # 0 to 10: nor this close to a ground unit of any player (0 = only the unit's own tile)
+```
+
+Both times can be changed while a game runs; stumps that are already waiting follow the new numbers. Flyers do not
+hold regrowth up: they cross forest anyway. A stump whose wait is over but that is blocked grows back as soon as
+nothing is in the way.
+
+What it will never do:
+
+- grow a tree within `building_distance` tiles of any building or wall, within `unit_distance` tiles of a ground unit,
+  on a corpse, or on a tile the computer keeps clear for its workers;
+- close a passage: a path chopped through a forest stays open, a clearing can shrink to a path one tile wide but no
+  further, and no unit can get walled in;
+- grow anywhere a forest did not stand before. Forests return to their old outline at most.
+
+The wait is counted from the moment the mod first sees the stump and is not stored in savegames: after loading a game
+every stump on the map starts its wait over. The trees themselves are ordinary trees and are saved with the map, so a
+save made with regrown forest also loads without the mod.
+
 ### Gold mines that never run dry
 
 Off by default. It covers every mine on the map, the computer's too.
@@ -436,6 +467,8 @@ Every cast is then written to `x86\gameplay_options.log` with the caster, the ta
 | oil_platforms | amount | 1.0 | Multiplies the oil in every patch and platform when a new map starts |
 | workers | auto_repair / repair_idle_seconds / repair_radius | true / 1 / 10 | Idle workers repair your damaged buildings |
 | workers | auto_harvest / harvest_idle_seconds / harvest_radius | false / 10 / 5 | Idle workers go to the nearest mine or tree |
+| trees | regrow / regrow_min_minutes / regrow_max_minutes | false / 10 / 20 | Felled forest grows back; every stump waits its own time between min and max |
+| trees | building_distance / unit_distance | 3 / 3 | No regrowth this close to a building or wall / to a ground unit (flyers do not count) |
 | health / costs / time | all | 1.0 | Master multiplier of the section: everything (units, ships, structures, research) |
 | health / costs / time | units, structures | 1.0 | Every unit and ship / every structure, both races |
 | costs / time | research | 1.0 | All research of both races |

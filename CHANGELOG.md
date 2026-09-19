@@ -6,6 +6,14 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 **On Nexus Mods right now: 1.0.0.** Later versions are built and tested offline and are in this repository; they reach
 Nexus together with the next upload.
 
+## 1.3.0 - 2026-09-19
+
+- New, EXPERIMENTAL, off by default: `[trees] regrow`. Felled forest grows back, so lumber never runs out for good.
+  Every stump waits its own time between `regrow_min_minutes` (10) and `regrow_max_minutes` (20) of play. A tree never
+  grows back within `building_distance` (3) tiles of a building or wall or `unit_distance` (3) tiles of a ground unit,
+  never where it would close a passage or wall a unit in, and only where a forest stood before. Flyers do not hold it
+  up. Regrown trees are ordinary trees: they are saved with the map and the save also loads without the mod.
+
 ## 1.2.0 - 2026-09-19
 
 - New `[food] hall_food` (off by default) and `hall_food_amount` (5): every Town Hall / Great Hall, Keep / Stronghold

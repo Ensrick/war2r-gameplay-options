@@ -39,6 +39,15 @@ constexpr uint32_t kRvaManaCostByOrder = 0x4C5EB8;    // uint16[order id]
 constexpr uint32_t kRvaExploredMap = 0x51AD60;       // uint8_t* [mapSize*mapSize] for the LOCAL player, 0x10 = never explored
 constexpr uint32_t kRvaVisibleMap = 0x51AD5C;        // uint8_t* same layout, 0x10 = currently fogged
 constexpr uint32_t kRvaRegionMap = 0x51AD7C;         // uint16* [mapSize*mapSize]: 0xFFFE tree, 0xFFFC tree being chopped, else region id
+// Terrain (TILE.cpp), evidence in docs/research/tree_regrowth.md. The three maps are always 0x8000-byte buffers
+// (FUN_004c6110), so a map is at most 128 x 128, and all three are stored verbatim in a savegame.
+constexpr uint32_t kRvaTileMap = 0x51AD68;           // uint16* [mapSize*mapSize]: tileset tile index (not the PUD id); the tree
+                                                     // callback FUN_004eb400 rewrites it at 0x4EB49B
+constexpr uint32_t kRvaSquareFlags = 0x51AD58;       // uint16* same layout, kSq* bits; FUN_004eb400 clears 0x80 at 0x4EB4B3
+constexpr uint32_t kRvaTreeTable = 0x5347E8;         // uint16*: the tileset's tree removal table (n?_tree.bin), read at 0x4EB436
+constexpr uint32_t kRvaTreeTableStride = 0x5347E0;   // uint16, words per table row: 10 (movzx at 0x4EB449)
+constexpr uint32_t kRvaTreeTileCount = 0x5347E2;     // uint16, tree tile ids of the tileset = table rows - 1 (FUN_004ea900)
+constexpr uint32_t kRvaTreeBase = 0x5347F0;          // uint16, first tree tile id: 0x66 in all four tilesets (sub at 0x4EB450)
 constexpr uint32_t kRvaUnitSizeByType = 0x517AD0;    // {uint16 w, uint16 h}[unit type], tiles (UDTA "unit size")
 constexpr uint32_t kRvaPlayerGold = 0x519128;        // int32[16]
 constexpr uint32_t kRvaPlayerLumber = 0x5190E8;      // int32[16]
@@ -100,7 +109,26 @@ constexpr uint16_t kStateComplete = 0x80;  // building finished (full 16-bit sta
 constexpr uint8_t kWorkerCarrying = 0x20;
 constexpr uint8_t kTypeGoldMine = 0x5C;
 constexpr uint16_t kRegionTree = 0xFFFE;
-constexpr uint8_t kStateDying = 2;      // low nibble of kOffStateFlags; a raisable corpse is type kTypeCorpse in this state
+constexpr uint16_t kRegionChopping = 0xFFFC;      // a tree some worker is felling right now (FUN_004eb3b0)
+constexpr uint16_t kRegionLandBit = 0x4000;       // land region ids are 0x4000 | n, water ids plain n (REGM in every stock map)
+constexpr uint16_t kRegionFirstSpecial = 0xFFFA;  // 0xFFFA and up are not region ids (coast, chopping, rocks, forest)
+constexpr int kMaxMapSize = 128;                  // what the 0x8000-byte map buffers hold
+// Square flag bits (kRvaSquareFlags). Land units are blocked by 0x09CE (table 0x8C1AC8), a building site by 0x09DE.
+constexpr uint16_t kSqLand = 0x0001;         // grass 0x0001, dirt 0x0011, forest and rocks 0x0081 in the stock maps
+constexpr uint16_t kSqCoast = 0x0002;
+constexpr uint16_t kSqWalls = 0x000C;        // 0x04 / 0x08, set by wall placement FUN_004eb9d0
+constexpr uint16_t kSqWater = 0x0040;
+constexpr uint16_t kSqUnpassable = 0x0080;   // forest, rocks, walls: the one bit tree felling clears
+constexpr uint16_t kSqGroundUnit = 0x0100;   // a land / sea unit is filed on the tile (FUN_004b4a00, cleared by FUN_004b5000)
+constexpr uint16_t kSqAirUnit = 0x0200;      // the same for a flyer; the only bit that blocks air movement
+constexpr uint16_t kSqBuilding = 0x0800;     // every tile of a building footprint (FUN_004b4910)
+// Tree removal table: row s ("state", 1-based) belongs to tile id treeBase + s - 1. Rows 0..25 are the same in all four
+// tilesets: 1..24 hold forest, 24 is solid forest, 25 is the only cleared state (the stump tile 0x7E).
+constexpr uint16_t kTreeBaseExpected = 0x66;
+constexpr int kTreeTableStride = 10;
+constexpr int kTreeStateSolid = 24;
+constexpr int kTreeStateCleared = 25;
+constexpr uint8_t kStateDying = 2;     // low nibble of kOffStateFlags; a raisable corpse is type kTypeCorpse in this state
 constexpr uint8_t kTypeCorpse = 0x69;   // what the game AI's raise-dead filter (FUN_004ca8d0) looks for
 
 // Unit type flags (PUD UDTA layout; defaults ship in Data\Rez\unitdata.dat at file offset 0x1486).
