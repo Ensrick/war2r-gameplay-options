@@ -8,6 +8,7 @@ bool BuildWorld(World& w) {
     w.units = *At<Unit*>(kRvaUnitArray);
     w.unitCount = *At<uint32_t>(kRvaUnitCount) & 0xFFFF;
     w.grid = *At<Unit**>(kRvaUnitGrid);
+    w.airGrid = *At<Unit**>(kRvaAirUnitGrid);
     w.mapSize = *At<uint16_t>(kRvaMapSize);
     w.localPlayer = *At<uint8_t>(kRvaLocalPlayer);
     w.alliance = At<uint8_t>(kRvaAlliance);

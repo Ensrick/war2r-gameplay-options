@@ -3,6 +3,21 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.0.7 (release build, staged 2026-09-18, NOT uploaded, UNTESTED in game)
+
+- Author, first in-game autocast observation: "Why aren't air targets auto-cast for Bloodlust, and Death coil? Are
+  they just out of range for me?" Not range. `ScanGridRaw` read only the unit grid at `0x91AD6C`; the game files a
+  unit with `unit+0x1C & 4` (air layer) into a SECOND grid at `0x91AD70` and nowhere else (`FUN_004b4a00`:
+  `0x4B4A39 mov eax,[0x91AD6C]; 0x4B4A3E cmovne eax,[0x91AD70]; 0x4B4A46 mov [eax+ecx*4],edx`). So since the first
+  build every flyer was invisible to every scan: all nine spells as targets, and `EnemyNear`.
+- Type flags from `unitdata.dat` rule the flag filter out: gryphon rider / dragon `0x08080082`, daemon `0x08080092`
+  (fleshy + flyer); flying machine, zeppelin, eye `0x82` (not fleshy, so never heal / lust / coil targets, by design).
+- The offline test had hidden it: its fake world put flyers into the ground grid. `AddUnit` now files flyers into an
+  air grid only, so the existing dragon / daemon / eye / haste tests run through the second layer, plus new cases:
+  coil an enemy dragon, lust my fighting dragon, enemy flyer counts as "enemy near", dragon hovering over a farm.
+- Class hardening: the research note had this grid marked `[unverified]` "air layer" since the worker research and it
+  was never followed up. RE_NOTES now states both grids with the rule "every scan reads both".
+
 ## 1.0.6 (release build, staged 2026-09-18, NOT uploaded, UNTESTED in game)
 
 - Author: "Are oil platforms affected by unlimited gold mine? If not, we need an option for oil platforms too." They

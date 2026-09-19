@@ -1,3 +1,8 @@
+[size=4][b]1.0.7[/b][/size]
+[list]
+[*]Fixed: autocast never saw flying units. No Bloodlust, Haste or Heal went onto your dragons and gryphon riders, no Death Coil, Polymorph or Slow onto enemy flyers, and an enemy flyer did not count as "enemy nearby". Air units are targeted now.
+[/list]
+
 [size=4][b]1.0.6[/b][/size]
 [list]
 [*]New [oil_platforms] unlimited (off by default): oil platforms never run dry, the computer's too. Independent of [gold_mines] unlimited, which never covered oil.

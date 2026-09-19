@@ -18,6 +18,8 @@ Ensrick/war2r-gameplay-options (private).
   log = the DLL never activated = wrong exe. A second install elsewhere on the disk, started from an old shortcut, is the usual reason; compare the file LastAccessTime of both installs to see which one ran.
 - Multiplayer gates (`kRvaNetGame` per tick, `kRvaNetGameAtLoad` at map load) are hard safety rules. Never remove them
   or make them configurable.
+- Units sit in TWO tile grids: land / sea at `0x91AD6C`, flyers ONLY in the air grid `0x91AD70`. Any per-tile lookup
+  must read both (`ScanGridRaw` does). The selftest's `AddUnit` files flyers into the air grid for that reason.
 - Orders: `SetOrder` writes the NEXT-order byte (+0x2F). Always read orders through `game::EffectiveOrder`.
 - Map-start data tweaks run ONLY from the new-map hook (0x4D2C46). Never apply table edits from the tick: savegames
   store the tables, so that double-applies.

@@ -28,7 +28,8 @@ constexpr uint32_t kRvaMaxHpByType = 0x5177C0;        // uint16[unit type], what
 constexpr uint32_t kRvaPendingSpellOrder = 0x5348BC;  // uint16, read by the spell order handler
 constexpr uint32_t kRvaUnitArray = 0x51C704;          // Unit* (contiguous array, stride kUnitSize)
 constexpr uint32_t kRvaUnitCount = 0x51BFB8;          // uint32, the AI loop only uses the low 16 bits
-constexpr uint32_t kRvaUnitGrid = 0x51AD6C;           // Unit** [mapSize*mapSize], one unit pointer per tile
+constexpr uint32_t kRvaUnitGrid = 0x51AD6C;           // Unit** [mapSize*mapSize], one unit pointer per tile: land and sea units
+constexpr uint32_t kRvaAirUnitGrid = 0x51AD70;        // same shape, the AIR layer: FUN_004b4a00 files a unit here when unit+0x1C & 4
 constexpr uint32_t kRvaMapSize = 0x518D10;            // uint16
 constexpr uint32_t kRvaController = 0x518CAC;         // uint8[16]: 0 = human, 1 = computer
 constexpr uint32_t kRvaAlliance = 0x519578;           // uint8[16*16], [caster*16 + target] != 0 means allied

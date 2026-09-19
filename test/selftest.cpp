@@ -18,6 +18,7 @@ using namespace game;
 static int g_failures = 0;
 static uint8_t g_units[64 * kUnitSize];
 static Unit* g_grid[64 * 64];
+static Unit* g_airGrid[64 * 64];  // the game files flyers here and ONLY here (FUN_004b4a00)
 constexpr int kMap = 64;
 static int g_unitCount = 0;
 
@@ -71,6 +72,7 @@ static void PatchJump(uint32_t rva, void* dest) {
 static void ResetWorld() {
     memset(g_units, 0, sizeof(g_units));
     memset(g_grid, 0, sizeof(g_grid));
+    memset(g_airGrid, 0, sizeof(g_airGrid));
     g_unitCount = 0;
     *At<uint32_t>(kRvaUnitCount) = 0;
     *At<uint32_t>(kRvaNetGame) = 0;
@@ -87,7 +89,8 @@ static Unit* AddUnit(uint8_t type, uint8_t owner, int x, int y, int hp, int mana
     Field<uint8_t>(u, kOffOwner) = owner;
     Field<uint8_t>(u, kOffOrder) = order;
     Field<uint8_t>(u, kOffNextOrder) = kOrderNone;
-    g_grid[y * kMap + x] = u;
+    const bool flyer = (At<uint32_t>(kRvaTypeFlags)[type] & kTfFlyer) != 0;  // defType() the type before adding it
+    (flyer ? g_airGrid : g_grid)[y * kMap + x] = u;
     *At<uint32_t>(kRvaUnitCount) = g_unitCount;
     return u;
 }
@@ -166,6 +169,7 @@ int wmain(int argc, wchar_t** argv) {
     PatchJump(kRvaShowMessage, &FakeShowMessage);
     *At<Unit*>(kRvaUnitArray) = reinterpret_cast<Unit*>(g_units);
     *At<Unit**>(kRvaUnitGrid) = g_grid;
+    *At<Unit**>(kRvaAirUnitGrid) = g_airGrid;
     *At<uint16_t>(kRvaMapSize) = kMap;
     *At<uint8_t>(kRvaLocalPlayer) = 0;
     uint8_t* controller = At<uint8_t>(kRvaController);
@@ -364,6 +368,34 @@ int wmain(int argc, wchar_t** argv) {
     Unit* enemy = AddUnit(kFootman, 1, 13, 12, 60, 0, kOrderAttack);
     mod::RunAutocastPass();
     CHECK(OrderOf(dk) == 0x33 && TargetOf(dk) == enemy, "death coil on footman");
+
+    // Flyers live in the game's AIR grid only (player report: no Bloodlust / Death Coil on air units). AddUnit files
+    // them there, so every flyer test in this file now goes through the second layer.
+    ResetWorld();
+    dk = AddUnit(kTypeDeathKnight, 0, 10, 10, 60, 255, kOrderStand);
+    Unit* enemyDragon = AddUnit(kDragon, 1, 13, 12, 100, 0, kOrderAttack);
+    CHECK(g_airGrid[12 * kMap + 13] == enemyDragon && g_grid[12 * kMap + 13] == nullptr, "test world: a dragon must sit in the air grid only");
+    mod::RunAutocastPass();
+    CHECK(OrderOf(dk) == 0x33 && TargetOf(dk) == enemyDragon, "death coil on an enemy dragon (air layer)");
+    ResetWorld();
+    om = AddUnit(kTypeOgreMage, 0, 20, 20, 90, 200, kOrderStand);
+    Unit* myDragon = AddUnit(kDragon, 0, 22, 20, 100, 0, kOrderAttackTarget);
+    AddUnit(kFootman, 1, 24, 21, 60, 0, kOrderAttack);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(om) == 0x31 && TargetOf(om) == myDragon, "bloodlust on my fighting dragon (air layer)");
+    ResetWorld();  // an enemy flyer alone must count as "enemy near" for the fight test
+    om = AddUnit(kTypeOgreMage, 0, 20, 20, 90, 200, kOrderStand);
+    Unit* lustGrunt = AddUnit(kGrunt, 0, 21, 20, 60, 0, kOrderAttackTarget);
+    AddUnit(kDragon, 1, 23, 21, 100, 0, kOrderAttack);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(om) == 0x31 && TargetOf(om) == lustGrunt, "an enemy flyer nearby makes my grunt a bloodlust target");
+    ResetWorld();  // a flyer hovering over a ground unit: both tiles' occupants are candidates
+    dk = AddUnit(kTypeDeathKnight, 0, 10, 10, 60, 255, kOrderStand);
+    defType(0x3A, kTfBuilding, 400);  // farm
+    AddUnit(0x3A, 1, 12, 10, 400, 0, kOrderStand);
+    Unit* above = AddUnit(kDragon, 1, 12, 10, 100, 0, kOrderAttack);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(dk) == 0x33 && TargetOf(dk) == above, "death coil on the dragon above a farm, not blocked by the ground unit");
 
     // Haste (flyers only by default): never a ground unit, never an idle flyer, yes a flyer sent to attack.
     ResetWorld();

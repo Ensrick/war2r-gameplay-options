@@ -82,7 +82,7 @@ The pure helpers listed in the table are safe.
 | 0x91AD7C | 0x51AD7C | **Pointer** to region map | `uint16[size*size]`, index `y*size + x`; 0xFFFE tree, 0xFFFC tree being chopped, else region id (equal ids = mutually reachable) | `FUN_004eb270`, `FUN_004eb3b0`, `FUN_004dab60` |
 | 0x91AD58 | 0x51AD58 | **Pointer** to map square flags (BNE SQ_*) | `uint16[size*size]`; 0x800 building, 0x400 AI keep-clear, 0x100 unit, 0x80 unpassable, 0x40 water, 0x08/0x04 walls, 0x02 shore | `FUN_004eaf60` mask 0x9CE, `FUN_004da8b0` `|= 0x400` |
 | 0x91AD68 | 0x51AD68 | **Pointer** to terrain tile ids | `uint16[size*size]`, low 11 bits index the tileset | `FUN_004eb400` (tree removal) |
-| 0x91AD70 | 0x51AD70 | **Pointer** to second unit grid (air layer `[unverified]`) | `Unit*[size*size]` | `FUN_004da4d0` |
+| 0x91AD70 | 0x51AD70 | **Pointer** to second unit grid: the AIR layer (verified 2026-09-18, `FUN_004b4a00` picks it when `unit+0x1C & 4`) | `Unit*[size*size]` | `FUN_004da4d0` |
 | 0x919128 | 0x519128 | Player gold | int32[16] | `FUN_004c96a0`, `FUN_004be220` |
 | 0x9190E8 | 0x5190E8 | Player lumber | int32[16] | same |
 | 0x919168 | 0x519168 | Player oil | int32[16] | same |

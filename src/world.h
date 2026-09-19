@@ -15,7 +15,8 @@ inline T* At(uint32_t rva) { return reinterpret_cast<T*>(g_base + rva); }
 struct World {
     Unit* units;
     unsigned unitCount;
-    Unit** grid;
+    Unit** grid;     // land / sea layer
+    Unit** airGrid;  // flyers live ONLY here, never in `grid`
     int mapSize;
     uint8_t localPlayer;
     const uint8_t* alliance;
@@ -53,7 +54,8 @@ inline int Distance(Unit* a, Unit* b) {
     return dx > dy ? dx : dy;
 }
 
-// Calls fn(unit) for every grid entry within `radius` tiles of `centre`, corpses included; stops when fn returns true.
+// Calls fn(unit) for every grid entry (both layers: ground, then air) within `radius` tiles of `centre`, corpses
+// included; stops when fn returns true.
 template <typename Fn>
 inline bool ScanGridRaw(const World& w, Unit* centre, int radius, Fn fn) {
     const int cx = Field<int16_t>(centre, kOffX), cy = Field<int16_t>(centre, kOffY);
@@ -61,7 +63,10 @@ inline bool ScanGridRaw(const World& w, Unit* centre, int radius, Fn fn) {
         if (y < 0 || y >= w.mapSize) continue;
         for (int x = cx - radius; x <= cx + radius; ++x) {
             if (x < 0 || x >= w.mapSize) continue;
-            Unit* u = w.grid[y * w.mapSize + x];
+            const int tile = y * w.mapSize + x;
+            Unit* u = w.grid[tile];
+            if (u && u != centre && fn(u)) return true;
+            u = w.airGrid ? w.airGrid[tile] : nullptr;  // a flyer can share the tile with a ground unit
             if (u && u != centre && fn(u)) return true;
         }
     }

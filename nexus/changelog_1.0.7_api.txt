@@ -1,0 +1,1 @@
+Fixed: autocast never saw flying units. No Bloodlust, Haste or Heal went onto your dragons and gryphon riders, no Death Coil, Polymorph or Slow onto enemy flyers, and an enemy flyer did not count as "enemy nearby". Air units are targeted now.

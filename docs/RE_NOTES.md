@@ -26,7 +26,8 @@ the classic `Data\Files\Warcraft II BNE.exe` shipped next to it is the Rosetta s
 | Spell order handler | `0x4E2970` | passed to IssueOrder by all AI casts; reads the pending spell global |
 | Pending spell order | `0x9348BC` (u16) | set before / cleared after IssueOrder in `FUN_004cb0e0` |
 | Unit array / count | `0x91C704` / `0x91BFB8` | think loop, stride 0x98 |
-| Unit tile grid / map size | `0x91AD6C` / `0x918D10` | AI target search `FUN_004cb3e0`, index `y*size + x` |
+| Unit tile grid / map size | `0x91AD6C` / `0x918D10` | AI target search `FUN_004cb3e0`, index `y*size + x`. LAND / SEA units only |
+| Air unit tile grid | `0x91AD70` | same shape. `FUN_004b4a00(unit)`: `test byte [unit+0x1C], 4` -> `cmovne eax, [0x91AD70]`, then `mov [eax+tile*4], unit` (and map flag 0x200 instead of 0x100). Flyers are filed ONLY here, so every scan must read both grids |
 | Controller table | `0x918CAC` (u8[16]) | 0 = human (cheat handler grants humans all spells), 1 = computer, 3 = left (WC2R_Mods research) |
 | Local player | `0x918CCD` (u8) | selection code `cmp al, [0x918ccd]` (WC2R_Mods research) |
 | Alliance table | `0x919578` (u8[16][16]) | every AI spell filter |

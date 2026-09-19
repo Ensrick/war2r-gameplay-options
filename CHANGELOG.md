@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.7 - staged 2026-09-18, not uploaded yet
+
+- Fixed: autocast never saw flying units. The game keeps flyers in a separate air layer that the mod did not scan, so
+  no Bloodlust, Haste or Heal went onto your dragons and gryphon riders, no Death Coil, Polymorph, Slow or Exorcism
+  onto enemy flyers, and an enemy flyer did not count as "enemy nearby". Both layers are scanned now.
+
 ## 1.0.6 - staged 2026-09-18, not uploaded yet
 
 - New `[oil_platforms] unlimited` (off by default): oil platforms never run dry, the computer's too. Independent of
