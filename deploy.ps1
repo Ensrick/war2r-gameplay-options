@@ -18,7 +18,20 @@ if ($Disable) {
 
 $built = Join-Path $PSScriptRoot 'build\Release\version.dll'
 if (-not (Test-Path $built)) { throw "build first: $built is missing" }
-Copy-Item $built $target -Force
+# Left-overs of earlier swaps (see below); they can go once nothing has them loaded any more.
+Get-ChildItem $GameDir -Filter 'version.dll.inuse.*' -ErrorAction SilentlyContinue | ForEach-Object {
+    try { [IO.File]::Delete($_.FullName) } catch { }
+}
+try {
+    Copy-Item $built $target -Force
+} catch [System.IO.IOException] {
+    # The map editor and the Blizzard helper exes in this folder load the proxy too (it stays inert in them).
+    # Windows cannot overwrite a loaded DLL but it can rename one, so move the in-use copy aside.
+    $aside = "$target.inuse.$(Get-Date -Format yyyyMMddHHmmss)"
+    Move-Item $target $aside -Force
+    Copy-Item $built $target -Force
+    "version.dll was in use by another program from this folder; the old copy was renamed to $(Split-Path $aside -Leaf)"
+}
 $hash = (Get-FileHash $target -Algorithm SHA256).Hash
 if ($hash -ne (Get-FileHash $built -Algorithm SHA256).Hash) { throw 'deployed file does not match the build' }
 
