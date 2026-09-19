@@ -1,0 +1,1 @@
+New [food] hall_food (off by default) with hall_food_amount (5): halls, keeps and castles of both races give that much food instead of the game's 1, so a custom game that starts with one worker can train from the hall before the first farm.

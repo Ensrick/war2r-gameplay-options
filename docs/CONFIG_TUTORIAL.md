@@ -189,6 +189,21 @@ amount = 2.0
 A mine can hold up to 6,553,500. The map editor stops at 637,500, so anything up to 10.0 always fits; beyond that the
 value is capped. `unlimited` and `amount` are independent.
 
+### Halls that feed your first units
+
+In the game a Town Hall or Great Hall gives 1 food, exactly enough for the peasant that built it, so in a custom game
+that starts with one worker nothing can be trained until a farm stands. With `hall_food` on, every hall (and keep,
+stronghold, castle, fortress) gives `hall_food_amount` instead:
+
+```toml
+[food]
+hall_food = true
+hall_food_amount = 5     # 1 = the game's own value; a farm gives 4; the 200 food limit stays
+```
+
+Works right away, also in a game that is already running, and for the computer players too. Switch it off and the
+game's own numbers come back at once.
+
 ### Oil platforms that never run dry
 
 The same thing for oil, with its own switch. Off by default; it covers every platform on the map, the computer's too.
@@ -417,6 +432,7 @@ Every cast is then written to `x86\gameplay_options.log` with the caster, the ta
 | gold_mines | unlimited | false | Mines never run dry (all mines) |
 | gold_mines | amount | 1.0 | Multiplies the gold in every mine when a new map starts (cap 6,553,500 per mine) |
 | oil_platforms | unlimited | false | Oil platforms never run dry (all platforms) |
+| food | hall_food / hall_food_amount | false / 5 | Halls, keeps and castles give this much food instead of 1 (1 to 200) |
 | oil_platforms | amount | 1.0 | Multiplies the oil in every patch and platform when a new map starts |
 | workers | auto_repair / repair_idle_seconds / repair_radius | true / 1 / 10 | Idle workers repair your damaged buildings |
 | workers | auto_harvest / harvest_idle_seconds / harvest_radius | false / 10 / 5 | Idle workers go to the nearest mine or tree |

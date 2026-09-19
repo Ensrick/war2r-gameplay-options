@@ -16,6 +16,7 @@ one `gameplay_options.toml` for every setting.
 | Eye of Kilrogg | idle ogre-magi cast it, the eye scouts unexplored ground by itself | `[eye_of_kilrogg]` |
 | Workers | idle workers repair nearby damage, then return to the nearest mine or tree | `[workers]` |
 | Gold mines, oil | amount multiplier per new map; optional unlimited mines / oil platforms | `[gold_mines]` `[oil_platforms]` |
+| Food | optional: halls, keeps and castles give food (train before the first farm) | `[food]` |
 | Heroes | 1 HP per second regeneration | `[heroes]` |
 | Map-start data | health / price / time multipliers (master x race x group, all 1.0 by default, health is units-only), per-unit base stats, Longbow / Lighter Axes range bonus | `[health] [costs] [time] [unit.NAME] [range]` |
 
@@ -61,7 +62,7 @@ src/dllmain.cpp     proxy exports, attach
 src/hook.cpp        the two call-site hooks
 src/mod.cpp         per-tick orchestration, multiplayer gate, hotkey, config reload
 src/autocast.cpp    spell targeting        src/eye.cpp        Eye of Kilrogg
-src/workers.cpp     idle workers           src/tweaks.cpp     hero regen, mines, oil
+src/workers.cpp     idle workers           src/tweaks.cpp     regen, mines, oil, food
 src/datatweaks.cpp  map-start table edits  src/config.cpp     TOML (toml++ vendored in third_party/)
 src/game.h          every address (RVA) with its meaning; evidence in docs/
 config/gameplay_options.default.toml   the default config, embedded into the DLL as a resource and shipped in the zip

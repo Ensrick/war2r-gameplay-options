@@ -6,6 +6,13 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 **On Nexus Mods right now: 1.0.0.** Later versions are built and tested offline and are in this repository; they reach
 Nexus together with the next upload.
 
+## 1.2.0 - 2026-09-19
+
+- New `[food] hall_food` (off by default) and `hall_food_amount` (5): every Town Hall / Great Hall, Keep / Stronghold
+  and Castle / Fortress gives that much food instead of the game's 1, so a custom game that starts with one worker can
+  train from the hall before the first farm. Works at once, also in a running game, for the computer too; the 200
+  food limit stays.
+
 ## 1.1.0 - 2026-09-19
 
 - New `[gold_mines] amount` and `[oil_platforms] amount` (1.0 by default): multiply the gold in every mine and the oil

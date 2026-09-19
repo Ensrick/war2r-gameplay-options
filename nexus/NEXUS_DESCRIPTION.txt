@@ -82,7 +82,7 @@ auto_harvest = true
 harvest_idle_seconds = 10
 harvest_radius = 5[/code]
 
-[size=4][b]3. Gold mines, oil platforms and heroes[/b][/size]
+[size=4][b]3. Gold mines, oil, food and heroes[/b][/size]
 [code][gold_mines]
 unlimited = true          # off by default. Covers every mine, the computer's too
 amount = 3.0              # or: three times the gold in every mine when a new map starts (1.0 = unchanged)
@@ -90,6 +90,10 @@ amount = 3.0              # or: three times the gold in every mine when a new ma
 [oil_platforms]
 unlimited = true          # off by default. Same thing for oil, its own switch
 amount = 2.0              # x the oil in every patch and platform when a new map starts
+
+[food]
+hall_food = true          # off by default: halls, keeps and castles give food, so you can train before the first farm
+hall_food_amount = 5      # the game's own value is 1, a farm gives 4
 
 [heroes]
 regen_hp_per_second = 1   # 0 = off
@@ -145,7 +149,7 @@ upgrade_bonus = 2       # range that Longbow / Lighter Axes add. The game's own 
 
 [size=4][b]When do changes apply?[/b][/size]
 [list]
-[*][b]Right away:[/b] spells, targets, workers, gold mines, oil platforms, hero regeneration, the hotkey, the Longbow / Lighter Axes bonus.
+[*][b]Right away:[/b] spells, targets, workers, unlimited gold mines and oil platforms, hall food, hero regeneration, the hotkey, the Longbow / Lighter Axes bonus.
 [*][b]When a new map starts[/b] (new mission, custom game, restart): health, prices, times and [unit.name] tables. A savegame keeps the numbers it was made with, so saves from before you installed the mod stay exactly as they were.
 [*]The computer plays by the same numbers you do.
 [/list]

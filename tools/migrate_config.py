@@ -5,6 +5,7 @@
 Steps (each one only when the file still needs it):
   1.0.6  adds the [oil_platforms] block after [gold_mines]
   1.1.0  adds "amount = 1.0" to [gold_mines] and [oil_platforms]
+  1.2.0  adds the [food] block after [oil_platforms]
   1.0.8  [health] "all" used to mean "every unit". It now means everything (units, ships, structures), and the new
          "units" key is the units-only master. An old value moves from "all" to "units", so units keep their health and
          buildings stay untouched. Same for [health.human] / [health.orc].
@@ -24,6 +25,7 @@ OIL_BLOCK = ['[oil_platforms]',
              "# true = oil platforms never run dry (every platform on the map, the computer's too). A platform keeps the amount it",
              '# had when you switched this on, never less than 5000.',
              'unlimited = false']
+FOOD_BLOCK = ['[food]', '# true = every Town Hall / Great Hall, Keep / Stronghold and Castle / Fortress gives hall_food_amount food instead', "# of the game's 1. In a custom game that starts with one peasant you can then train from the hall right away,", '# without waiting for a farm. A farm still gives 4, the 200 food limit stays. The computer gets the same.', 'hall_food = false', 'hall_food_amount = 5']
 AMOUNT = {
     'gold_mines': ['# Multiplies the gold in every mine when a NEW map starts: 3.0 = three times as much, for both sides. "Gold left"', '# shows the real number. A mine holds up to 6,553,500, ten times what the map editor allows, so 10.0 always fits.'],
     'oil_platforms': ['# The same for oil: every oil patch and platform, when a NEW map starts.'],
@@ -82,6 +84,20 @@ def add_amounts(lines, notes):
         notes.append(f'added [{section}] amount = 1.0')
 
 
+def add_food(lines, tree, notes):
+    if 'food' in tree:
+        return
+    s = span(lines, '[oil_platforms]') or span(lines, '[gold_mines]')
+    if s is None:
+        notes.append('no [gold_mines] / [oil_platforms] section: add [food] by hand')
+        return
+    end = s[1]
+    while end > s[0] + 1 and not lines[end - 1].strip():
+        end -= 1
+    lines[end:end] = [''] + FOOD_BLOCK
+    notes.append('added [food] hall_food = false, hall_food_amount = 5')
+
+
 def health_units(lines, tree, notes):
     health = tree.get('health', {})
     for table, who in (('health', None), ('health.human', 'human'), ('health.orc', 'orc')):
@@ -133,17 +149,21 @@ def main():
     notes = []
     add_oil(lines, before, notes)
     add_amounts(lines, notes)
+    add_food(lines, before, notes)
     health_units(lines, before, notes)
     text = LF.join(lines)
-    text = text.replace('#  4. GOLD MINES' + LF, '#  4. GOLD MINES AND OIL' + LF, 1)
-    text = text.replace('4. GOLD MINES          5. HEROES', '4. GOLD MINES AND OIL  5. HEROES', 1)
+    for old_title in ('#  4. GOLD MINES' + LF, '#  4. GOLD MINES AND OIL' + LF):
+        text = text.replace(old_title, '#  4. GOLD, OIL AND FOOD' + LF, 1)
+    for old_contents in ('4. GOLD MINES          5. HEROES', '4. GOLD MINES AND OIL  5. HEROES'):
+        text = text.replace(old_contents, '4. GOLD, OIL AND FOOD  5. HEROES', 1)
     if text == raw.replace(CRLF, LF):
         print('already up to date, nothing to do')
         return 0
 
     after = tomllib.loads(text)
     old, new = dict(leaves(before)), dict(leaves(after))
-    allowed = {('oil_platforms', 'unlimited'), ('oil_platforms', 'amount'), ('gold_mines', 'amount')} | {t + (k,) for t in (('health',), ('health', 'human'), ('health', 'orc')) for k in ('all', 'units')}
+    allowed = {('oil_platforms', 'unlimited'), ('oil_platforms', 'amount'), ('gold_mines', 'amount'), ('food', 'hall_food'),
+               ('food', 'hall_food_amount')} | {t + (k,) for t in (('health',), ('health', 'human'), ('health', 'orc')) for k in ('all', 'units')}
     lost = [k for k, v in old.items() if k not in allowed and new.get(k, KeyError) != v]
     extra = [k for k in new if k not in old and k not in allowed]
     # the health move must keep the product of the two keys for units

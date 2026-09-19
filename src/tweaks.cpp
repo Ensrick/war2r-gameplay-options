@@ -116,10 +116,39 @@ void ScaleNewMapSources(const World& w) {
     logx::Write("new map: gold x%.2f in %d mines, oil x%.2f in %d patches / platforms", gold, mines, oil, wells);
 }
 
+// [food] hall_food: the game keeps food supply as a running counter (farm +4, any hall tier +1, see game.h). Rather
+// than patch those constants, the supply word is recomputed from the game's own per-type building counters:
+//     supply = 4 x farms + amount x (halls + keeps + castles)
+// It is stateless, so it survives savegames (the game re-counts after a load, the next tick re-applies), a hall being
+// upgraded (the unit just moves between the three counters) and config reloads. With amount = 1 the formula IS the
+// game's own value, which is how switching the option off restores it. While the option has never been on in this
+// session nothing is written at all. Every player gets it, the computer included: its farm logic reads the same word.
+bool g_foodTouched = false;
+
+void SyncHallFood() {
+    const bool on = config::g.hallFood;
+    if (!on && !g_foodTouched) return;
+    const int perHall = on ? config::g.hallFoodAmount : 1;
+    uint16_t* supply = At<uint16_t>(kRvaFoodSupply);
+    const uint16_t* farms = At<uint16_t>(kRvaFarmCount);
+    const uint16_t* halls = At<uint16_t>(kRvaHallCount);
+    const uint16_t* keeps = At<uint16_t>(kRvaKeepCount);
+    const uint16_t* castles = At<uint16_t>(kRvaCastleCount);
+    for (int player = 0; player < 16; ++player) {
+        // A counter that went below zero wraps to ~65535; the game asserts on that path. Leave such a player alone.
+        if (farms[player] > 1600 || halls[player] > 1600 || keeps[player] > 1600 || castles[player] > 1600) continue;
+        unsigned want = 4u * farms[player] + static_cast<unsigned>(perHall) * (halls[player] + keeps[player] + castles[player]);
+        if (want > 0xFFFF) want = 0xFFFF;
+        if (supply[player] != want) supply[player] = static_cast<uint16_t>(want);
+    }
+    g_foodTouched = on;
+}
+
 }  // namespace
 
 void OnTick(const World& w, unsigned elapsedMs) {
     HeroRegen(w, elapsedMs);
+    SyncHallFood();
     ScaleNewMapSources(w);  // before the refill, so "unlimited" remembers the scaled amount as the peak
     RefillSources(w);
 }

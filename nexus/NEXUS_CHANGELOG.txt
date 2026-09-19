@@ -1,3 +1,8 @@
+[size=4][b]1.2.0[/b][/size]
+[list]
+[*]New [food] hall_food (off by default) with hall_food_amount (5): halls, keeps and castles of both races give that much food instead of the game's 1, so a custom game that starts with one worker can train from the hall before the first farm. The 200 food limit stays.
+[/list]
+
 [size=4][b]1.1.0[/b][/size]
 [list]
 [*]New [gold_mines] amount and [oil_platforms] amount: multiply the gold in every mine and the oil in every patch and platform when a new map starts (1.0 = unchanged). Both sides get it and "Gold left" shows the real number. A mine can hold up to 6,553,500, ten times what the map editor allows.

@@ -3,6 +3,23 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.2.0 (2026-09-19, NOT uploaded, UNTESTED in game)
+
+- Author: halls providing food "is a way to speed up custom matches. You typically start with a peasant and have to
+  build a town hall, but can't do any unit production until after that ... by default maybe have it toggled off".
+- Research (docs/research/food_supply.md, re-checked by hand against the exe): supply is `u16[16]` at `0x91B50C`, a
+  running counter with exactly two writers, the farm callback (`0x4B50EA lea eax,[edx*4]`, +4) and the hall callback
+  shared by all six hall types (`0x4B5182`, +1), dispatched through the per-type table `0x8C0EF0`. No data table, not
+  in unitdata.dat. Readers clamp to 200 at read time (train check `0x4AC66F..0x4AC697`); "used" is never stored; the
+  game re-counts everything after a save load. A fresh hall gives 1 and the peasant uses 1, which is why nothing can be
+  trained before the first farm.
+- Built as the recommended stateless recompute in the tick: `supply = 4 x farms + N x (halls + keeps + castles)` from the
+  game's own counters `0x91B48C / 52C / 54C / 56C`. No patch, no new hook. N = 1 is the game's own value, so switching
+  off restores it, and nothing at all is written until the option has been on once. A wrapped (underflowed) counter
+  makes the mod skip that player. Rejected: in-place patch of the hall callback (the save-load re-count runs before any
+  tick, and +N / -N with a hot-reloadable N corrupts the word), callback table swap (needs the same reconciliation).
+- One key for all three tiers on purpose: fewer knobs. Per-tier amounts fit the same formula if ever wanted.
+
 ## 1.1.0 (2026-09-19, NOT uploaded, UNTESTED in game)
 
 - Author: unlimited mines "isn't always desirable, but I do need more gold so that starving the AI out isn't so easy",

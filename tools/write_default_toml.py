@@ -55,7 +55,7 @@ text += banner('WARCRAFT II: REMASTERED - GAMEPLAY OPTIONS',
                'settings and is reported in gameplay_options.log. Single-player only: the mod switches itself off in multiplayer.',
                '',
                'CONTENTS    1. GENERAL          2. AUTOCAST (spells, heal, polymorph, haste, eye of kilrogg)',
-               '            3. WORKERS          4. GOLD MINES AND OIL  5. HEROES',
+               '            3. WORKERS          4. GOLD, OIL AND FOOD  5. HEROES',
                '            6. HEALTH           7. PRICES              8. BUILD AND RESEARCH TIME',
                '            9. RANGE UPGRADE   10. YOUR OWN NUMBERS FOR ONE UNIT OR ONE BUILDING')
 text += '''
@@ -143,7 +143,7 @@ auto_harvest = false
 harvest_idle_seconds = 10
 harvest_radius = 5
 
-''' + banner('4. GOLD MINES AND OIL') + '''
+''' + banner('4. GOLD, OIL AND FOOD') + '''
 [gold_mines]
 # true = gold mines never run dry (every mine on the map, the computer's too). Starving a mine is a legitimate way to
 # win some campaign missions, but a computer that runs out of gold can stall a long game: your call.
@@ -158,6 +158,13 @@ amount = 1.0
 unlimited = false
 # The same for oil: every oil patch and platform, when a NEW map starts.
 amount = 1.0
+
+[food]
+# true = every Town Hall / Great Hall, Keep / Stronghold and Castle / Fortress gives hall_food_amount food instead
+# of the game's 1. In a custom game that starts with one peasant you can then train from the hall right away,
+# without waiting for a farm. A farm still gives 4, the 200 food limit stays. The computer gets the same.
+hall_food = false
+hall_food_amount = 5
 
 ''' + banner('5. HEROES') + '''
 [heroes]

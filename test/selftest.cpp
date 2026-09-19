@@ -620,6 +620,41 @@ int wmain(int argc, wchar_t** argv) {
         config::g.oilAmount = 1.0;
     }
 
+    // [food] hall_food: supply = 4 x farms + amount x (halls + keeps + castles), from the game's own counters. Off and
+    // never switched on = not a single write; switched off again = the game's own value (amount 1) comes back.
+    {
+        ResetWorld();
+        AddUnit(kFootman, 0, 5, 5, 60, 0, kOrderStand);  // BuildWorld wants at least one unit
+        uint16_t* supply = At<uint16_t>(kRvaFoodSupply);
+        uint16_t* farms = At<uint16_t>(kRvaFarmCount);
+        uint16_t* halls = At<uint16_t>(kRvaHallCount);
+        uint16_t* keeps = At<uint16_t>(kRvaKeepCount);
+        uint16_t* castles = At<uint16_t>(kRvaCastleCount);
+        for (int pl = 0; pl < 16; ++pl) supply[pl] = farms[pl] = halls[pl] = keeps[pl] = castles[pl] = 0;
+        halls[0] = 1; supply[0] = 1;                              // me: one fresh town hall, the custom game start
+        farms[1] = 3; keeps[1] = 1; castles[1] = 1; supply[1] = 14;  // the computer: 3 farms, a keep and a castle
+        supply[2] = 77;                                           // a value the formula would not produce
+        mod::OnTick();
+        CHECK(supply[0] == 1 && supply[1] == 14 && supply[2] == 77, "hall food off: the supply words must not be touched");
+        config::g.hallFood = true;
+        config::g.hallFoodAmount = 5;
+        mod::OnTick();
+        CHECK(supply[0] == 5 && supply[1] == 22 && supply[2] == 0, "hall food 5: me %u (5), computer %u (3x4 + 2x5 = 22)", supply[0], supply[1]);
+        halls[0] = 0; keeps[0] = 1; farms[0] = 2;                 // hall upgraded to a keep, two farms built
+        mod::OnTick();
+        CHECK(supply[0] == 13, "keep + 2 farms = 13 (%u)", supply[0]);
+        farms[3] = 0xFFFF; supply[3] = 40;                        // an underflowed counter: hands off that player
+        mod::OnTick();
+        CHECK(supply[3] == 40, "a wrapped counter must make the mod leave that player alone (%u)", supply[3]);
+        config::g.hallFood = false;
+        mod::OnTick();
+        CHECK(supply[0] == 9 && supply[1] == 14, "switched off: back to the game's own 1 per hall (me %u, computer %u)", supply[0], supply[1]);
+        supply[0] = 123;
+        mod::OnTick();
+        CHECK(supply[0] == 123, "after the restore the mod must stop writing (%u)", supply[0]);
+        for (int pl = 0; pl < 16; ++pl) supply[pl] = farms[pl] = halls[pl] = keeps[pl] = castles[pl] = 0;
+    }
+
     // Idle workers. Play time is fed in 100 ms steps; repair needs 1 s idle, harvest 10 s.
     auto step = [&](int ms) { for (int t = 0; t < ms; t += 100) { Sleep(100); mod::OnTick(); } };
     static uint16_t regionMap[kMap * kMap];

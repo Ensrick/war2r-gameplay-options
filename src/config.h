@@ -86,6 +86,9 @@ struct Config {
     // [gold_mines] / [oil_platforms]
     bool goldMinesUnlimited = false;
     bool oilPlatformsUnlimited = false;
+    // [food]
+    bool hallFood = false;            // halls give hallFoodAmount food instead of the game's 1
+    int hallFoodAmount = 5;           // per town hall / keep / castle (and the orc ones); a farm gives 4
     double goldMinesAmount = 1.0;     // x the gold in every mine, once, when a new map starts
     double oilAmount = 1.0;           // x the oil in every patch and platform, likewise
 

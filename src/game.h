@@ -58,6 +58,13 @@ constexpr uint32_t kRvaOilCostByType = 0x517A60;     // uint8[110], price / 10
 constexpr uint32_t kRvaUpgradeGold = 0x5188E0;       // uint16[52], PUD UGRD order
 constexpr uint32_t kRvaUpgradeLumber = 0x518948;     // uint16[52]
 constexpr uint32_t kRvaUpgradeOil = 0x5189B0;        // uint16[52]
+// Food (COUNT.cpp). Supply is a plain counter that only two callbacks touch: farms add 4 (0x4B50EA lea eax,[edx*4]),
+// every hall tier adds 1 (0x4B5182). Readers clamp it to 200 when they read it; "used" is computed, never stored.
+constexpr uint32_t kRvaFoodSupply = 0x51B50C;        // uint16[16 players]
+constexpr uint32_t kRvaFarmCount = 0x51B48C;         // uint16[16]: completed farms / pig farms (0x8C0B80[0x3A])
+constexpr uint32_t kRvaHallCount = 0x51B52C;         // uint16[16]: town / great halls
+constexpr uint32_t kRvaKeepCount = 0x51B54C;         // uint16[16]: keeps / strongholds
+constexpr uint32_t kRvaCastleCount = 0x51B56C;       // uint16[16]: castles / fortresses
 constexpr uint32_t kRvaGameFromSave = 0x51BFB0;      // uint16: 1 while the running game came from a savegame (mov [0x91BFB0],si at 0x4C4295)
 constexpr uint32_t kRvaNetGameAtLoad = 0x522F5B;     // uint8, network flag that is already valid while a map loads
 constexpr uint32_t kRvaNetGame = 0x51C6F4;            // nonzero while the game loop runs DONETWORKTURN (multiplayer)
