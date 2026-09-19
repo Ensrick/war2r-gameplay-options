@@ -4,7 +4,25 @@
 
 namespace units {
 
+// Other spellings a player is likely to type: short hero names, and the game's own display names
+// ("Grommash Hellscream", "Kurdran and Sky'ree", "Gul'dan", "Cho'gall" in Data\Strings\enUS.json).
+static const struct {
+    const char* alias;
+    const char* name;
+} kAliases[] = {
+    {"uther", "uther_lightbringer"},         {"teron", "teron_gorefiend"},
+    {"grom", "grom_hellscream"},             {"grommash", "grom_hellscream"},
+    {"grommash_hellscream", "grom_hellscream"}, {"korgath", "korgath_bladefist"},
+    {"kurdran_and_skyree", "kurdran"},       {"kurdan", "kurdran"},
+    {"gul_dan", "guldan"},                   {"cho_gall", "chogall"},
+    {"zul_jin", "zuljin"},                   {"gryphon", "gryphon_rider"},
+    {"ogremage", "ogre_mage"},               {"deathknight", "death_knight"},
+    {"sappers", "goblin_sappers"},
+};
+
 const Entry* FindByName(const char* name) {
+    for (const auto& a : kAliases)
+        if (_stricmp(a.alias, name) == 0) name = a.name;
     for (const Entry& e : kUnits)
         if (_stricmp(e.name, name) == 0) return &e;
     return nullptr;

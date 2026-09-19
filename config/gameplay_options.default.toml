@@ -90,9 +90,13 @@ repair_radius = 10
 
 [heroes]
 # Which unit types count as heroes (used by hero regeneration and the hero health multiplier).
+# All 15 heroes of both campaigns are listed. Short names work too: "uther", "grom", "teron", "korgath".
 units = [
-    "alleria", "teron_gorefiend", "kurdran", "dentarg", "khadgar", "grom_hellscream", "deathwing", "turalyon",
-    "danath", "korgath_bladefist", "chogall", "lothar", "guldan", "uther_lightbringer", "zuljin",
+    # Alliance
+    "alleria", "danath", "khadgar", "kurdran", "lothar", "turalyon", "uther_lightbringer",
+    # Horde
+    "chogall", "dentarg", "grom_hellscream", "guldan", "korgath_bladefist", "teron_gorefiend", "zuljin",
+    "deathwing",
 ]
 # Hit points every hero regenerates per second of play. 0 = off.
 regen_hp_per_second = 1

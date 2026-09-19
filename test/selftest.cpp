@@ -193,6 +193,22 @@ int wmain(int argc, wchar_t** argv) {
     CHECK(config::g.polymorphRank[kDragon] && config::g.polymorphRank[kDaemon] && !config::g.polymorphRank[kGrunt],
           "default polymorph list");
 
+    // The shipped [heroes] list holds all 15 campaign heroes (comments inside the list must not break it), and the
+    // short / in-game spellings resolve to the same unit.
+    {
+        const uint8_t heroes[] = {0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x23, 0x2C, 0x2E, 0x2F, 0x31, 0x32, 0x33, 0x34, 0x35};
+        int listed = 0;
+        for (int t = 0; t < 256; ++t) listed += config::g.isHero[t];
+        bool all = listed == 15;
+        for (uint8_t h : heroes) all = all && config::g.isHero[h];
+        CHECK(all, "shipped [heroes] units must hold exactly the 15 heroes (%d listed, uther %d)", listed, config::g.isHero[0x34]);
+        const units::Entry* uther = units::FindByName("uther");
+        const units::Entry* grom = units::FindByName("Grommash_Hellscream");
+        CHECK(uther && uther->id == 0x34 && grom && grom->id == 0x19 && units::FindByName("uther_lightbringer") == uther &&
+                  !units::FindByName("destroyer"),
+              "unit name aliases");
+    }
+
     // Heal: most hurt own unit wins; healthy, allied-player and out-of-threshold units are skipped.
     ResetWorld();
     Unit* pal = AddUnit(kTypePaladin, 0, 30, 30, 90, 255, kOrderStand);
