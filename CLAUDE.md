@@ -36,6 +36,9 @@ Ensrick/war2r-gameplay-options (public since 2026-09-18).
   fixes / docs, minor = new settings or features, major = breaks existing config files. EVERY change gets its own
   version in CMakeLists.txt, a dated entry in `CHANGELOG.md` (keep its "On Nexus Mods right now" line true), the same
   entry in `nexus/NEXUS_CHANGELOG.txt` + `nexus/changelog_<ver>_api.txt`, and the why in `docs/DEV_HISTORY.md`.
+  A RELEASE (only on the author's go-ahead naming the version) = Nexus upload (`Publish-NexusMod.ps1 -GameDomain
+  warcraft2 -ModId 8`, changelog posts are append-only: check the page first) + GitHub release `v<ver>` with the same
+  zip + the "Released:" line at the top of CHANGELOG.md. The Nexus description text can only be pasted by the author.
   Everything in the repo and the issues is public: no local paths, user names or keys. Pending work = GitHub issues.
 - License: MIT, Copyright (c) 2026 Ensrick (the author's final call on 2026-09-18, after trying a restrictive text in
   1.0.9). The project is open source; toml++ in third_party is MIT too.

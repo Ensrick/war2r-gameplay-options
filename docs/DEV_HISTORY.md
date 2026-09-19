@@ -24,6 +24,8 @@ Every change gets its own build number; newest first.
 - Side fix: the tree regrowth count logged after a restart (03:00:26 "8 tiles grew back" 36 s into a new map) was
   carried over from the previous game; it is now logged as "(previous map)" when a new map attaches.
 - Not claimed fixed until the author has played an edge-of-map idle worker session.
+- Released on the author's "update the nexus, github, and everything else": Nexus file id 15 (MAIN, 1.4.0 archived,
+  changelog posted) and the first GitHub release, `v1.4.1` with the zip.
 
 ## 1.4.0 (2026-09-19, UNTESTED in game)
 
