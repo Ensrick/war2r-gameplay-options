@@ -5,6 +5,11 @@ Every change gets its own build number; newest first.
 
 ## 1.4.0 (2026-09-19, UNTESTED in game)
 
+- Uploaded to Nexus Mods 2026-09-19 02:09 on the author's instruction ("Make sure you update the nexus files and
+  changelog when done. You should have access to the API key"): file id 14 "War2R Gameplay Options 1.4.0" is MAIN, his
+  own 1.0.0 upload (file id 13) archived, changelog entries posted for 1.0.1 to 1.4.0 (1.0.0 was his). The description
+  text cannot be set through the API.
+
 - Author: "units that are injured are often just a waste of food, what if we add 1 second regen to all units not just
   heroes? And then keep the section we have for heroes separate? I'm thinking 1hp a second by default, and change the
   default for heroes to 2 per second." and "Ships included, not structures."

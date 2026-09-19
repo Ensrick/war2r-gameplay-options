@@ -1,1 +1,1 @@
-The source code and an issue tracker for bug reports are public on GitHub (same permissions as this page). Readme updated. No change to the mod's behaviour.
+The source code and an issue tracker for bug reports are public on GitHub. Readme updated. No change to the mod's behaviour.

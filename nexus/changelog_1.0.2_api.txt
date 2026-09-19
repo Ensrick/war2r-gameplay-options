@@ -1,0 +1,3 @@
+Quieter defaults: out of the box only Heal, Slow, Bloodlust and Raise Dead autocast, plus worker auto-repair. Exorcism, Polymorph, Death Coil, Haste, Eye of Kilrogg, worker auto-harvest and hero regeneration are off until you switch them on.
+The unit examples in the config (sight 8 for dragons and gryphon riders, the tweaked destroyer) are comments now instead of active settings.
+Updating: your existing gameplay_options.toml is not overwritten and keeps behaving as before. Delete it if you want the new defaults.

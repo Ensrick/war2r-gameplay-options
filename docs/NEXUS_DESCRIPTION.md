@@ -19,8 +19,10 @@ Keep them in step with `docs/USER_README.txt`, `docs/CONFIG_TUTORIAL.md` and `CH
   with MIT they should allow uploads elsewhere, modification, conversion and asset use, each "with credit".
 - `nexus/NEXUS_DESCRIPTION.txt` changed with 1.0.9 / 1.0.10 (GitHub, license and bug report paragraph): the description cannot be edited
   through the Nexus API, so it has to be pasted again on the website.
-- On Nexus: 1.0.0 (the author's own upload). Nothing newer is uploaded; uploads wait for the author's go-ahead naming
-  the version. At upload time post one changelog entry per version that Nexus does not have yet
-  (`nexus/changelog_<ver>_api.txt`; the API is append-only).
+- On Nexus: **1.4.0** (file id 14, MAIN, uploaded 2026-09-19 through the API on the author's instruction; his own 1.0.0
+  upload is archived). Changelog entries exist for 1.0.0 to 1.4.0. The endpoint is append-only: before posting, read
+  `GET /v1/games/warcraft2/mods/8/changelogs.json` and skip every version that already has an entry. One text file per
+  version in `nexus/changelog_<ver>_api.txt`, one line per bullet.
+- Future uploads still need the author's go-ahead for that version.
 - Shipped config: examples as comments; only Heal, Slow, Bloodlust, Raise Dead and worker auto-repair are on.
 - Add the Buy Me a Coffee block (memory `reference_bmc_button.md`) if wanted on this page.

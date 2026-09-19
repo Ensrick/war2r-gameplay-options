@@ -3,8 +3,7 @@
 Semantic versioning: patch = fixes and documentation, minor = new settings or features, major = a change that breaks
 existing `gameplay_options.toml` files. Every change gets its own version and entry here, newest first.
 
-**On Nexus Mods right now: 1.0.0.** Later versions are built and tested offline and are in this repository; they reach
-Nexus together with the next upload.
+**On Nexus Mods right now: 1.4.0** (uploaded 2026-09-19, with a changelog entry for every version since 1.0.0).
 
 ## 1.4.0 - 2026-09-19
 
