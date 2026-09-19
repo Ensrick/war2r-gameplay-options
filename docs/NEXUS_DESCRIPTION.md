@@ -19,10 +19,10 @@ Keep them in step with `docs/USER_README.txt`, `docs/CONFIG_TUTORIAL.md` and `CH
   with MIT they should allow uploads elsewhere, modification, conversion and asset use, each "with credit".
 - `nexus/NEXUS_DESCRIPTION.txt` changed with 1.0.9 / 1.0.10 (GitHub, license and bug report paragraph): the description cannot be edited
   through the Nexus API, so it has to be pasted again on the website.
-- On Nexus: **1.4.1** (file id 15, MAIN, 2026-09-19 10:49; 1.4.0 = file 14 and the author's 1.0.0 = file 13 are
-  archived). Changelog entries exist for 1.0.0 to 1.4.1. The endpoint is append-only: before posting, read
-  `GET /v1/games/warcraft2/mods/8/changelogs.json` and skip every version that already has an entry. One text file per
-  version in `nexus/changelog_<ver>_api.txt`, one line per bullet. The page's version field lags the upload by a while.
+- On Nexus: **1.7.2** (file id 16, MAIN, 2026-09-19 18:34; 1.4.1, 1.4.0 and the author's 1.0.0 are archived).
+  Changelog entries exist for 1.0.0 to 1.7.2. The endpoint is append-only: read
+  `GET /v1/games/warcraft2/mods/8/changelogs.json` first and skip every version that already has one. The page's
+  version field lags the upload by a while (it still showed 1.4.1 right after this one).
 - Every Nexus upload also gets a GitHub release: tag `v<version>` on the release commit, the same zip attached, notes =
   that version's CHANGELOG.md section (first one: v1.4.1).
 - Future uploads still need the author's go-ahead for that version.
