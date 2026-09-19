@@ -22,11 +22,8 @@ def race_table(section, race, health):
     human = race == 'human'
     who = 'HUMAN' if human else 'ORC'
     L = [f'[{section}.{race}]']
-    if health:
-        L += [f'# --- {who} UNITS ---', f'# every {race} unit', 'all = 1.0']
-    else:
-        L += [f'# everything {race}: units, structures and research', 'all = 1.0', '', f'# --- {who} UNITS ---',
-              f'# every {race} unit', 'units = 1.0']
+    everything = f'# everything {race}: units, ships and structures' if health else f'# everything {race}: units, structures and research'
+    L += [everything, 'all = 1.0', '', f'# --- {who} UNITS ---', f'# every {race} unit and ship', 'units = 1.0']
     for key, what in UNIT_GROUPS:
         L.append(f'{key} = 1.0'.ljust(24) + '# ' + (what.split(' / ')[0 if human else 1] if ' / ' in what else what))
     if health:
@@ -186,12 +183,13 @@ regen_for = "all"
              'was made with. The computer plays by the same numbers. Engine limits: unit health 65535 (the status panel stops',
              'printing numbers from 10000 up), structure health 32767, unit and structure prices 2550 in steps of 10, research',
              'prices 65535, times 255 (many are already 200-255: they can be cut freely but barely lengthened). Free stays free.') + '''
-''' + banner('6. HEALTH', 'Units and structures have SEPARATE masters here: doubling unit health never touches a building.') + '''
+''' + banner('6. HEALTH', 'Same layout as PRICES and TIME: "all" is everything, then one master per kind.') + '''
 [health]
-# UNITS master: every unit of every race (never a structure).
+# Master for EVERYTHING: every unit, ship and structure of every race.
 all = 1.0
-# STRUCTURES master: every building of both races.
-structures = 1.0
+# Masters per kind (both races).
+units = 1.0              # every unit and ship, never a structure
+structures = 1.0         # every building, never a unit
 
 ''' + race_table('health', 'human', True) + LF + race_table('health', 'orc', True) + '''
 [health.neutral]
@@ -200,7 +198,7 @@ all = 1.0
 
 ''' + banner('7. PRICES', 'Gold, lumber and oil all scale.') + '''
 [costs]
-# Master for everything: units, structures and research.
+# Master for EVERYTHING: units, ships, structures and research.
 all = 1.0
 # Masters per kind (both races).
 units = 1.0

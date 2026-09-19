@@ -80,21 +80,21 @@ static void ReadFactorNode(const toml::node_view<const toml::node> node, const c
 }
 
 // [section] all, [section.human] / [section.orc] all + groups, [section.neutral] all.
-// healthOnly: unit groups (heroes included), "structures" and the two structure groups; no units / research keys.
+// healthOnly: the same keys minus research, plus the "heroes" unit group.
 static void ReadMultipliers(const toml::table& root, const char* section, bool healthOnly, Multipliers& m) {
     const auto sec = root[section];
     if (!sec) return;
     char where[96];
-    std::string topKnown = " all structures human orc neutral ";
+    std::string topKnown = " all units structures human orc neutral ";
     auto readTop = [&](const char* key, double& out) {
         sprintf_s(where, "[%s] %s", section, key);
         ReadFactorNode(sec[key], where, out);
     };
     readTop("all", m.all);
+    readTop("units", m.units);
     readTop("structures", m.structures);
-    if (!healthOnly) {  // in [health], "all" already is the unit master and there is no research
-        topKnown += "units research ";
-        readTop("units", m.units);
+    if (!healthOnly) {  // nothing to research has hit points
+        topKnown += "research ";
         readTop("research", m.research);
     }
 
@@ -121,10 +121,8 @@ static void ReadMultipliers(const toml::table& root, const char* section, bool h
         sprintf_s(where, "[%s.%s] all", section, kRaceKeys[r]);
         ReadFactorNode(raceNode["all"], where, rm.all);
         if (r != units::kNeutral) {
-            if (!healthOnly) {
-                read("units", rm.units);
-                read("research", rm.research);
-            }
+            read("units", rm.units);
+            if (!healthOnly) read("research", rm.research);
             for (int grp = 0; grp < units::kUnitGroupCount; ++grp) {
                 if (!kUnitGroupKeys[grp] || (!healthOnly && grp == units::kHeroes)) continue;  // heroes are never trained
                 read(kUnitGroupKeys[grp], rm.unit[grp]);

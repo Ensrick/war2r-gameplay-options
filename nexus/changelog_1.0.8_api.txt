@@ -1,0 +1,2 @@
+[health] all now covers EVERYTHING (units, ships and buildings), exactly like [costs] all and [time] all. New [health] units (also per race) is the units-only master.
+Changed meaning: up to 1.0.7 [health] all meant units only. If you had set it, move that number to [health] units to keep your buildings as they were.

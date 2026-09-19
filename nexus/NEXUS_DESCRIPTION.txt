@@ -98,7 +98,7 @@ Three sections with the same layout: [b][health][/b], [b][costs][/b], [b][time][
 [code]master "all"  x  master units / structures / research  x  race "all"  x  race units / structures / research  x  the group[/code]
 The file is split into numbered, labeled parts, and every race table has UNITS / STRUCTURES / RESEARCH sub-headers. [b]"All structures" is the key named structures[/b]: at the top of a section for both races, under [x.human] / [x.orc] for one race.
 [code][health]
-all = 2.0               # every unit in the game: double health
+all = 2.0               # EVERYTHING: every unit, ship and building has double health
 structures = 1.5        # every structure of both races
 
 [health.orc]
@@ -121,7 +121,7 @@ structures = 0.5        # every building and building upgrade half price
 
 [time]
 all = 0.5               # train, build and research twice as fast[/code]
-[b]Masters and umbrellas:[/b] all, units, structures, research. [b]Groups:[/b] workers, melee, ranged, siege, casters, air, naval, demolition, heroes (health only), buildings, building_upgrades (keep, castle, guard and cannon tower), melee_upgrades, ranged_upgrades, siege_upgrades, naval_upgrades, paladin_upgrades / ogre_mage_upgrades, mage_spells / death_knight_spells. In [health], "all" and the unit groups are unit health and never touch a structure; structures follow only structures / buildings / building_upgrades. Prices scale gold, lumber and oil.
+[b]Masters and umbrellas:[/b] all, units, structures, research. [b]Groups:[/b] workers, melee, ranged, siege, casters, air, naval, demolition, heroes (health only), buildings, building_upgrades (keep, castle, guard and cannon tower), melee_upgrades, ranged_upgrades, siege_upgrades, naval_upgrades, paladin_upgrades / ogre_mage_upgrades, mage_spells / death_knight_spells. "all" is everything (units, ships, structures, research), "units" is every unit and ship, "structures" every building: so [health] all, [costs] all and [time] all are the one-line whole-game settings, and [health] units gives tougher armies with normal buildings. Prices scale gold, lumber and oil.
 [b]Limits of the engine:[/b] 65535 hit points (32767 for structures), 2550 for a unit or structure price (steps of 10), 65535 for a research price, 255 for a build or research time.
 
 [size=4][b]5. Your own numbers for a single unit or building[/b][/size]

@@ -158,19 +158,23 @@ regen_for = "all"
 
 # ==============================================================================================================
 #  6. HEALTH
-#  Units and structures have SEPARATE masters here: doubling unit health never touches a building.
+#  Same layout as PRICES and TIME: "all" is everything, then one master per kind.
 # ==============================================================================================================
 
 [health]
-# UNITS master: every unit of every race (never a structure).
+# Master for EVERYTHING: every unit, ship and structure of every race.
 all = 1.0
-# STRUCTURES master: every building of both races.
-structures = 1.0
+# Masters per kind (both races).
+units = 1.0              # every unit and ship, never a structure
+structures = 1.0         # every building, never a unit
 
 [health.human]
-# --- HUMAN UNITS ---
-# every human unit
+# everything human: units, ships and structures
 all = 1.0
+
+# --- HUMAN UNITS ---
+# every human unit and ship
+units = 1.0
 workers = 1.0           # peasant
 melee = 1.0             # footman, knight, paladin
 ranged = 1.0            # archer, ranger
@@ -188,9 +192,12 @@ buildings = 1.0         # everything a worker places
 building_upgrades = 1.0 # keep, castle, guard tower, cannon tower
 
 [health.orc]
-# --- ORC UNITS ---
-# every orc unit
+# everything orc: units, ships and structures
 all = 1.0
+
+# --- ORC UNITS ---
+# every orc unit and ship
+units = 1.0
 workers = 1.0           # peon
 melee = 1.0             # grunt, ogre, ogre-mage
 ranged = 1.0            # axethrower, berserker
@@ -217,7 +224,7 @@ all = 1.0
 # ==============================================================================================================
 
 [costs]
-# Master for everything: units, structures and research.
+# Master for EVERYTHING: units, ships, structures and research.
 all = 1.0
 # Masters per kind (both races).
 units = 1.0
@@ -229,7 +236,7 @@ research = 1.0
 all = 1.0
 
 # --- HUMAN UNITS ---
-# every human unit
+# every human unit and ship
 units = 1.0
 workers = 1.0           # peasant
 melee = 1.0             # footman, knight, paladin
@@ -261,7 +268,7 @@ mage_spells = 1.0           # flame shield, fireball, slow, invisibility, polymo
 all = 1.0
 
 # --- ORC UNITS ---
-# every orc unit
+# every orc unit and ship
 units = 1.0
 workers = 1.0           # peon
 melee = 1.0             # grunt, ogre, ogre-mage
@@ -306,7 +313,7 @@ research = 1.0
 all = 1.0
 
 # --- HUMAN UNITS ---
-# every human unit
+# every human unit and ship
 units = 1.0
 workers = 1.0           # peasant
 melee = 1.0             # footman, knight, paladin
@@ -338,7 +345,7 @@ mage_spells = 1.0           # flame shield, fireball, slow, invisibility, polymo
 all = 1.0
 
 # --- ORC UNITS ---
-# every orc unit
+# every orc unit and ship
 units = 1.0
 workers = 1.0           # peon
 melee = 1.0             # grunt, ogre, ogre-mage

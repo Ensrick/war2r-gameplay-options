@@ -25,6 +25,9 @@ Ensrick/war2r-gameplay-options (private).
   store the tables, so that double-applies.
 - Versioning: public CHANGELOG starts at 1.0.0. Pre-release builds are `1.0.0-dev.N` (`MOD_PRERELEASE` in
   CMakeLists.txt); every change bumps N with an entry in `docs/DEV_HISTORY.md`. Pending work = GitHub issues.
+- A config written by an older version: `py -3 tools/migrate_config.py <file>` brings it up to date in place without
+  changing behaviour (adds `[oil_platforms]`, moves a pre-1.0.8 `[health] all` into `units`). Extend it whenever a key
+  is added or changes meaning.
 - Updating the player's installed config after a default-file change: `py -3 tools/port_config.py <installed> <new
   default> <out> --old-default <default it came from>` keeps every value they changed and appends their tables. Never
   overwrite an edited config with the default.

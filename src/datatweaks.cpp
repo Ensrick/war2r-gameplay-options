@@ -64,8 +64,8 @@ void ScaleUnits() {
 
 // A structure upgrade is priced and timed as the type it turns into: the pay path FUN_004ac610 reads the same
 // per-type tables for training, placement and structure upgrades.
-// Structure health follows ONLY the "structures" masters and the buildings / building_upgrades keys of [health]: the
-// "all" values are the player's unit health dials and must never reach a structure.
+// Since 1.0.8 [health] works like [costs] and [time]: "all" reaches units AND structures, "units" / "structures" are
+// the masters per kind.
 void ScaleStructures() {
     const Config& c = config::g;
     uint16_t* hp = At<uint16_t>(kRvaMaxHpByType);
@@ -77,7 +77,7 @@ void ScaleStructures() {
         const units::Race race = units::StructureRace(t);
         const units::StructureGroup group = units::StructureGroupOf(t);
         // Neutral structures (gold mine 25500, dark portal, runestone) are scenery, not buildings: never scaled.
-        if (race != units::kNeutral) ScaleCell(hp[t], c.health.StructureHealth(race, group), kMaxStructureHp);
+        if (race != units::kNeutral) ScaleCell(hp[t], c.health.Structure(race, group), kMaxStructureHp);
         const double cost = c.costs.Structure(race, group);
         ScaleCell(gold[t], cost, kMaxTypeCost);
         ScaleCell(lumber[t], cost, kMaxTypeCost);

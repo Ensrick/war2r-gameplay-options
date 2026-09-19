@@ -3,6 +3,21 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.0.8 (release build, staged 2026-09-18, NOT uploaded, UNTESTED in game)
+
+- Author: "We could [use] a multiplier that covers the health of all buildings, units, and ships. Basically everything.
+  Same for build time and cost." `[costs] all` and `[time] all` already were that. `[health] all` was units-only (his
+  own rule from the first multiplier request), which is what made the three sections read differently.
+- Decision: make `[health]` identical to the other two. `all` = everything, new `units` = units-only master (top level
+  and per race). `Multipliers::StructureHealth` is gone; health uses `Unit()` / `Structure()` like prices and times.
+  Neutral structures (gold mine, dark portal, runestone) are still never scaled.
+- This CHANGES the meaning of an existing key. `tools/migrate_config.py` (was `add_oil_section.py`) moves an old
+  `[health] all` value into `units` so the game behaves as before, verified by a TOML parse (the product all x units
+  per table must be unchanged, every other value identical). The author's installed config is migrated with it.
+- Also asked: "is there a more effective way to organize this rather than having so many overlapping multipliers?"
+  Proposed, NOT built: one flat table per section (all, human / orc / neutral, units / structures / research, then the
+  groups for both races at once); final = product of the dials that describe a thing. Tracked in a GitHub issue.
+
 ## 1.0.7 (release build, staged 2026-09-18, NOT uploaded, UNTESTED in game)
 
 - Author, first in-game autocast observation: "Why aren't air targets auto-cast for Bloodlust, and Death coil? Are

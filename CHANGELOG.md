@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.8 - staged 2026-09-18, not uploaded yet
+
+- `[health] all` now covers EVERYTHING (units, ships and structures), exactly like `[costs] all` and `[time] all`.
+  New `[health] units` (and `[health.human] units` / `[health.orc] units`) is the units-only master.
+- **Changed meaning:** up to 1.0.7 `[health] all` meant units only. If you had set it, move the number to
+  `[health] units` to keep your buildings as they were. `tools/migrate_config.py` (GitHub) does it in place.
+
 ## 1.0.7 - staged 2026-09-18, not uploaded yet
 
 - Fixed: autocast never saw flying units. The game keeps flyers in a separate air layer that the mod did not scan, so

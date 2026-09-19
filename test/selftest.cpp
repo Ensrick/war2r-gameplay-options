@@ -714,10 +714,11 @@ int wmain(int argc, wchar_t** argv) {
                   upGold[0] == 800 && upGold[33] == 1000 && buildT[kFootman] == 60 && upTime[0] == 200 && rangeT[kArcher] == 4,
               "defaults must leave health, prices, times and ranges alone");
 
-        // Health: master x race x group, heroes by the hero list, neutral via its own "all", structures never.
+        // Unit health: units master x race units x group, heroes by the hero list, neutral via its own "all"; the
+        // "units" keys never reach a structure.
         resetTables(); resetConfig();
-        config::g.health.all = 2.0;
-        config::g.health.race[kOrc].all = 1.5;
+        config::g.health.units = 2.0;
+        config::g.health.race[kOrc].units = 1.5;
         config::g.health.race[kOrc].unit[kMelee] = 2.0;
         config::g.health.race[kHuman].unit[kCasters] = 0.5;
         config::g.health.race[kHuman].unit[kHeroes] = 4.0;
@@ -729,13 +730,25 @@ int wmain(int argc, wchar_t** argv) {
         CHECK(hpT[kMageT] == 60, "human casters: 2 x 0.5 (mage %u)", hpT[kMageT]);
         CHECK(hpT[kLothar] == 720 && hpT[kGrom] == 720, "heroes: lothar 90 x2 x4, grom 240 x2 x1.5 (%u, %u)", hpT[kLothar], hpT[kGrom]);
         CHECK(hpT[kSkeleton] == 240, "neutral: 2 x 3 (skeleton %u)", hpT[kSkeleton]);
-        CHECK(hpT[kFarmT] == 400 && hpT[0x4A] == 1200 && hpT[kTypeGoldMine] == 25500, "structures and the gold mine must keep their health");
+        CHECK(hpT[kFarmT] == 400 && hpT[0x4A] == 1200 && hpT[kTypeGoldMine] == 25500, "the units keys must leave structures and the gold mine alone");
 
-        // Structure health: only the race's buildings / building_upgrades keys, never the unit masters.
+        // [health] all = EVERYTHING (player request 2026-09-18): units, ships, structures of every race; the race "all"
+        // likewise. Only neutral structures (gold mine, dark portal, runestone) stay out.
+        resetTables(); resetConfig();
+        hpT[kPigFarm] = 400; hpT[0x1E] = 100;  // elven destroyer
+        config::g.health.all = 2.0;
+        config::g.health.race[kOrc].all = 1.5;
+        datatweaks::OnNewMapTablesLoaded();
+        CHECK(hpT[kFootman] == 120 && hpT[0x1E] == 200 && hpT[kFarmT] == 800 && hpT[0x4A] == 2400 && hpT[kSkeleton] == 80,
+              "health all x2: units, ships, structures, neutral units (footman %u destroyer %u farm %u)", hpT[kFootman], hpT[0x1E], hpT[kFarmT]);
+        CHECK(hpT[kGrunt] == 180 && hpT[kPigFarm] == 1200, "orc all on top: 2 x 1.5 for grunt and pig farm (%u, %u)", hpT[kGrunt], hpT[kPigFarm]);
+        CHECK(hpT[kTypeGoldMine] == 25500, "the gold mine is scenery: never scaled");
+
+        // Structure health by group; the units masters stay out of it.
         resetTables(); resetConfig();
         hpT[kKeep] = 1400; hpT[kStronghold] = 1400; hpT[kPigFarm] = 400;
-        config::g.health.all = 3.0;
-        config::g.health.race[kHuman].all = 3.0;
+        config::g.health.units = 3.0;
+        config::g.health.race[kHuman].units = 3.0;
         config::g.health.race[kHuman].structure[kBuildings] = 2.0;
         config::g.health.race[kOrc].structure[kBuildingUpgrades] = 1.5;
         datatweaks::OnNewMapTablesLoaded();
@@ -750,7 +763,7 @@ int wmain(int argc, wchar_t** argv) {
         // The structures masters: [health] structures x [health.orc] structures x group, still blind to the unit dials.
         resetTables(); resetConfig();
         hpT[kPigFarm] = 400; hpT[kStronghold] = 1400;
-        config::g.health.all = 5.0;
+        config::g.health.units = 5.0;
         config::g.health.structures = 2.0;
         config::g.health.race[kOrc].structures = 1.5;
         config::g.health.race[kOrc].structure[kBuildingUpgrades] = 2.0;
@@ -821,7 +834,7 @@ int wmain(int argc, wchar_t** argv) {
         datatweaks::OnNewMapTablesLoaded();
         CHECK(hpT[kFootman] == 60000 && hpT[kDeathwing] == 65535, "health cap is 65535 (footman %u deathwing %u)", hpT[kFootman], hpT[kDeathwing]);
         CHECK(goldT[kDragon] == 255 && goldT[kKeep] == 255 && upGold[20] == 65535, "price caps: 2550 for a type, 65535 for research");
-        CHECK(hpT[kFarmT] == 400, "structures must never have their health scaled");
+        CHECK(hpT[kFarmT] == 32767, "health all reaches structures too, capped at 32767 (%u)", hpT[kFarmT]);
 
         // Range: listed units only, and the Longbow / Lighter Axes bonus as a 2-byte patch that the UI byte follows.
         resetTables(); resetConfig();
@@ -881,7 +894,7 @@ int wmain(int argc, wchar_t** argv) {
                           "[building.farm]\nhit_points = 40000\n"
                           "[unit.keep]\nhit_points = 9\n"
                           "[building.footman]\nhit_points = 9\n"
-                          "[health]\nstructures = 1.5\n[health.orc]\nbuildings = 2.0\nstructures = 3.0\n[costs]\nstructures = 0.5\nunits = 0.25\n[oil_platforms]\nunlimited = true\n");
+                          "[health]\nunits = 1.25\nstructures = 1.5\n[health.orc]\nbuildings = 2.0\nstructures = 3.0\n[costs]\nstructures = 0.5\nunits = 0.25\n[oil_platforms]\nunlimited = true\n");
             CHECK(config::Init(dir), "building tables rejected");
             const uint8_t tower = 0x60;
             CHECK(config::g.unitStat[tower][kStatHitPoints] == 200 && config::g.unitStat[tower][kStatPiercingDamage] == 14 &&
@@ -892,7 +905,8 @@ int wmain(int argc, wchar_t** argv) {
             CHECK(config::g.unitStat[kKeep][kStatHitPoints] == -1 && config::g.unitStat[kFootman][kStatHitPoints] == -1,
                   "a building under [unit.*] or a unit under [building.*] must be refused");
             CHECK(config::g.health.race[kOrc].structure[kBuildings] == 2.0 && config::g.health.structures == 1.5 &&
-                      config::g.health.race[kOrc].structures == 3.0 && config::g.costs.structures == 0.5 && config::g.costs.units == 0.25,
+                      config::g.health.race[kOrc].structures == 3.0 && config::g.costs.structures == 0.5 && config::g.costs.units == 0.25 &&
+                      config::g.health.units == 1.25,
                   "structure masters did not load from the file");
             CHECK(config::g.oilPlatformsUnlimited, "[oil_platforms] unlimited did not load from the file");
             datatweaks::OnNewMapTablesLoaded();
