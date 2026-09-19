@@ -7,6 +7,8 @@ Steps (each one only when the file still needs it):
   1.1.0  adds "amount = 1.0" to [gold_mines] and [oil_platforms]
   1.2.0  adds the [food] block after [oil_platforms]
   1.3.0  adds the [trees] block after [food]
+  1.7.0  adds part "11. AUTO-PRODUCTION" ([auto_production] and its sub-tables, switched off) in front of
+         "YOUR OWN NUMBERS", which becomes part 12
   1.6.1  the Raise Dead comment says that the spell must be researched
   1.6.0  adds part "10. SPELL POWER AND MANA" ([spell_damage], [spell_cost], [mana], all neutral) in front of
          "YOUR OWN NUMBERS", which becomes part 11
@@ -40,6 +42,7 @@ AUTOCAST_NEW = ['# Blizzard and Death and Decay keep casting wave after wave. Th
 RAISE_DEAD_COMMENT = '# Raise Dead: any fresh corpse within 15 tiles, enemies around or not. It must be researched unless the map grants it.'
 RAISE_DEAD_COMMENT_150 = "# Raise Dead works like the computer's: any fresh corpse within 15 tiles, enemies around or not."
 OLD_RAISE_DEAD_COMMENT = '# Raise Dead is only cast while an enemy is within search_radius, so skeletons are not wasted.'
+AUTO_PRODUCTION = ['[auto_production]', '# true = every IDLE building of yours trains by itself, all of them at once: halls, keeps and castles make workers,', "# barracks, aviaries / roosts, mage towers / temples and shipyards make the army. Single player only. The computer's", '# buildings are never touched, a building you have selected is left alone, and the mod never starts a research or a', '# building upgrade. It never builds transports, flying machines / zeppelins, dwarves / sappers or heroes, and never a', '# second oil tanker: scouting, ferrying and oil runs stay yours.', 'enabled = false', 'toggle_key = "F10"          # Ctrl + this key turns it on and off in game ("" = no hotkey)', 'workers_per_hall_tier = 6   # 6 workers with a town hall, 12 with a keep, 18 with a castle', '# Food that always stays free AFTER the unit being trained: this much, or this share of your supply, whichever is', '# more. That room is yours, for peasants, transports, zeppelins or a tanker of your own.', 'food_free_min = 4', 'food_free_percent = 10', '# Money kept back for upgrades: the dearest one you could buy right now plus this share of all the others. The more', '# you could be researching (towers, keep, castle, weapons, spells), the more it saves.', 'reserve_extra = 0.25', "upgrade_bias = 0.25         # each upgrade level a unit line already has raises that class's share by this much", 'filler_min = 10             # nothing of the mix affordable at a building: build what the spare bank buys this often', '# How much of your army is ships comes from the MAP: the water fraction plus 5% per oil source (at most 30% from', '# oil), a little higher while you only have a town hall. No oil and less than 10% water = a land map, no ships.', 'navy_weight = 1.0           # x that share (0 = never build ships)', 'navy_max = 80               # ships are never more than this much of the army, in percent', '', '[auto_production.units]', '# Switch a whole class off. Names are race-neutral: infantry = footman / grunt, archers = archer, ranger / axethrower,', '# berserker, knights = knight, paladin / ogre, ogre-mage, casters = mage / death knight, flyers = gryphon rider /', '# dragon, siege = ballista / catapult, battleships = battleship / juggernaught, submarines = submarine / turtle.', 'workers = true', 'infantry = true', 'archers = true', 'knights = true', 'casters = true', 'flyers = true', 'siege = true', 'tankers = true', 'destroyers = true', 'battleships = true', 'submarines = true', '', '[auto_production.bank_multiple]', '# Spare money (what is left after the upgrade reserve) that must be there before a unit is trained, as a multiple of', "# that unit's CURRENT price: four grunts' worth of gold before a grunt. Raise a price anywhere and this rises with it.", 'all = 4.0', '# knights = 8.0             # or per class, e.g. be twice as rich before each knight. Submarines always want twice.', '', '# Army mix per hall tier, in percent. Land and ships are split by the map first (see navy_weight above), then these', '# shares are spread over what you can actually train; a class you cannot build yet gives its share to the others.', '# Plenty of gold and little lumber makes the cheap classes grow by themselves.', '[auto_production.land_tier1]', 'infantry = 75', 'archers = 20', 'siege = 5', '', '[auto_production.land_tier2]', 'knights = 60', 'archers = 25', 'infantry = 10', 'siege = 5', '', '[auto_production.land_tier3]', 'knights = 40', 'casters = 25', 'archers = 15', 'flyers = 15', 'siege = 5', 'infantry = 0', '', '[auto_production.navy_tier1]', 'destroyers = 80', 'battleships = 20', '', '[auto_production.navy_tier2]', 'battleships = 60', 'destroyers = 25', 'submarines = 10', '', '[auto_production.navy_tier3]', 'battleships = 60', 'destroyers = 25', 'submarines = 10', '']
 SPELL_POWER = ['[spell_damage]', '# Damage of every damage spell, and the healing of Heal, x this: 2.0 = double. The per-spell numbers below replace', "# the game's own first (-1 = the game's), then this multiplier applies. Everyone gets these numbers, the computer too.", 'all = 1.0', 'fireball = -1          # per explosion, 5 explosions per cast (game: 40, at most 254)', 'flame_shield = -1      # per flame hit (game: 4, at most 254)', 'blizzard = -1          # per hit (game: 10, at most 254)', 'death_and_decay = -1   # per hit (game: 10, at most 254)', 'whirlwind = -1         # per hit (game: 4, at most 254)', 'death_coil = -1        # per cast, shared by the enemies hit; the caster heals as much (game: 50, at most 127)', 'runes = -1             # per rune (game: 50, at most 128)', 'heal = -1              # the most hit points one Heal restores (game: 40, at most 255)', '', '[spell_cost]', "# Mana cost of every spell x this, rounded up. The per-spell numbers below replace the game's own first (-1 = the", "# game's), then this multiplier applies. 1 to 255. Heal and Exorcism cost mana PER HIT POINT, and", '# [spell_damage] all lowers that price further (x2 damage = half the price). Everyone gets these costs.', 'all = 1.0', 'holy_vision = -1       # game: 70', 'heal = -1              # game: 5 per hit point healed', 'exorcism = -1          # game: 4 per hit point of damage', 'flame_shield = -1      # game: 80', 'fireball = -1          # game: 100', 'slow = -1              # game: 50', 'invisibility = -1      # game: 200', 'polymorph = -1         # game: 200', 'blizzard = -1          # game: 25 per wave', 'eye_of_kilrogg = -1    # game: 70', 'bloodlust = -1         # game: 60', 'raise_dead = -1        # game: 50', 'death_coil = -1        # game: 100', 'whirlwind = -1         # game: 100', 'haste = -1             # game: 50', 'unholy_armor = -1      # game: 100', 'runes = -1             # game: 200', 'death_and_decay = -1   # game: 30 per wave', '', '[mana]', '# How fast casters regain mana: 2.0 = twice as fast (the game: 1 point every 40 steps). Mana stops at 255, that', '# limit is part of the game. Everyone gets it, the computer too.', 'regen = 1.0']
 SPELL_POWER_TITLE = '10. SPELL POWER AND MANA'
 AMOUNT = {
@@ -204,6 +207,37 @@ def spell_power_160(lines, tree, notes):
     notes.append('added [spell_damage], [spell_cost] and [mana] at the end (all neutral)')
 
 
+def _auto_production_keys():
+    """Every (section..., key) tuple the [auto_production] block adds, sub-tables included."""
+    keys, section = set(), ()
+    for line in AUTO_PRODUCTION:
+        t = line.strip()
+        if t.startswith('[') and t.endswith(']'):
+            section = tuple(t[1:-1].split('.'))
+        elif t and not t.startswith('#') and '=' in t:
+            keys.add(section + (t.split('=')[0].strip(),))
+    return keys
+
+
+AUTO_PRODUCTION_KEYS = _auto_production_keys()
+
+
+def auto_production_170(lines, tree, notes):
+    if 'auto_production' in tree:
+        return
+    bar = '# ' + '=' * 110
+    block = [bar, '#  11. AUTO-PRODUCTION', bar, ''] + [l for l in AUTO_PRODUCTION if l is not None]
+    for i, line in enumerate(lines):
+        if line.startswith('#  11. YOUR OWN NUMBERS'):
+            lines[i] = line.replace('#  11.', '#  12.', 1)
+            at = i - 1 if i > 0 and lines[i - 1].startswith('# ====') else i
+            lines[at:at] = block
+            notes.append('added [auto_production] (switched off)')
+            return
+    lines += [''] + block
+    notes.append('added [auto_production] at the end (switched off)')
+
+
 def health_units(lines, tree, notes):
     health = tree.get('health', {})
     for table, who in (('health', None), ('health.human', 'human'), ('health.orc', 'orc')):
@@ -260,9 +294,12 @@ def main():
     add_regen(lines, before, notes)
     spells_150(lines, before, notes)
     spell_power_160(lines, before, notes)
+    auto_production_170(lines, before, notes)
     health_units(lines, before, notes)
     text = LF.join(lines)
     text = text.replace('#  5. HEROES' + LF, '#  5. HEROES AND REGENERATION' + LF, 1)
+    text = text.replace('11. YOUR OWN NUMBERS FOR ONE UNIT OR ONE BUILDING' + LF,
+                        '11. AUTO-PRODUCTION  12. YOUR OWN NUMBERS FOR ONE UNIT OR ONE BUILDING' + LF, 1)
     text = text.replace('9. RANGE UPGRADE   10. YOUR OWN NUMBERS FOR ONE UNIT OR ONE BUILDING' + LF,
                         '9. RANGE UPGRADE   10. SPELL POWER AND MANA' + LF + '#             11. YOUR OWN NUMBERS FOR ONE UNIT OR ONE BUILDING' + LF, 1)
     for old_title in ('#  4. GOLD MINES' + LF, '#  4. GOLD MINES AND OIL' + LF, '#  4. GOLD, OIL AND FOOD' + LF):
@@ -281,7 +318,8 @@ def main():
                ('unit_regen', 'regen_for')} | {('spells', l.split('=')[0].strip()) for l in SPELLS_NEW if not l.startswith('#')} | {
                ('autocast', l.split('=')[0].strip()) for l in AUTOCAST_NEW if not l.startswith('#')} | {
                (sec, l.split('=')[0].strip()) for sec in ('spell_damage', 'spell_cost', 'mana') for l in SPELL_POWER
-               if l and not l.startswith(('#', '['))} | {('trees', k) for k in ('regrow', 'regrow_min_minutes', 'regrow_max_minutes',
+               if l and not l.startswith(('#', '['))} | {
+               k for k in AUTO_PRODUCTION_KEYS} | {('trees', k) for k in ('regrow', 'regrow_min_minutes', 'regrow_max_minutes',
                'building_distance', 'unit_distance')} | {t + (k,) for t in (('health',), ('health', 'human'), ('health', 'orc')) for k in ('all', 'units')}
     hero_amount = ('heroes', 'regen_hp_per_second')
     if old.get(hero_amount) == 0 and new.get(('heroes', 'regen')) is False:

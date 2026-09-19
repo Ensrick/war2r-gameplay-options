@@ -7,6 +7,21 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-19). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.7.0 - 2026-09-19
+
+- New `[auto_production]` (off by default, Ctrl+F10 in game): every idle building of yours trains by itself, all of
+  them at once. Halls, keeps and castles make workers up to 6 per hall tier; barracks, aviaries / roosts, mage towers
+  / temples and shipyards make the army.
+- The mix is dynamic: the map decides the ship share (water fraction plus 5% per oil source, capped by `navy_max`),
+  the hall tier decides the land mix, a unit line with more upgrades gets a bigger share, and affordability bends the
+  rest, so plenty of gold with little lumber keeps the cheap units coming.
+- It always leaves food free (`food_free_min` 4 or `food_free_percent` 10%, whichever is more, counted after the unit),
+  keeps back what your next upgrade costs (`reserve_extra`), and only spends when the bank holds `bank_multiple` (4)
+  times a unit's current price.
+- It respects a mission's unit restrictions, never touches the computer's buildings or a building you have selected,
+  never starts a research, and never builds transports, flying machines / zeppelins, dwarves / sappers, heroes or a
+  second oil tanker.
+
 ## 1.6.2 - 2026-09-19
 
 - `[eye_of_kilrogg] max_active` now defaults to 3 (was 1): up to three eyes out at once across all your ogre-magi.

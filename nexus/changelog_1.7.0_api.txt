@@ -1,0 +1,3 @@
+New [auto_production] (off by default, Ctrl+F10 in game): every idle building of yours trains by itself, all at once. Halls make workers (6 per hall tier), barracks, roosts, temples and shipyards make the army.
+The mix is dynamic: the map sets the ship share (water and oil), the hall tier sets the land mix, upgraded lines get a bigger share, and what you can afford bends the rest.
+It always leaves you food, keeps back what your next upgrade costs, respects a mission's unit restrictions, never touches the computer's buildings or one you have selected, and never builds transports, zeppelins, sappers or a second tanker.

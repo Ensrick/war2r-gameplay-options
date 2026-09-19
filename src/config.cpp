@@ -26,6 +26,9 @@ const char* const kStatKeys[kStatCount] = {"hit_points", "armor", "basic_damage"
 const char* const kSpellCostKeys[kSpellCostCount] = {
     "holy_vision", "heal", "exorcism", "flame_shield", "fireball", "slow", "invisibility", "polymorph", "blizzard",
     "eye_of_kilrogg", "bloodlust", "raise_dead", "death_coil", "whirlwind", "haste", "unholy_armor", "runes", "death_and_decay"};
+const char* const kProductionClassKeys[kProdClassCount] = {"workers",     "infantry",    "archers",    "knights",
+                                                           "casters",     "flyers",      "siege",      "tankers",
+                                                           "destroyers",  "battleships", "submarines"};
 const char* const kSpellDamageKeys[kSpellDamageCount] = {"fireball",  "flame_shield", "blizzard", "death_and_decay",
                                                          "whirlwind", "death_coil",   "runes",    "heal"};
 
@@ -254,8 +257,8 @@ static void ReadStatTables(const toml::table& root, const char* section, bool bu
     }
 }
 
-static void ReadToggleKey(const toml::table& root, int& out) {
-    const auto node = root["general"]["toggle_key"];
+static void ReadToggleKey(const toml::table& root, const char* section, int& out) {
+    const auto node = root[section]["toggle_key"];
     if (!node) return;
     if (const auto v = node.value<int64_t>()) {
         out = Clamp(static_cast<int>(*v), 0, 255);
@@ -273,7 +276,88 @@ static void ReadToggleKey(const toml::table& root, int& out) {
             return;
         }
     }
-    logx::Write("config: [general] toggle_key must be \"F1\"..\"F12\", \"\" or a virtual-key number, keeping %d", out);
+    logx::Write("config: [%s] toggle_key must be \"F1\"..\"F12\", \"\" or a virtual-key number, keeping %d", section, out);
+}
+
+// [auto_production] plus its tables units, bank_multiple, land_tier1..3 and navy_tier1..3. Validates its own keys like
+// the multiplier trees: a value out of range or a key in the wrong group is logged and the default is kept.
+static void ReadAutoProduction(const toml::table& root, Config& c) {
+    const char* const kSec = "auto_production";
+    const auto sec = root[kSec];
+    if (!sec) return;
+    AutoProduction& p = c.production;
+    ReadBool(root, kSec, "enabled", p.enabled);
+    ReadToggleKey(root, kSec, p.toggleKey);
+    ReadInt(root, kSec, "workers_per_hall_tier", 0, 100, p.workersPerHallTier);
+    ReadInt(root, kSec, "food_free_min", 0, 200, p.foodFreeMin);
+    ReadInt(root, kSec, "food_free_percent", 0, 100, p.foodFreePercent);
+    ReadInt(root, kSec, "filler_min", 1, 1000, p.fillerMin);
+    ReadInt(root, kSec, "navy_max", 0, 100, p.navyMax);
+    auto readNumber = [&](const char* key, double lo, double hi, double& out) {  // 0 is a real value here
+        const auto node = sec[key];
+        if (!node) return;
+        const auto v = node.value<double>();
+        if (v && *v >= lo && *v <= hi) out = *v;
+        else logx::Write("config: [%s] %s must be a number from %.2f to %.2f, keeping %.2f", kSec, key, lo, hi, out);
+    };
+    readNumber("reserve_extra", 0.0, 10.0, p.reserveExtra);
+    readNumber("upgrade_bias", 0.0, 10.0, p.upgradeBias);
+    readNumber("navy_weight", 0.0, 10.0, p.navyWeight);
+    // [auto_production.bank_multiple] works like [costs]: "all" is the master, a class key overrides it for that class.
+    if (const auto node = sec["bank_multiple"]["all"]) {
+        const auto v = node.value<double>();
+        if (v && *v >= 0.1 && *v <= 1000.0) p.bankMultiple = *v;
+        else logx::Write("config: [%s.bank_multiple] all must be a number from 0.1 to 1000", kSec);
+    }
+
+    auto warnUnknown = [&](const char* table, const char* known) {
+        const toml::table* t = (table ? sec[table] : sec).as_table();
+        if (!t) return;
+        for (const auto& [key, unused] : *t) {
+            (void)unused;
+            const std::string padded = " " + std::string(key.str()) + " ";
+            if (!strstr(known, padded.c_str()))
+                logx::Write("config: unknown key [%s%s%s] %s ignored", kSec, table ? "." : "", table ? table : "", padded.c_str() + 1);
+        }
+    };
+    warnUnknown(nullptr, " enabled toggle_key workers_per_hall_tier food_free_min food_free_percent bank_multiple reserve_extra "
+                         "upgrade_bias filler_min navy_weight navy_max units land_tier1 land_tier2 land_tier3 navy_tier1 navy_tier2 "
+                         "navy_tier3 ");
+    const char* const kAllClasses = " workers infantry archers knights casters flyers siege tankers destroyers battleships submarines ";
+    const char* const kLandClasses = " infantry archers knights casters flyers siege ";
+    const char* const kNavyClasses = " destroyers battleships submarines ";
+    char withAll[256];
+    sprintf_s(withAll, " all%s", kAllClasses);
+    warnUnknown("units", kAllClasses);
+    warnUnknown("bank_multiple", withAll);
+    for (int cls = 0; cls < kProdClassCount; ++cls) {
+        const char* key = kProductionClassKeys[cls];
+        if (const auto node = sec["units"][key]) {
+            if (const auto v = node.value<bool>()) p.unitClass[cls] = *v;
+            else logx::Write("config: [%s.units] %s must be true or false", kSec, key);
+        }
+        if (const auto node = sec["bank_multiple"][key]) {
+            const auto v = node.value<double>();
+            if (v && *v >= 0.1 && *v <= 1000.0) p.classBankMultiple[cls] = *v;
+            else logx::Write("config: [%s.bank_multiple] %s must be a number from 0.1 to 1000", kSec, key);
+        }
+    }
+    for (int tier = 0; tier < kProdTiers; ++tier)
+        for (int navy = 0; navy < 2; ++navy) {
+            char table[16];
+            sprintf_s(table, "%s_tier%d", navy ? "navy" : "land", tier + 1);
+            warnUnknown(table, navy ? kNavyClasses : kLandClasses);
+            for (int cls = 0; cls < kProdClassCount; ++cls) {
+                const char* group = navy ? kNavyClasses : kLandClasses;
+                const std::string padded = " " + std::string(kProductionClassKeys[cls]) + " ";
+                if (!strstr(group, padded.c_str())) continue;  // that class is not part of this group
+                const auto node = sec[table][kProductionClassKeys[cls]];
+                if (!node) continue;
+                const auto v = node.value<int64_t>();
+                if (v && *v >= 0 && *v <= 100) (navy ? p.navy : p.land)[tier][cls] = static_cast<int>(*v);
+                else logx::Write("config: [%s.%s] %s must be a whole number from 0 to 100 (percent)", kSec, table, kProductionClassKeys[cls]);
+            }
+        }
 }
 
 static void SetPolymorphTargets(Config& c, const char* const* names, size_t count) {
@@ -372,6 +456,7 @@ static void WarnUnknownKeys(const toml::table& root) {
                        "bloodlust raise_dead death_coil whirlwind haste unholy_armor runes death_and_decay "},
         {"spell_damage", " all fireball flame_shield blizzard death_and_decay whirlwind death_coil runes heal "},
         {"mana", " regen "},
+        {"auto_production", nullptr},  // validates its own keys and sub-tables
     };
     for (const auto& [sectionKey, sectionNode] : root) {
         const std::string section(sectionKey.str());
@@ -412,7 +497,7 @@ static bool Load() {
     SetDefaultHeroes(c);
     WarnUnknownKeys(root);
     ReadBool(root, "general", "enabled", c.enabled);
-    ReadToggleKey(root, c.toggleKey);
+    ReadToggleKey(root, "general", c.toggleKey);
     ReadInt(root, "general", "interval_ticks", 1, 500, c.intervalTicks);
     ReadBool(root, "general", "log_casts", c.logCasts);
     ReadInt(root, "autocast", "search_radius", 1, 15, c.searchRadius);
@@ -470,6 +555,7 @@ static bool Load() {
     ReadInt(root, "unit_regen", "hp_per_second", 0, 1000, c.unitRegenPerSecond);
     ReadRegenFor(root, "unit_regen", c.unitRegenMineOnly);
     ReadHeroes(root, c);
+    ReadAutoProduction(root, c);
     g = c;
 
     char spells[320] = "";

@@ -31,6 +31,12 @@ WHAT IT DOES
 OUT OF THE BOX only this is switched on:
   - Autocast for Heal, Slow, Bloodlust and Raise Dead.
   - Idle workers repair damaged buildings nearby.
+NEW IN 1.7: AUTO-PRODUCTION. Switch [auto_production] enabled on (or press Ctrl+F10 in game) and every idle building
+of yours trains by itself: workers up to 6 per hall tier, and an army whose mix follows the map (how much water and
+oil it has), your hall tier, the upgrades you own and what you can afford. It always leaves you food, keeps money for
+your next upgrade, never touches the computer's buildings or a building you have selected, and never builds
+transports, zeppelins, sappers or a second tanker.
+
 NEW IN 1.6: spell power and mana. [spell_damage] and [spell_cost] set the damage and mana cost of every spell (a
 multiplier for all of them plus a number per spell), [mana] regen makes casters regain mana faster. Mana itself stops
 at 255: that limit is part of the game.

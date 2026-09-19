@@ -17,6 +17,7 @@ one `gameplay_options.toml` for every setting.
 | Workers | idle workers repair nearby damage, then return to the nearest mine or tree | `[workers]` |
 | Gold mines, oil | amount multiplier per new map; optional unlimited mines / oil platforms | `[gold_mines]` `[oil_platforms]` |
 | Food | optional: halls, keeps and castles give food (train before the first farm) | `[food]` |
+| Auto-production | idle buildings train workers and an army whose mix follows the map, your tier, upgrades and resources | `[auto_production]` |
 | Trees | experimental: felled forest grows back, never near buildings, walls or ground units, never closing a passage | `[trees]` |
 | Heroes | 1 HP per second regeneration | `[heroes]` |
 | Map-start data | health / price / time multipliers (master x race x group, all 1.0 by default, health is units-only), per-unit base stats, Longbow / Lighter Axes range bonus | `[health] [costs] [time] [unit.NAME] [range]` |
@@ -64,6 +65,7 @@ src/dllmain.cpp     proxy exports, attach
 src/hook.cpp        the two call-site hooks
 src/mod.cpp         per-tick orchestration, multiplayer gate, hotkey, config reload
 src/autocast.cpp    spell targeting        src/eye.cpp        Eye of Kilrogg
+src/production.cpp  auto-production
 src/trees.cpp       forest regrowth
 src/workers.cpp     idle workers           src/tweaks.cpp     regen, mines, oil, food
 src/datatweaks.cpp  map-start table edits  src/config.cpp     TOML (toml++ vendored in third_party/)

@@ -82,6 +82,13 @@ auto_harvest = true
 harvest_idle_seconds = 10
 harvest_radius = 5[/code]
 
+[size=4][b]Buildings that train by themselves[/b][/size]
+[b][auto_production][/b] (off by default, Ctrl+F10 in game): every idle building of yours trains on its own, all at once. Halls make workers (6 per hall tier), barracks, roosts, temples and shipyards make the army. The mix is not a fixed list: the map decides how much of it is ships (water fraction + oil patches), your hall tier decides the land mix, a unit line with upgrades gets a bigger share, and what you can actually afford bends the rest, so plenty of gold with little lumber quietly turns into grunts. It always leaves you food (4 or 10%, whichever is more), keeps back what your next upgrade costs, respects a mission's unit restrictions, never touches the computer's buildings or one you have selected, and never builds transports, zeppelins, sappers or a second tanker.
+[code][auto_production]
+enabled = true
+workers_per_hall_tier = 6
+navy_weight = 1.0          # how much of the map's water turns into ships (0 = never build ships)[/code]
+
 [size=4][b]Spell power and mana[/b][/size]
 Spells deal fixed damage, so with more health on the field they fall behind. [b][spell_damage][/b] multiplies the damage of every damage spell and the healing of Heal; [b][spell_cost][/b] multiplies every mana cost (rounded up); both also take a number per spell that replaces the game's own first. [b][mana] regen[/b] makes casters regain mana faster. Mana stops at 255, that limit is part of the game. Everyone gets these numbers, the computer too, and the game's own values come back in multiplayer.
 [code][spell_damage]

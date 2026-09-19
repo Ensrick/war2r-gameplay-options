@@ -3,6 +3,22 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.7.0 (2026-09-19, UNTESTED in game)
+
+- Author: "I spend most of my time cranking out units ... I'd like to make it so that above a certain resource
+  thresholds, troops start auto-producing", then three rounds of tuning (dynamic ratios instead of fixed numbers,
+  ships from the map's water and oil, more grunts at tier 1, no casters at tier 2, one tanker, no zeppelins, small
+  resource-gated submarines, food headroom for his own production, mission unit restrictions).
+- Research docs/research/production.md (agent): every production start goes through StartProduction FUN_004ace10
+  (kind 0 = unit), which the computer AI calls directly; it checks trained-at 0x838248, the requirement table
+  0x8C0428 and the cost / food function, but NOT the map's units-allowed mask, not "already researched", and it
+  ignores units in training in the food test. No rally points exist in this build.
+- Implemented by the same agent in a worktree (src/production.cpp, pure decision core + engine pass): map profile
+  (water %, oil sources) -> navy share; per-tier land / navy mix renormalised over what is trainable; upgrade reserve
+  from every purchasable research and building upgrade; bank_multiple x the live price; filler rule for a lopsided
+  bank (never across the land / ship line); food checked AFTER the unit; the player's selected building skipped; 10 s
+  back-off when the game refuses. 15 mutation checks.
+
 ## 1.6.2 (2026-09-19)
 
 - Author: "I also don't think eye of krillog is bieng cast at max mana." Log of his session: 12 eye casts, one at

@@ -1,3 +1,10 @@
+[size=4][b]1.7.0[/b][/size]
+[list]
+[*]New [auto_production] (off by default, Ctrl+F10 in game): every idle building of yours trains by itself, all at once. Halls make workers (6 per hall tier), barracks, roosts, temples and shipyards make the army.
+[*]The mix is dynamic: the map sets the ship share (water and oil), the hall tier sets the land mix, upgraded lines get a bigger share, and what you can afford bends the rest.
+[*]It always leaves you food, keeps back what your next upgrade costs, respects a mission's unit restrictions, never touches the computer's buildings or one you have selected, and never builds transports, zeppelins, sappers or a second tanker.
+[/list]
+
 [size=4][b]1.6.2[/b][/size]
 [list]
 [*][eye_of_kilrogg] max_active now defaults to 3 (was 1): up to three eyes out at once across all your ogre-magi. An existing config keeps its number.

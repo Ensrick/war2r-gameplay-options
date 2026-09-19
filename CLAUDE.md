@@ -34,6 +34,8 @@ Ensrick/war2r-gameplay-options (public since 2026-09-18).
   death coil <= 127, runes <= 128): outside them the game divides by zero or wraps.
 - Corpses (type 0x69) live only in the unit ARRAY, in no grid (retyped at `0x4BE0A5`, unfiled at death). Anything
   that looks for corpses scans the unit array; test worlds must not file corpses in a grid.
+- Auto-production calls the engine's StartProduction (`0x4ACE10`) exactly like the computer AI. It does NOT check the
+  map's units-allowed mask, "already researched" or units in training: `src/production.cpp` must keep doing that.
 - Orders: `SetOrder` writes the NEXT-order byte (+0x2F). Always read orders through `game::EffectiveOrder`.
 - Map-start data tweaks run ONLY from the new-map hook (0x4D2C46). Never apply table edits from the tick: savegames
   store the tables, so that double-applies.
