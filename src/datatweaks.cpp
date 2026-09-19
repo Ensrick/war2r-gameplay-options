@@ -20,6 +20,7 @@ namespace {
 // (FUN_004bd8f0) compares and subtracts it unsigned; every direct read of unit+0x22 in the exe is a movzx.
 // Cosmetic only: the status panel stops printing HP numbers from 10000 up.
 constexpr int kMaxHp = 65535;
+constexpr int kMaxStructureHp = 32767;   // the construction progress maths (FUN_004ed4e0) is signed 16-bit
 constexpr int kMaxTypeCost = 255;        // unit / structure prices are a BYTE holding price / 10: 2550 at most
 constexpr int kMaxResearchCost = 65535;  // research prices are plain 16-bit words
 constexpr int kMaxTime = 255;            // build and research times are bytes (the game doubles them into its timer)
@@ -47,23 +48,28 @@ void ScaleUnits() {
     uint16_t* hp = At<uint16_t>(kRvaMaxHpByType);
     uint8_t* gold = At<uint8_t>(kRvaGoldCostByType);
     uint8_t* lumber = At<uint8_t>(kRvaLumberCostByType);
+    uint8_t* oil = At<uint8_t>(kRvaOilCostByType);
     uint8_t* buildTime = At<uint8_t>(kRvaBuildTimeByType);
     for (int t = 0; t < units::kFirstBuilding; ++t) {
         units::Race race;
         units::UnitGroup group;
         if (!ClassifyUnit(t, &race, &group)) continue;
         ScaleCell(hp[t], c.health.Unit(race, group), kMaxHp);
-        // Units: gold and lumber only, as the player asked; oil is left alone.
         ScaleCell(gold[t], c.costs.Unit(race, group), kMaxTypeCost);
         ScaleCell(lumber[t], c.costs.Unit(race, group), kMaxTypeCost);
+        ScaleCell(oil[t], c.costs.Unit(race, group), kMaxTypeCost);
         ScaleCell(buildTime[t], c.time.Unit(race, group), kMaxTime);
     }
 }
 
-// Structures never have their health touched. A structure upgrade is priced and timed as the type it turns into:
-// the pay path FUN_004ac610 reads the same per-type tables for training, placement and structure upgrades.
+// A structure upgrade is priced and timed as the type it turns into: the pay path FUN_004ac610 reads the same
+// per-type tables for training, placement and structure upgrades.
+// Structure health follows ONLY the race's buildings / building_upgrades keys of [health]: the masters ("all") are
+// the player's unit health dials and must never reach a structure. Neutral structures (gold mine, dark portal,
+// runestone) have no keys at all, so they are never scaled.
 void ScaleStructures() {
     const Config& c = config::g;
+    uint16_t* hp = At<uint16_t>(kRvaMaxHpByType);
     uint8_t* gold = At<uint8_t>(kRvaGoldCostByType);
     uint8_t* lumber = At<uint8_t>(kRvaLumberCostByType);
     uint8_t* oil = At<uint8_t>(kRvaOilCostByType);
@@ -71,6 +77,7 @@ void ScaleStructures() {
     for (int t = units::kFirstBuilding; t < units::kTypeCount; ++t) {
         const units::Race race = units::StructureRace(t);
         const units::StructureGroup group = units::StructureGroupOf(t);
+        ScaleCell(hp[t], c.health.race[race].structure[group], kMaxStructureHp);
         const double cost = c.costs.Structure(race, group);
         ScaleCell(gold[t], cost, kMaxTypeCost);
         ScaleCell(lumber[t], cost, kMaxTypeCost);
@@ -95,7 +102,7 @@ void ScaleResearch() {
     }
 }
 
-// [unit.<name>]: the player's own base numbers replace the game's before any multiplier is applied.
+// [unit.<name>] / [building.<name>]: the player's own base numbers replace the game's before any multiplier.
 // Sight is still a plain range 0..9 here: FinalizeTables turns it into a reveal-function pointer right after us,
 // and 9 is the engine's maximum (there is no reveal function for more).
 int ApplyUnitStats() {

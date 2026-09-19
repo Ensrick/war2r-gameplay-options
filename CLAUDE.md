@@ -21,6 +21,9 @@ Ensrick/war2r-gameplay-options (private).
   store the tables, so that double-applies.
 - Versioning: public CHANGELOG starts at 1.0.0. Pre-release builds are `1.0.0-dev.N` (`MOD_PRERELEASE` in
   CMakeLists.txt); every change bumps N with an entry in `docs/DEV_HISTORY.md`. Pending work = GitHub issues.
+- Updating the player's installed config after a default-file change: `py -3 tools/port_config.py <installed> <new
+  default> <out> --old-default <default it came from>` keeps every value they changed and appends their tables. Never
+  overwrite an edited config with the default.
 - New config keys go in four places: `config.h`, `config.cpp` (reader + `kKnown` list),
   `config/gameplay_options.default.toml`, `docs/CONFIG_TUTORIAL.md`.
 - Ghidra: `C:\Tools\ghidra_projects` (`war2bne`, `war2r`, clones `war2r_a` / `war2r_b` for parallel agents), helper

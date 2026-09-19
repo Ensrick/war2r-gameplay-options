@@ -110,11 +110,11 @@ research = 0.5          # all orc research half price
 
 [time]
 all = 0.5               # train, build and research twice as fast[/code]
-[b]Groups:[/b] workers, melee, ranged, siege, casters, air, naval, demolition, heroes (health only), buildings, building_upgrades (keep, castle, guard and cannon tower), melee_upgrades, ranged_upgrades, siege_upgrades, naval_upgrades, paladin_upgrades / ogre_mage_upgrades, mage_spells / death_knight_spells. Health only ever touches units, never structures.
-[b]Limits of the engine:[/b] 65535 hit points, 2550 for a unit or structure price (steps of 10), 65535 for a research price, 255 for a build or research time.
+[b]Groups:[/b] workers, melee, ranged, siege, casters, air, naval, demolition, heroes (health only), buildings, building_upgrades (keep, castle, guard and cannon tower), melee_upgrades, ranged_upgrades, siege_upgrades, naval_upgrades, paladin_upgrades / ogre_mage_upgrades, mage_spells / death_knight_spells. In [health], "all" and the unit groups are unit health and never touch a structure; structures follow only their own buildings / building_upgrades keys. Prices scale gold, lumber and oil.
+[b]Limits of the engine:[/b] 65535 hit points (32767 for structures), 2550 for a unit or structure price (steps of 10), 65535 for a research price, 255 for a build or research time.
 
-[size=4][b]5. Your own numbers for a single unit[/b][/size]
-One [b][unit.name][/b] table per unit. [b]-1[/b], or leaving a line out, keeps the game's own number. 0 is a real value where it makes sense. These are base numbers: they go in first, and the multipliers above apply on top.
+[size=4][b]5. Your own numbers for a single unit or building[/b][/size]
+One [b][unit.name][/b] table per unit, one [b][building.name][/b] table per structure (same keys; damage and range matter for towers). [b]-1[/b], or leaving a line out, keeps the game's own number. 0 is a real value where it makes sense. These are base numbers: they go in first, and the multipliers above apply on top.
 [code][unit.elven_destroyer]
 hit_points = 105        # game: 100
 armor = 11              # game: 10

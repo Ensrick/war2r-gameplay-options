@@ -21,9 +21,10 @@ Tweaks (all configurable)
 - Unlimited gold mines, off by default.
 - Heroes regenerate 1 HP per second.
 - Multipliers for health, prices and build / research time, 1.0 by default: master x race (human / orc) x group.
-  Health only touches units. Caps are the engine's: 65535 hit points, 2550 per unit or structure price, 65535 per
+  Unit health dials never touch structures (structures have their own keys). Caps are the engine's: 65535 hit points
+  (32767 for structures), 2550 per unit or structure price, 65535 per
   research price, 255 per time.
-- Per-unit base stats in `[unit.<name>]` tables: hit points, armor, basic / piercing damage, range, sight, gold,
+- Per-unit and per-building base stats in `[unit.<name>]` / `[building.<name>]` tables: hit points, armor, basic / piercing damage, range, sight, gold,
   lumber, oil, build time. Ships with sight 8 for dragons and gryphon riders and a worked destroyer example.
 - Configurable range bonus for Longbow / Lighter Axes.
 

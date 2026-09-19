@@ -80,7 +80,7 @@ static void ReadFactorNode(const toml::node_view<const toml::node> node, const c
 }
 
 // [section] all, [section.human] / [section.orc] all + groups, [section.neutral] all.
-// healthOnly: only unit groups exist (heroes included), no umbrellas, no structures, no research.
+// healthOnly: unit groups (heroes included) and the two structure keys; no umbrellas, no research.
 static void ReadMultipliers(const toml::table& root, const char* section, bool healthOnly, Multipliers& m) {
     const auto sec = root[section];
     if (!sec) return;
@@ -119,11 +119,10 @@ static void ReadMultipliers(const toml::table& root, const char* section, bool h
                 if (!kUnitGroupKeys[grp] || (!healthOnly && grp == units::kHeroes)) continue;  // heroes are never trained
                 read(kUnitGroupKeys[grp], rm.unit[grp]);
             }
-            if (!healthOnly) {
-                for (int grp = 0; grp < units::kStructureGroupCount; ++grp) read(kStructureKeys[grp], rm.structure[grp]);
+            for (int grp = 0; grp < units::kStructureGroupCount; ++grp) read(kStructureKeys[grp], rm.structure[grp]);
+            if (!healthOnly)
                 for (int grp = 0; grp < units::kResearchGroupCount; ++grp)
                     read(ResearchKey(static_cast<units::Race>(r), grp), rm.researchGroup[grp]);
-            }
         }
         for (const auto& [key, unused] : *raceTable) {
             (void)unused;
@@ -151,41 +150,50 @@ static void ReadRange(const toml::table& root, Config& c) {
         }
 }
 
-// [unit.<name>] stat = value. -1 (or a missing key) keeps the game's own number; 0 is a real value where it makes sense.
-static void ReadUnitStats(const toml::table& root, Config& c) {
-    static const int kMax[kStatCount] = {65535, 255, 255, 255, 20, 9, 2550, 2550, 2550, 255};
+// [unit.<name>] / [building.<name>] stat = value. -1 (or a missing key) keeps the game's own number; 0 is a real
+// value where it makes sense. Both sections fill the same per-type table: the ids do not overlap.
+static void ReadStatTables(const toml::table& root, const char* section, bool buildings, Config& c) {
+    // Structure health stays below 32768: the construction progress maths (FUN_004ed4e0) works in signed 16 bits.
+    const int kMax[kStatCount] = {buildings ? 32767 : 65535, 255, 255, 255, 20, 9, 2550, 2550, 2550, 255};
     static const int kMin[kStatCount] = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    const toml::table* all = root["unit"].as_table();
+    const toml::table* all = root[section].as_table();
     if (!all) return;
     for (const auto& [unitKey, unitNode] : *all) {
         const std::string name(unitKey.str());
-        const units::Entry* e = units::FindByName(name.c_str());
+        const units::Entry* unit = units::FindByName(name.c_str());
+        const units::Building* building = units::FindBuildingByName(name.c_str());
         const toml::table* stats = unitNode.as_table();
-        if (!e || !stats) {
-            logx::Write("config: [unit.%s] is not a known unit name, section ignored", name.c_str());
+        if (!stats || (!unit && !building)) {
+            logx::Write("config: [%s.%s] is not a known %s name, section ignored", section, name.c_str(), buildings ? "building" : "unit");
             continue;
         }
+        if (buildings != (building != nullptr)) {
+            logx::Write("config: %s is a %s: write [%s.%s] instead, section ignored", name.c_str(), building ? "building" : "unit",
+                        building ? "building" : "unit", name.c_str());
+            continue;
+        }
+        const uint8_t id = building ? building->id : unit->id;
         for (const auto& [statKey, statNode] : *stats) {
             const std::string key(statKey.str());
             int stat = -1;
             for (int i = 0; i < kStatCount; ++i)
                 if (key == kStatKeys[i]) stat = i;
             if (stat < 0) {
-                logx::Write("config: unknown key [unit.%s] %s ignored", name.c_str(), key.c_str());
+                logx::Write("config: unknown key [%s.%s] %s ignored", section, name.c_str(), key.c_str());
                 continue;
             }
             const auto v = statNode.value<int64_t>();
             if (!v || *v < -1 || (*v >= 0 && (*v < kMin[stat] || *v > kMax[stat]))) {
-                logx::Write("config: [unit.%s] %s must be -1 (game default) or a whole number from %d to %d", name.c_str(), key.c_str(),
-                            kMin[stat], kMax[stat]);
+                logx::Write("config: [%s.%s] %s must be -1 (game default) or a whole number from %d to %d", section, name.c_str(),
+                            key.c_str(), kMin[stat], kMax[stat]);
                 continue;
             }
             int value = static_cast<int>(*v);
             if (value > 0 && stat >= kStatGold && stat <= kStatOil && value % 10 != 0) {
                 value = (value + 5) / 10 * 10;  // the engine stores prices in tens
-                logx::Write("config: [unit.%s] %s rounded to %d (prices move in steps of 10)", name.c_str(), key.c_str(), value);
+                logx::Write("config: [%s.%s] %s rounded to %d (prices move in steps of 10)", section, name.c_str(), key.c_str(), value);
             }
-            c.unitStat[e->id][stat] = value;
+            c.unitStat[id][stat] = value;
         }
     }
 }
@@ -291,6 +299,7 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"time", nullptr},
         {"range", nullptr},
         {"unit", nullptr},
+        {"building", nullptr},
         {"workers", " auto_harvest harvest_idle_seconds harvest_radius auto_repair repair_idle_seconds repair_radius "},
     };
     for (const auto& [sectionKey, sectionNode] : root) {
@@ -353,7 +362,8 @@ static bool Load() {
     ReadMultipliers(root, "costs", false, c.costs);
     ReadMultipliers(root, "time", false, c.time);
     ReadRange(root, c);
-    ReadUnitStats(root, c);
+    ReadStatTables(root, "unit", false, c);
+    ReadStatTables(root, "building", true, c);
     ReadBool(root, "workers", "auto_harvest", c.workerAutoHarvest);
     ReadInt(root, "workers", "harvest_idle_seconds", 0, 3600, c.workerHarvestIdleSeconds);
     ReadInt(root, "workers", "harvest_radius", 1, 64, c.workerHarvestRadius);

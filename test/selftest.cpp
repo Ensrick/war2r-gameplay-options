@@ -647,12 +647,28 @@ int wmain(int argc, wchar_t** argv) {
         CHECK(hpT[kSkeleton] == 240, "neutral: 2 x 3 (skeleton %u)", hpT[kSkeleton]);
         CHECK(hpT[kFarmT] == 400 && hpT[0x4A] == 1200 && hpT[kTypeGoldMine] == 25500, "structures and the gold mine must keep their health");
 
-        // Costs: master, race, umbrellas and groups; units never touch oil, structures and research do.
+        // Structure health: only the race's buildings / building_upgrades keys, never the unit masters.
+        resetTables(); resetConfig();
+        hpT[kKeep] = 1400; hpT[kStronghold] = 1400; hpT[kPigFarm] = 400;
+        config::g.health.all = 3.0;
+        config::g.health.race[kHuman].all = 3.0;
+        config::g.health.race[kHuman].structure[kBuildings] = 2.0;
+        config::g.health.race[kOrc].structure[kBuildingUpgrades] = 1.5;
+        datatweaks::OnNewMapTablesLoaded();
+        CHECK(hpT[kFarmT] == 800 && hpT[0x4A] == 2400, "human buildings x2 only, masters ignored (farm %u town hall %u)", hpT[kFarmT], hpT[0x4A]);
+        CHECK(hpT[kKeep] == 1400 && hpT[kStronghold] == 2100 && hpT[kPigFarm] == 400, "building upgrades per race (keep %u stronghold %u)", hpT[kKeep], hpT[kStronghold]);
+        CHECK(hpT[kTypeGoldMine] == 25500, "neutral structures must never be scaled");
+        resetTables(); resetConfig();
+        config::g.health.race[kHuman].structure[kBuildings] = 1000.0;
+        datatweaks::OnNewMapTablesLoaded();
+        CHECK(hpT[kFarmT] == 32767, "structure health cap is 32767 (%u)", hpT[kFarmT]);
+
+        // Costs: master, race, umbrellas and groups; gold, lumber and oil all scale.
         resetTables(); resetConfig();
         config::g.costs.race[kHuman].units = 0.5;
         datatweaks::OnNewMapTablesLoaded();
-        CHECK(goldT[kFootman] == 30 && goldT[kArcher] == 25 && lumberT[kArcher] == 3 && lumberT[kFootman] == 0 && goldT[kDestroyer] == 35 && oilT[kDestroyer] == 70,
-              "human units umbrella: gold and lumber halved, oil and free untouched");
+        CHECK(goldT[kFootman] == 30 && goldT[kArcher] == 25 && lumberT[kArcher] == 3 && lumberT[kFootman] == 0 && goldT[kDestroyer] == 35 && oilT[kDestroyer] == 35,
+              "human units umbrella: gold, lumber and oil halved, free stays free (destroyer oil %u)", oilT[kDestroyer]);
         CHECK(goldT[kGrunt] == 60 && goldT[kDragon] == 225 && goldT[kFarmT] == 50 && upGold[0] == 800, "human units umbrella leaked");
 
         resetTables(); resetConfig();
@@ -743,8 +759,37 @@ int wmain(int argc, wchar_t** argv) {
             config::g.health.all = 2.0;
             config::g.costs.race[kHuman].unit[kNaval] = 0.5;
             datatweaks::OnNewMapTablesLoaded();
-            CHECK(hpT[0x1E] == 210 && goldT[0x1E] == 30 && oilT[0x1E] == 50, "multipliers apply on top of the player's base stats (hp %u gold %u oil %u)",
+            CHECK(hpT[0x1E] == 210 && goldT[0x1E] == 30 && oilT[0x1E] == 25, "multipliers apply on top of the player's base stats (hp %u gold %u oil %u)",
                   hpT[0x1E], goldT[0x1E], oilT[0x1E]);
+        }
+
+        // [building.<name>] tables use the same stats; a name in the wrong section is refused, not misapplied.
+        {
+            uint8_t* armorT = At<uint8_t>(kRvaArmorByType);
+            uint8_t* pierceT = At<uint8_t>(kRvaPiercingDamageByType);
+            resetTables(); resetConfig();
+            hpT[kGuardTower] = 130; armorT[kGuardTower] = 20; pierceT[kGuardTower] = 12; sightT[kGuardTower] = 9;
+            WriteFileText(ini,
+                          "[building.human_guard_tower]\nhit_points = 200\npiercing_damage = 14\nrange = 7\ngold = 450\nbuild_time = -1\n"
+                          "[building.farm]\nhit_points = 40000\n"
+                          "[unit.keep]\nhit_points = 9\n"
+                          "[building.footman]\nhit_points = 9\n"
+                          "[health.orc]\nbuildings = 2.0\n");
+            CHECK(config::Init(dir), "building tables rejected");
+            const uint8_t tower = 0x60;
+            CHECK(config::g.unitStat[tower][kStatHitPoints] == 200 && config::g.unitStat[tower][kStatPiercingDamage] == 14 &&
+                      config::g.unitStat[tower][kStatRange] == 7 && config::g.unitStat[tower][kStatGold] == 450 &&
+                      config::g.unitStat[tower][kStatBuildTime] == -1,
+                  "[building.human_guard_tower] did not load");
+            CHECK(config::g.unitStat[kFarmT][kStatHitPoints] == -1, "structure hit_points above 32767 must be refused");
+            CHECK(config::g.unitStat[kKeep][kStatHitPoints] == -1 && config::g.unitStat[kFootman][kStatHitPoints] == -1,
+                  "a building under [unit.*] or a unit under [building.*] must be refused");
+            CHECK(config::g.health.race[kOrc].structure[kBuildings] == 2.0, "[health.orc] buildings did not load");
+            datatweaks::OnNewMapTablesLoaded();
+            CHECK(hpT[kGuardTower] == 200 && pierceT[kGuardTower] == 14 && rangeT[kGuardTower] == 7 && goldT[kGuardTower] == 45 && armorT[kGuardTower] == 20,
+                  "guard tower stats (hp %u pierce %u range %u gold %u)", hpT[kGuardTower], pierceT[kGuardTower], rangeT[kGuardTower], goldT[kGuardTower]);
+            DeleteFileW(ini);
+            CHECK(config::Init(dir), "default config did not come back");
         }
 
         resetConfig();

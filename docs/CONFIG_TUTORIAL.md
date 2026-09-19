@@ -215,15 +215,26 @@ Groups you can use in `[x.human]` and `[x.orc]`:
 | `paladin_upgrades` (human) / `ogre_mage_upgrades` (orc) | the upgrade itself plus holy vision, healing, exorcism / eye of kilrogg, bloodlust, runes |
 | `mage_spells` (human) / `death_knight_spells` (orc) | their spell research |
 
-`[health]` only knows unit groups: structures never have their health changed. `[health.neutral] all` covers skeletons,
-daemons, critters and the Eye of Kilrogg. Units pay gold and lumber (oil is untouched); structures and research scale
-gold, lumber and oil.
+In `[health]`, `all` (the master and the one per race) and the unit groups are **unit** health: they never touch a
+structure. Structure health follows only its own two keys, `buildings` and `building_upgrades`, so doubling everyone's
+health does not quietly double every town hall. `[health.neutral] all` covers skeletons, daemons, critters and the Eye of
+Kilrogg. Prices scale gold, lumber and oil alike, for units, structures and research.
+
+```toml
+[health]
+all = 2.0               # units only
+
+[health.human]
+buildings = 1.5         # human structures
+building_upgrades = 2.0 # keep, castle, guard tower, cannon tower
+```
 
 The engine's own limits cap the results:
 
 | What | Limit | Why |
 |---|---|---|
 | Unit hit points | 65535 | stored in 16 bits. From 10000 up the status panel stops printing the numbers; the health bar still works |
+| Structure hit points | 32767 | the construction progress maths is signed 16-bit |
 | Unit or structure price | 2550, in steps of 10 | stored as one byte of tens |
 | Research price | 65535 | stored in 16 bits |
 | Build / research time | 255 | stored as one byte. Many are already 200-255 (town hall 255, dragon 250, most research 250), so times can be cut freely but barely lengthened |
@@ -253,10 +264,35 @@ build_time = 80         # 0-255        game: 90
 The shipped config contains this example for both destroyers so you can see every stat working; delete the two tables to
 get the normal destroyer back. It also gives dragons and gryphon riders `sight = 8` (the game's value is 6).
 
-Names: every unit name from the Polymorph list above, plus `ballista`, `catapult`, `flying_machine`, `zeppelin`, the ships
-(`human_tanker`, `orc_tanker`, `human_transport`, `orc_transport`, `elven_destroyer`, `troll_destroyer`, `battleship`,
-`juggernaught`, `gnomish_submarine`, `giant_turtle`) and the towers (`human_guard_tower`, `orc_guard_tower`,
-`human_cannon_tower`, `orc_cannon_tower`).
+Names: every unit name from the Polymorph list above, plus `ballista`, `catapult`, `flying_machine`, `zeppelin` and the
+ships (`human_tanker`, `orc_tanker`, `human_transport`, `orc_transport`, `elven_destroyer`, `troll_destroyer`,
+`battleship`, `juggernaught`, `gnomish_submarine`, `giant_turtle`). Short names work too (`uther`, `grom`, `gryphon`).
+
+### Your own numbers for one building
+
+Exactly the same, in `[building.<name>]` tables. The damage and range keys matter for the towers; `hit_points` tops out at
+32767 for structures.
+
+```toml
+[building.human_guard_tower]
+hit_points = 200        # game: 130
+piercing_damage = 14    # game: 12 (plus 4 basic)
+range = 7               # game: 6
+
+[building.farm]
+gold = 400              # game: 500
+lumber = 200            # game: 250
+build_time = 80         # game: 100
+```
+
+Names: `farm` `pig_farm` `human_barracks` `orc_barracks` `church` `altar_of_storms` `human_scout_tower` `orc_scout_tower`
+`stables` `ogre_mound` `gnomish_inventor` `goblin_alchemist` `gryphon_aviary` `dragon_roost` `human_shipyard` `orc_shipyard`
+`town_hall` `great_hall` `elven_lumber_mill` `troll_lumber_mill` `human_foundry` `orc_foundry` `mage_tower`
+`temple_of_the_damned` `human_blacksmith` `orc_blacksmith` `human_refinery` `orc_refinery` `human_oil_platform`
+`orc_oil_platform` `keep` `stronghold` `castle` `fortress` `human_guard_tower` `orc_guard_tower` `human_cannon_tower`
+`orc_cannon_tower` `human_wall` `orc_wall` `gold_mine` `dark_portal` `runestone`.
+
+A unit name under `[building.*]` (or the other way round) is refused with a note in the log, never misapplied.
 
 ### Longbow and Lighter Axes
 
@@ -328,9 +364,9 @@ Every cast is then written to `x86\gameplay_options.log` with the caster, the ta
 | workers | auto_repair / repair_idle_seconds / repair_radius | true / 1 / 10 | Idle workers repair your damaged buildings |
 | workers | auto_harvest / harvest_idle_seconds / harvest_radius | true / 10 / 5 | Idle workers go to the nearest mine or tree |
 | health / costs / time | all | 1.0 | Master multiplier of the section |
-| health.human / health.orc | all, workers, melee, ranged, siege, casters, air, naval, demolition, heroes | 1.0 each | Unit health by race and group (never structures), cap 65535 |
+| health.human / health.orc | all, workers, melee, ranged, siege, casters, air, naval, demolition, heroes; buildings, building_upgrades | 1.0 each | Unit health by race and group; structures only via their own two keys (cap 32767). Units cap 65535 |
 | health.neutral | all | 1.0 | Skeletons, daemons, critters, Eye of Kilrogg |
 | costs.human / costs.orc | all, units, research, the 8 unit groups, buildings, building_upgrades, the research groups | 1.0 each | Price multipliers, caps 2550 / 65535 |
 | time.human / time.orc | same keys as costs | 1.0 each | Training, construction, upgrade and research time, cap 255 |
 | range | upgrade_bonus | 1 | Range added by Longbow / Lighter Axes |
-| unit.NAME | hit_points, armor, basic_damage, piercing_damage, range, sight, gold, lumber, oil, build_time | -1 each | Base stats of one unit type, -1 = the game's value |
+| unit.NAME / building.NAME | hit_points, armor, basic_damage, piercing_damage, range, sight, gold, lumber, oil, build_time | -1 each | Base stats of one unit or structure type, -1 = the game's value |

@@ -141,7 +141,9 @@ regen_for = "all"
 # ---------------------------------------------------------------------------------------------------------------
 
 [health]
-# Units only: structures are never touched. "all" is the master multiplier.
+# "all" is the master multiplier for UNIT health. It never touches structures, and neither do the race "all" values
+# or the unit groups. Structures follow only their own two keys below: buildings and building_upgrades
+# (keep / stronghold, castle / fortress, guard and cannon towers). Structure health tops out at 32767.
 all = 1.0
 
 [health.human]
@@ -155,6 +157,8 @@ air = 1.0
 naval = 1.0
 demolition = 1.0
 heroes = 1.0
+buildings = 1.0
+building_upgrades = 1.0
 
 [health.orc]
 all = 1.0
@@ -167,13 +171,15 @@ air = 1.0
 naval = 1.0
 demolition = 1.0
 heroes = 1.0
+buildings = 1.0
+building_upgrades = 1.0
 
 [health.neutral]
 # Skeletons, daemons, critters, the Eye of Kilrogg.
 all = 1.0
 
 [costs]
-# Units pay gold and lumber (oil is untouched); structures and research scale gold, lumber and oil.
+# Gold, lumber and oil all scale, for units, structures and research alike.
 all = 1.0
 
 [costs.human]
@@ -275,7 +281,7 @@ upgrade_bonus = 1
 # numbers first; the [health] / [costs] / [time] multipliers then apply on top of them.
 # Names: every unit name listed under [polymorph], the ships (human_tanker orc_tanker human_transport orc_transport
 # elven_destroyer troll_destroyer battleship juggernaught gnomish_submarine giant_turtle), flying_machine zeppelin
-# ballista catapult, and the towers human_guard_tower orc_guard_tower human_cannon_tower orc_cannon_tower.
+# ballista catapult.
 #
 #   hit_points 1-65535   armor 0-255   basic_damage 0-255   piercing_damage 0-255   range 0-20 tiles   sight 0-9
 #   gold / lumber / oil 0-2550 in steps of 10   build_time 0-255
@@ -292,6 +298,21 @@ upgrade_bonus = 1
 # lumber = -1
 # oil = -1
 # build_time = -1
+#
+# Structures work the same way in [building.<name>] tables (hit_points tops out at 32767 there; the damage and range
+# keys matter for the towers). Names: farm pig_farm human_barracks orc_barracks church altar_of_storms
+# human_scout_tower orc_scout_tower stables ogre_mound gnomish_inventor goblin_alchemist gryphon_aviary dragon_roost
+# human_shipyard orc_shipyard town_hall great_hall elven_lumber_mill troll_lumber_mill human_foundry orc_foundry
+# mage_tower temple_of_the_damned human_blacksmith orc_blacksmith human_refinery orc_refinery human_oil_platform
+# orc_oil_platform keep stronghold castle fortress human_guard_tower orc_guard_tower human_cannon_tower
+# orc_cannon_tower human_wall orc_wall gold_mine dark_portal runestone
+#
+# Example (the game's guard tower: 130 hit points, armor 20, damage 4 basic + 12 piercing, range 6, sight 9,
+# 500 gold / 150 lumber, build time 140):
+# [building.human_guard_tower]
+# hit_points = 200
+# piercing_damage = 14
+# range = 7
 # ---------------------------------------------------------------------------------------------------------------
 
 # Scouts of the sky: dragons and gryphon riders see 8 tiles instead of the game's 6.

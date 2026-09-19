@@ -3,6 +3,21 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.0.0-dev.26 - 2026-09-18 (UNTESTED in game)
+
+- `[building.<name>]` tables: the same ten base stats as `[unit.<name>]` for every structure (43 names, ids checked
+  against `unitdata.dat` health and prices). Towers moved here from the unit names. A name in the wrong section is
+  refused with a log note. Structure `hit_points` is limited to 32767 (signed 16-bit construction maths).
+- `[health.human]` / `[health.orc]` gain `buildings` and `building_upgrades`. Structure health follows ONLY these keys:
+  the `all` masters and unit groups stay unit-only, as the player asked earlier. Neutral structures are never scaled.
+- `tools/port_config.py`: carries a player's changed values and added tables over to a new default file, verifies the
+  result value by value.
+
+## 1.0.0-dev.25 - 2026-09-18 (UNTESTED in game)
+
+- Unit price multipliers now scale oil too (player: "I wanted oil costs too"). The first request named gold and lumber
+  only, which is why oil had been left out.
+
 ## 1.0.0-dev.24 - 2026-09-18 (UNTESTED in game)
 
 - Player report: "uther seems to be missing" from `[heroes] units`. He was there as `uther_lightbringer`, the last

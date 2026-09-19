@@ -88,13 +88,14 @@ struct Config {
     int workerRepairRadius = 10;
 
     // [health] [costs] [time] [unit.*]: applied once when a NEW map starts (a savegame keeps the values it was made with)
-    // Health covers units only, never structures. 1.0 = the game's own numbers.
+    // 1.0 = the game's own numbers. In [health], "all" and the unit groups never touch structures; structures only
+    // follow their own two keys (buildings, building_upgrades).
     Multipliers health, costs, time;
 
     // [range]: what Longbow / Lighter Axes add to attack range
     int rangeUpgradeBonus = 1;
 
-    // [unit.<name>]: base stats by unit type, -1 = the game's own value. The multipliers apply on top.
+    // [unit.<name>] and [building.<name>]: base stats by type id, -1 = the game's own value. The multipliers apply on top.
     int32_t unitStat[256][kStatCount];
     Config() {
         for (auto& row : unitStat)

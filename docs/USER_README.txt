@@ -55,8 +55,9 @@ TWEAKS (each has its own switch or number)
   - Multipliers for HEALTH, PRICES and BUILD / RESEARCH TIME, all 1.0 (unchanged) by default. Each has a master
     value, a value per race (human / orc) and values per group (workers, melee, ranged, siege, casters, air, naval,
     demolition, heroes; buildings, building upgrades; melee / ranged / siege / naval research, paladin or ogre-mage
-    research, mage or death knight spells). They multiply into each other. Health only ever touches units.
-  - Your own base stats for any unit in a [unit.<name>] table: hit points, armor, basic and piercing damage, range,
+    research, mage or death knight spells). They multiply into each other. Unit health dials never touch structures;
+    structures have their own two health keys (buildings, building_upgrades).
+  - Your own base stats for any unit in a [unit.<name>] table, and for any structure in a [building.<name>] table: hit points, armor, basic and piercing damage, range,
     sight, gold, lumber, oil, build time. The shipped file changes both destroyers a little as a worked example;
     delete those two tables to get the normal destroyer back.
   - How much range Longbow / Lighter Axes add (the game's own bonus is 1).

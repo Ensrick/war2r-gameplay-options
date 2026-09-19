@@ -76,13 +76,44 @@ constexpr Entry kUnits[] = {
     {0x34, "uther_lightbringer", true, kHuman, kHeroes}, {0x35, "zuljin", true, kOrc, kHeroes},
     {0x37, "skeleton", false, kNeutral, kOther},        {0x38, "daemon", false, kNeutral, kOther},
     {0x39, "critter", false, kNeutral, kOther},
-    // Structures that shoot, so a [unit.<name>] table can set their range and damage. Ids >= kFirstBuilding are ignored by everything unit-only.
-    {0x60, "human_guard_tower", false, kHuman, kOther},  {0x61, "orc_guard_tower", false, kOrc, kOther},
-    {0x62, "human_cannon_tower", false, kHuman, kOther}, {0x63, "orc_cannon_tower", false, kOrc, kOther},
 };
 
 const Entry* FindByName(const char* name);  // case-insensitive, nullptr when unknown
 const Entry* FindById(uint8_t id);
+
+// Structures, for [building.<name>] tables. Ids and names checked against the default health / price rows of
+// Data\Rez\unitdata.dat (farm 400 HP, barracks 800, town hall 1200, keep 1400, castle 1600, towers 100 / 130 / 160).
+struct Building {
+    uint8_t id;
+    const char* name;
+};
+
+constexpr Building kBuildingNames[] = {
+    {0x3A, "farm"},                {0x3B, "pig_farm"},
+    {0x3C, "human_barracks"},      {0x3D, "orc_barracks"},
+    {0x3E, "church"},              {0x3F, "altar_of_storms"},
+    {0x40, "human_scout_tower"},   {0x41, "orc_scout_tower"},
+    {0x42, "stables"},             {0x43, "ogre_mound"},
+    {0x44, "gnomish_inventor"},    {0x45, "goblin_alchemist"},
+    {0x46, "gryphon_aviary"},      {0x47, "dragon_roost"},
+    {0x48, "human_shipyard"},      {0x49, "orc_shipyard"},
+    {0x4A, "town_hall"},           {0x4B, "great_hall"},
+    {0x4C, "elven_lumber_mill"},   {0x4D, "troll_lumber_mill"},
+    {0x4E, "human_foundry"},       {0x4F, "orc_foundry"},
+    {0x50, "mage_tower"},          {0x51, "temple_of_the_damned"},
+    {0x52, "human_blacksmith"},    {0x53, "orc_blacksmith"},
+    {0x54, "human_refinery"},      {0x55, "orc_refinery"},
+    {0x56, "human_oil_platform"},  {0x57, "orc_oil_platform"},
+    {0x58, "keep"},                {0x59, "stronghold"},
+    {0x5A, "castle"},              {0x5B, "fortress"},
+    {0x5C, "gold_mine"},           {0x60, "human_guard_tower"},
+    {0x61, "orc_guard_tower"},     {0x62, "human_cannon_tower"},
+    {0x63, "orc_cannon_tower"},    {0x65, "dark_portal"},
+    {0x66, "runestone"},           {0x67, "human_wall"},
+    {0x68, "orc_wall"},
+};
+
+const Building* FindBuildingByName(const char* name);  // case-insensitive, nullptr when unknown
 
 // Structures: 0x3A-0x5B alternate human / orc (farm, pig farm, ... castle, fortress); towers and walls likewise.
 // Gold mine, oil patch, start locations, circle of power, dark portal and runestone are neutral.

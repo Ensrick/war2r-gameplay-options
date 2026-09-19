@@ -28,6 +28,12 @@ const Entry* FindByName(const char* name) {
     return nullptr;
 }
 
+const Building* FindBuildingByName(const char* name) {
+    for (const Building& b : kBuildingNames)
+        if (_stricmp(b.name, name) == 0) return &b;
+    return nullptr;
+}
+
 const Entry* FindById(uint8_t id) {
     for (const Entry& e : kUnits)
         if (e.id == id) return &e;
