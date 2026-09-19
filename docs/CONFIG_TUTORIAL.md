@@ -557,7 +557,9 @@ builds a second tanker: ferrying, scouting and oil runs stay yours.
 
 ```toml
 [auto_production]
-workers_per_hall_tier = 6   # 6 workers with a town hall, 12 with a keep, 18 with a castle
+workers_tier1 = 12          # workers wanted with a town hall / great hall
+workers_tier2 = 16          # with a keep / stronghold
+workers_tier3 = 24          # with a castle / fortress (0 = never train workers)
 food_free_min = 4           # always leave this much food free: 4, or
 food_free_percent = 10      # 10 % of your supply, whichever is more
 reserve_extra = 0.25        # money kept back for upgrades (below)
@@ -565,6 +567,8 @@ upgrade_bias = 0.25         # a line with upgrades gets a bigger share (below)
 filler_min = 10             # spare money for this many units unblocks the filler rule (below)
 navy_weight = 1.0           # how much of the map's water turns into ships (0 = never build ships)
 navy_max = 80               # ships are never more than this much of the army, in percent
+workers_ignore_reserve = true  # workers only wait for their own price, never for the upgrade reserve
+tankers_ignore_reserve = true  # and the one tanker with them
 
 [auto_production.units]         # switch a whole class off
 flyers = false
@@ -582,7 +586,16 @@ own "not enough food" message does not count them, which is why it lets you over
 **The upgrade reserve.** The mod adds up every upgrade you could buy right now (weapons, armor, the ranger / berserker
 line, spells, the paladin / ogre-mage upgrade, keeps, castles, guard and cannon towers) and keeps the dearest one plus
 `reserve_extra` of all the others in the bank. The more you could be researching, the more it saves, so a unit is only
-built when it does not eat your next upgrade.
+built when it does not eat your next upgrade. **Building upgrades are the exception: a keep, a castle or a tower never
+sets that floor, it only ever counts at the `reserve_extra` weight** — a research is money you have already decided to
+spend, while a keep is something you buy when you want it, and left to anchor the reserve its 2000 gold would stop
+your army for the first ten minutes of every game.
+
+**Workers and the tanker are outside all of that.** They are the economy, not army shopping: they wait for their own
+price, the food rule, the mission list and the count target, and for nothing else. Early on the reserve is easily
+larger than your whole bank (the keep upgrade alone is 2000 gold), and a mod that stops making peasants there would
+never get the economy going. Set `workers_ignore_reserve` / `tankers_ignore_reserve` to false to put them back under
+the same rules as the army.
 
 **When a unit is affordable.** Not a fixed sum: everything left after the reserve must pay for `bank_multiple` of that
 unit, in every resource it costs. Four grunts' worth of spare gold before a grunt, four battleships' worth of spare
@@ -646,6 +659,14 @@ Good to know:
 - A new unit stands next to the building that made it. Warcraft II has no rally point, so the mod cannot set one.
 - If a unit cannot be placed (no free tile), that building waits 10 seconds before trying again.
 - `[general] log_casts = true` writes one line per start to `x86\gameplay_options.log`.
+- **Nothing being built?** With `log_casts = true` the log also gets one line every 30 seconds saying why, with the
+  numbers behind it:
+  `production: nothing (workers 6/6, food free 194, gold 700 lum 20 oil 0, reserve 0/0/0, blocked: workers=enough,
+  infantry=bank, archers=lumber, knights=prereq, siege=prereq)`. Per class it names the first thing in the way:
+  `off` (switched off), `mission` (the map forbids it), `prereq` (a building or upgrade is missing), `busy` /
+  `waiting` (the building is working, or waiting out a failed start), `food`, `gold` / `lumber` / `oil` (the price
+  itself), `reserve` (the upgrade reserve), `bank` (affordable, but not `bank_multiple` times over), `no platform`
+  (the tanker), and `enough` with the mix deficit when there are simply enough of them already.
 
 ### Change or remove the hotkey
 
@@ -716,13 +737,15 @@ tiles", "all corpses ... are claimed", "switched off"), at most once every 30 se
 | time.human / time.orc | same keys as costs | 1.0 each | Training, construction, upgrade and research time, cap 255 |
 | range | upgrade_bonus | 1 | Range added by Longbow / Lighter Axes |
 | auto_production | enabled / toggle_key | false / "F10" | Idle buildings of yours train by themselves; Ctrl + key toggles it |
-| auto_production | workers_per_hall_tier | 6 | Workers wanted per hall tier (6 / 12 / 18 with hall / keep / castle) |
+| auto_production | workers_tier1 / 2 / 3 | 12 / 16 / 24 | Workers wanted at your best hall tier: hall, keep, castle (0 to 200, 0 = none) |
 | auto_production | food_free_min / food_free_percent | 4 / 10 | Food always left free: the larger of the two |
 | auto_production | reserve_extra | 0.25 | Bank kept for upgrades: the dearest purchasable one + this much of the rest |
 | auto_production | upgrade_bias | 0.25 | Extra share per upgrade level of a class's line |
 | auto_production | filler_min | 10 | Spare money for this many units before the filler rule builds off-mix |
 | auto_production | navy_weight | 1.0 | Scales the ship share the map asks for; 0 = never build ships |
 | auto_production | navy_max | 80 | Ships never take more than this much of the army, in percent |
+| auto_production | workers_ignore_reserve | true | Workers wait for their own price only, never for the upgrade reserve or bank_multiple |
+| auto_production | tankers_ignore_reserve | true | The same for the single oil tanker |
 | auto_production.units | workers, infantry, archers, knights, casters, flyers, siege, tankers, destroyers, battleships, submarines | true each | Switch a class off |
 | auto_production.bank_multiple | all, then the same class names | 4.0 | Spare bank needed, as a multiple of the unit's own price (submarines always want twice) |
 | auto_production.land_tier1 / 2 / 3 | infantry, archers, knights, casters, flyers, siege | see the recipe | Land shares in percent, per hall tier |
