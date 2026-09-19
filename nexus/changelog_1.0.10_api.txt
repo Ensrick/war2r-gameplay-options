@@ -1,0 +1,1 @@
+The mod is open source under the MIT license; source code and issue tracker on GitHub. No change to the mod's behaviour.

@@ -1,3 +1,8 @@
+[size=4][b]1.0.10[/b][/size]
+[list]
+[*]The mod is open source under the MIT license; source code and issue tracker on GitHub. No change to the mod's behaviour.
+[/list]
+
 [size=4][b]1.0.9[/b][/size]
 [list]
 [*]The source code and an issue tracker for bug reports are public on GitHub (same permissions as this page). Readme updated. No change to the mod's behaviour.

@@ -102,9 +102,9 @@ GOOD TO KNOW
   a problem: https://github.com/Ensrick/war2r-gameplay-options/issues
 
 
-PERMISSIONS
------------
-Copyright (c) 2026 Ensrick. Same conditions as on the Nexus Mods page: for your personal use; do not upload it
-anywhere else, do not convert it to other games, do not reuse its files or code in other mods; ask before you release
-a modified version. The source code is on GitHub (link above) under the same terms. The TOML reader toml++ by Mark
-Gillard is used under the MIT license.
+LICENSE
+-------
+Copyright (c) 2026 Ensrick. Open source under the MIT license: you may use, change and share it as long as this
+copyright notice and the license text stay with it. Full text and source code:
+https://github.com/Ensrick/war2r-gameplay-options
+The TOML reader toml++ by Mark Gillard is used under the MIT license as well.

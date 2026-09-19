@@ -47,10 +47,9 @@ on, and drives all features over a fake world built inside the image's own globa
 
 ## License and reporting problems
 
-Source-available, **not** open source: see [LICENSE](LICENSE). The conditions are the same as on the
-[Nexus Mods page](https://www.nexusmods.com/warcraft2/mods/8): personal use, no re-uploads, no conversions, no reuse of
-the code or files in other mods, ask before releasing a modified version, credit Ensrick. toml++ in `third_party/` is
-MIT-licensed.
+Open source under the [MIT license](LICENSE): use it, change it, build on it, as long as the copyright notice
+"Copyright (c) 2026 Ensrick" and the license text stay with it. toml++ in `third_party/` is MIT-licensed as well.
+Download for players: the [Nexus Mods page](https://www.nexusmods.com/warcraft2/mods/8).
 
 Found a bug? [Open an issue](https://github.com/Ensrick/war2r-gameplay-options/issues) and attach
 `x86\gameplay_options.log` and your `gameplay_options.toml`. Releases and their notes: [CHANGELOG.md](CHANGELOG.md).

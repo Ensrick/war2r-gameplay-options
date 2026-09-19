@@ -6,6 +6,11 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 **On Nexus Mods right now: 1.0.0.** Later versions are built and tested offline and are in this repository; they reach
 Nexus together with the next upload.
 
+## 1.0.10 - 2026-09-18
+
+- The mod is open source under the MIT license (replaces the restrictive license text of 1.0.9). Readme and Nexus
+  description updated. No change to the mod's behaviour.
+
 ## 1.0.9 - 2026-09-18
 
 - The repository is public: https://github.com/Ensrick/war2r-gameplay-options, with the issue tracker for bug reports.

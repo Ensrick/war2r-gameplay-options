@@ -29,8 +29,8 @@ Ensrick/war2r-gameplay-options (public since 2026-09-18).
   version in CMakeLists.txt, a dated entry in `CHANGELOG.md` (keep its "On Nexus Mods right now" line true), the same
   entry in `nexus/NEXUS_CHANGELOG.txt` + `nexus/changelog_<ver>_api.txt`, and the why in `docs/DEV_HISTORY.md`.
   Everything in the repo and the issues is public: no local paths, user names or keys. Pending work = GitHub issues.
-- License: source-available custom `LICENSE` mirroring the Nexus permissions (NOT GPL / open source; the author chose
-  that on 2026-09-18). Do not describe the project as open source.
+- License: MIT, Copyright (c) 2026 Ensrick (the author's final call on 2026-09-18, after trying a restrictive text in
+  1.0.9). The project is open source; toml++ in third_party is MIT too.
 - A config written by an older version: `py -3 tools/migrate_config.py <file>` brings it up to date in place without
   changing behaviour (adds `[oil_platforms]`, moves a pre-1.0.8 `[health] all` into `units`). Extend it whenever a key
   is added or changes meaning.

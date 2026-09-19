@@ -1,42 +1,21 @@
-Gameplay Options for Warcraft II: Remastered
-Copyright (c) 2026 Ensrick. All rights reserved.
+MIT License
 
-The source code is published so that players can see what the mod does, build it themselves and report problems.
-It is NOT an open-source license. The conditions are the same as on the mod's Nexus Mods page:
-https://www.nexusmods.com/warcraft2/mods/8
+Copyright (c) 2026 Ensrick
 
-YOU MAY
-  - download, build and use the mod for your own personal, non-commercial play;
-  - read the source code, and open issues and pull requests at
-    https://github.com/Ensrick/war2r-gameplay-options
-    By submitting a pull request you allow the author to use, change and distribute your contribution as part of this
-    mod under these same terms.
-  - fork the repository on GitHub as GitHub's Terms of Service provide. A fork grants no right beyond this file.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-YOU MAY NOT, UNDER ANY CIRCUMSTANCES
-  - upload or redistribute the mod, its source code or any part of it to any other site or service;
-  - convert it to work with other games;
-  - use its code, configuration files, texts or any other asset of it in other mods, files or projects;
-  - use any part of it in a mod or file that is sold, for money, on Steam Workshop or any other platform;
-  - earn Nexus Mods Donation Points, or any comparable reward, with a mod or file that uses any part of it.
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-ASK FIRST
-  - You must get the author's permission before you modify these files to improve them and release the result. Bug
-    reports and pull requests to the repository above are the welcome way to get a fix in.
-
-CREDIT
-  Wherever the author gives a permission, "Ensrick" must be credited as the original author, with a link to the Nexus
-  Mods page or the GitHub repository above.
-
-THIRD-PARTY CODE
-  third_party/tomlplusplus (toml++, Copyright (c) Mark Gillard) is licensed under the MIT license, see
-  third_party/tomlplusplus/LICENSE. The terms above do not apply to it.
-
-This mod is not affiliated with or endorsed by Blizzard Entertainment. Warcraft is a trademark of Blizzard
-Entertainment, Inc. No game file is included in or modified by this mod.
-
-NO WARRANTY
-  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
-  WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHOR BE
-  LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

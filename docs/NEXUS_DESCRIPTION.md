@@ -14,9 +14,10 @@ Keep them in step with `docs/USER_README.txt`, `docs/CONFIG_TUTORIAL.md` and `CH
 
 ## State (2026-09-18)
 
-- The GitHub repository is PUBLIC (the author's call, "so people can report issues"). License: the custom
-  source-available `LICENSE`, same conditions as the permissions set on the Nexus page. Do not call it open source.
-- `nexus/NEXUS_DESCRIPTION.txt` changed with 1.0.9 (GitHub / bug report paragraph): the description cannot be edited
+- The GitHub repository is PUBLIC (the author's call, "so people can report issues"). License: MIT since
+  1.0.10 (open source). The permission dropdowns on the Nexus page are the author's to set on the website; to agree
+  with MIT they should allow uploads elsewhere, modification, conversion and asset use, each "with credit".
+- `nexus/NEXUS_DESCRIPTION.txt` changed with 1.0.9 / 1.0.10 (GitHub, license and bug report paragraph): the description cannot be edited
   through the Nexus API, so it has to be pasted again on the website.
 - On Nexus: 1.0.0 (the author's own upload). Nothing newer is uploaded; uploads wait for the author's go-ahead naming
   the version. At upload time post one changelog entry per version that Nexus does not have yet

@@ -3,6 +3,13 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.0.10 (2026-09-18, NOT uploaded)
+
+- Author, after seeing the restrictive license: "Ah well, just make it open source, use the MIT license." LICENSE is
+  the standard MIT text, Copyright (c) 2026 Ensrick (credit is kept by the notice requirement). Readme, shipped readme
+  and Nexus description say open source again. The permissions set on the Nexus page itself are website-only and are
+  the author's to change (they still said "no upload / no modification" at this point).
+
 ## 1.0.9 (2026-09-18, NOT uploaded)
 
 - Author: "Make it public so people can report issues." Pre-publication scan of the tracked files and the whole
