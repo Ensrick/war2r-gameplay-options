@@ -1,10 +1,21 @@
 [size=6][b]Gameplay Options for Warcraft II: Remastered[/b][/size]
 
-One small DLL and one text file, [b]gameplay_options.toml[/b], that put the single-player game under your control: casters that cast on their own the way the computer's do, workers that go back to work, and every unit number (health, prices, build times, damage, armor, range, sight) open to editing. Every feature has its own switch.
+One small DLL and one text file, [b]gameplay_options.toml[/b], that put the single-player game under your control: casters that use their spells on their own the way the computer's do, workers that go back to work, buildings that train by themselves, forests that grow back, and every unit number (health, prices, build times, damage, armor, range, sight, spell damage, mana) open to editing. Every feature has its own switch.
 
-[b]Out of the box[/b] only four autocasts (Heal, Slow, Bloodlust, Raise Dead) and worker auto-repair are switched on. Every other feature is off, every multiplier is 1.0, and the unit / building examples in the file are comments: nothing rebalances your game until you turn it on.
+[b]Out of the box[/b] only four autocasts (Heal, Slow, Bloodlust, Raise Dead) and worker auto-repair are switched on. Everything else is off, every multiplier is 1.0, and the unit examples in the file are comments: nothing rebalances your game until you turn it on.
 
-[b]Single-player only.[/b] The mod switches itself off in multiplayer games.
+[b]Single-player only.[/b] The mod switches itself off in multiplayer games, and it changes no game file.
+
+[b]What it can do[/b]
+[list]
+[*][b]Autocast[/b] for every spell in the game, each with its own switch
+[*][b]Auto-production:[/b] idle buildings train workers and an army whose mix follows the map, your hall tier, your upgrades and your bank
+[*][b]Idle workers[/b] that repair and go back to harvesting
+[*][b]Forests that grow back[/b], never near your buildings and never closing a path
+[*][b]Resources:[/b] richer gold mines and oil, halls that give food, unlimited mines if you want them
+[*][b]Balance:[/b] health, prices, build and research times, spell damage and mana cost, per race, per group or per single unit
+[*][b]Regeneration[/b] for heroes and, separately, for every unit
+[/list]
 
 [line]
 [size=5][b]Installation[/b][/size]
@@ -17,11 +28,11 @@ One small DLL and one text file, [b]gameplay_options.toml[/b], that put the sing
 [/list]
 [b]Is it working?[/b] Start a single-player game and press [b]Ctrl+F9[/b]. A line of text "Autocast OFF" / "Autocast ON" appears in game. A file [i]x86\gameplay_options.log[/i] is also written on every start.
 
-[b]Uninstall:[/b] delete version.dll and the gameplay_options files from the x86 folder. The mod does not change any game file.
+[b]Uninstall:[/b] delete version.dll and the gameplay_options files from the x86 folder.
 
 [line]
 [size=5][b]How to use gameplay_options.toml[/b][/size]
-Open [i]x86\gameplay_options.toml[/i] with Notepad. Every setting has a comment above it that says what it does.
+Open [i]x86\gameplay_options.toml[/i] with Notepad. It is split into numbered parts and every setting has a comment above it that says what it does.
 [list]
 [*][b]Save while you play.[/b] The mod re-reads the file every few seconds. "Gameplay Options: settings reloaded" appears in game. No restart.
 [*][b]Mistakes are safe.[/b] After a typo the mod keeps your previous settings, tells you in game, and writes the line number to gameplay_options.log. A misspelled setting name is reported in the log as "unknown key".
@@ -44,18 +55,22 @@ toggle_key = "F9"     # text goes in double quotes
 targets = ["dragon", "daemon"]   # a list: square brackets, quotes, commas[/code]
 
 [size=4][b]1. Autocast[/b][/size]
+Every spell has its own switch under [b][spells][/b]. On by default: Heal (only units missing 10+ hit points, most hurt first), Slow, Bloodlust on units that are fighting, and Raise Dead.
 [list]
-[*][b]Paladin:[/b] Heal [on by default] (only units missing 10+ hit points, most hurt first), Exorcism on enemy undead
-[*][b]Mage:[/b] Slow [on by default], Polymorph (you list the valid targets, in priority order)
-[*][b]Ogre-Mage:[/b] Bloodlust [on by default] on units that are fighting; Eye of Kilrogg when idle at full mana, and the eye flies to unexplored ground by itself
-[*][b]Death Knight:[/b] Raise Dead [on by default] when enemies are near, Death Coil, Haste on your flyers, Unholy Armor
+[*][b]Paladin:[/b] Heal, Exorcism on enemy undead, Holy Vision
+[*][b]Mage:[/b] Slow, Polymorph (you list the valid targets, in priority order), Fireball, Blizzard, Flame Shield, Invisibility
+[*][b]Ogre-Mage:[/b] Bloodlust, Runes, Eye of Kilrogg (an idle ogre-mage at full mana, and the eye flies to unexplored ground by itself)
+[*][b]Death Knight:[/b] Raise Dead (any fresh corpse within 15 tiles, the computer's own rule), Death Coil, Haste, Unholy Armor, Whirlwind, Death and Decay
 [/list]
-Your move orders are never interrupted, two casters never pick the same target, and an eye you move yourself is left to you. Fireball, Flame Shield, Invisibility, Blizzard, Death and Decay, Whirlwind and Runes stay manual on purpose.
+Your move orders are never interrupted, two casters never pick the same target, and an eye you move yourself is left to you.
+
+[b]Area spells hurt your own units in this game[/b], so the eight area and utility spells are off by default and, when you do switch them on, they are only cast with no friendly unit, building or wall in the blast area. A Blizzard or Death and Decay the mod started is stopped as soon as a friendly walks in.
 [code][spells]
 exorcism = true           # switch more spells on
 polymorph = true
 death_coil = true
-haste = true
+fireball = true
+blizzard = true
 
 [heal]
 min_missing_hp = 25       # only heal real wounds
@@ -69,8 +84,11 @@ flyers_only = false       # haste every fighting unit, not just flyers
 
 [eye_of_kilrogg]
 cast = true
-max_active = 3
-auto_scout = true[/code]
+max_active = 3            # eyes out at once, all your ogre-magi together
+
+[autocast]
+area_min_enemies = 3      # enemies needed close together for Blizzard, Death and Decay, Whirlwind
+fireball_min_enemies = 2  # enemies needed along a Fireball's path[/code]
 
 [size=4][b]2. Workers[/b][/size]
 An idle peasant or peon repairs a damaged building of yours nearby (on by default), and with auto_harvest switched on a worker that is still idle walks to the nearest gold mine or tree. A worker carrying gold or lumber delivers it first. "Idle" means stopped with nothing queued; [b]Stand Ground[/b] is respected, so that is how you park a worker.
@@ -82,39 +100,28 @@ auto_harvest = true
 harvest_idle_seconds = 10
 harvest_radius = 5[/code]
 
-[size=4][b]Buildings that train by themselves[/b][/size]
-[b][auto_production][/b] (off by default, Ctrl+F10 in game): every idle building of yours trains on its own, all at once. Halls make workers (6 per hall tier), barracks, roosts, temples and shipyards make the army. The mix is not a fixed list: the map decides how much of it is ships (water fraction + oil patches), your hall tier decides the land mix, a unit line with upgrades gets a bigger share, and what you can actually afford bends the rest, so plenty of gold with little lumber quietly turns into grunts. It always leaves you food (4 or 10%, whichever is more), keeps back what your next upgrade costs, respects a mission's unit restrictions, never touches the computer's buildings or one you have selected, and never builds transports, zeppelins, sappers or a second tanker.
+[size=4][b]3. Buildings that train by themselves[/b][/size]
+[b][auto_production][/b] (off by default, Ctrl+F10 in game): every idle building of yours trains on its own, all of them at once. Halls, keeps and castles make workers, barracks, aviaries / roosts, mage towers / temples and shipyards make the army.
+
+The mix is not a fixed list. The map decides how much of it is ships (the water fraction plus the oil patches on it), your hall tier decides the land mix, a unit line with upgrades gets a bigger share, and what you can actually afford bends the rest, so plenty of gold with little lumber quietly turns into grunts. It keeps food free for your own building (4 or 10 %, whichever is more), keeps back what your next upgrade costs, and obeys a mission's unit restrictions. It never touches the computer's buildings or one you have selected, never starts a research, and never builds transports, flying machines / zeppelins, sappers / dwarves, heroes or a second oil tanker.
 [code][auto_production]
 enabled = true
-workers_per_hall_tier = 6
-navy_weight = 1.0          # how much of the map's water turns into ships (0 = never build ships)[/code]
+workers_tier1 = 12         # workers wanted with a town hall, a keep, a castle
+workers_tier2 = 16
+workers_tier3 = 24
+navy_weight = 1.0          # how much of the map's water turns into ships (0 = never build ships)
+bank_multiple = 4.0        # spare money needed before a unit: this many of its own price
 
-[size=4][b]Spell power and mana[/b][/size]
-Spells deal fixed damage, so with more health on the field they fall behind. [b][spell_damage][/b] multiplies the damage of every damage spell and the healing of Heal; [b][spell_cost][/b] multiplies every mana cost (rounded up); both also take a number per spell that replaces the game's own first. [b][mana] regen[/b] makes casters regain mana faster. Mana stops at 255, that limit is part of the game. Everyone gets these numbers, the computer too, and the game's own values come back in multiplayer.
-[code][spell_damage]
-all = 2.0            # every damage spell and Heal x2
-death_coil = -1      # or set one spell's damage yourself (-1 = the game's)
+[auto_production.land_tier3]
+# weights, not percentages: only the ratios matter
+knights = 40               # ogres / knights
+casters = 25               # death knights / mages
+archers = 15
+flyers = 15
+siege = 5
+infantry = 0[/code]
 
-[spell_cost]
-all = 1.0
-fireball = 50        # the game: 100
-heal = 3             # Heal and Exorcism cost mana PER HIT POINT (the game: 5 and 4)
-
-[mana]
-regen = 1.5          # 50% faster mana regeneration[/code]
-
-[size=4][b]Autocast for every spell[/b][/size]
-Every spell has its own switch under [b][spells][/b]. The eight area and utility spells (fireball, blizzard, death_and_decay, whirlwind, flame_shield, runes, invisibility, holy_vision) are off by default. Area spells hurt your own units and buildings in the game, so the mod only casts them with no friendly unit, building or wall in the blast area, and it stops a Blizzard or Death and Decay it started as soon as a friendly walks in. Raise Dead works like the computer's: any fresh corpse within 15 tiles.
-[code][spells]
-fireball = true
-blizzard = true
-
-[autocast]
-channel_mana_reserve = 0   # stop Blizzard / Death and Decay below this much mana (0 = never)
-area_min_enemies = 3       # enemies needed close together for Blizzard, Death and Decay, Whirlwind
-fireball_min_enemies = 2   # enemies needed along a Fireball's path[/code]
-
-[size=4][b]3. Gold mines, oil, food, trees and heroes[/b][/size]
+[size=4][b]4. Gold, oil, food and forests[/b][/size]
 [code][gold_mines]
 unlimited = true          # off by default. Covers every mine, the computer's too
 amount = 3.0              # or: three times the gold in every mine when a new map starts (1.0 = unchanged)
@@ -132,9 +139,10 @@ regrow = true             # EXPERIMENTAL, off by default: felled forest grows ba
 regrow_min_minutes = 10   # every stump waits its own time between min and max
 regrow_max_minutes = 20
 building_distance = 3     # never this close to a building or wall
-unit_distance = 3         # never this close to a ground unit; it also never closes a passage
+unit_distance = 3         # never this close to a ground unit; it also never closes a passage[/code]
 
-[heroes]
+[size=4][b]5. Heroes and regeneration[/b][/size]
+[code][heroes]
 regen = true              # off by default
 regen_hp_per_second = 2
 regen_for = "all"         # or "mine"
@@ -143,18 +151,19 @@ regen_for = "all"         # or "mine"
 enabled = true            # off by default: every unit and ship regenerates, never a structure
 hp_per_second = 1
 regen_for = "all"         # or "mine"[/code]
+The [b]units[/b] list under [heroes] decides who counts as a hero, for regeneration and for the "heroes" health multiplier. All 15 campaign heroes are listed by default.
 
-[size=4][b]4. Multipliers: health, prices, build and research time[/b][/size]
+[size=4][b]6. Multipliers: health, prices, build and research time[/b][/size]
 Three sections with the same layout: [b][health][/b], [b][costs][/b], [b][time][/b]. Everything is 1.0 (the game's own number) until you change it. 0.5 halves, 2.0 doubles. The values [b]multiply into each other from the top down[/b]:
 [code]master "all"  x  master units / structures / research  x  race "all"  x  race units / structures / research  x  the group[/code]
-The file is split into numbered, labeled parts, and every race table has UNITS / STRUCTURES / RESEARCH sub-headers. [b]"All structures" is the key named structures[/b]: at the top of a section for both races, under [x.human] / [x.orc] for one race.
 [code][health]
 all = 2.0               # EVERYTHING: every unit, ship and building has double health
+units = 1.0             # or only units, leaving buildings alone
 structures = 1.5        # every structure of both races
 
 [health.orc]
-all = 1.5               # orcs another 50% on top
-melee = 1.2             # grunts, ogres, ogre-magi 20% on top of that
+all = 1.5               # orcs another 50 % on top
+melee = 1.2             # grunts, ogres, ogre-magi 20 % on top of that
 
 [health.human]
 heroes = 4.0
@@ -162,21 +171,31 @@ heroes = 4.0
 [costs.human]
 units = 0.5             # every human unit half price
 naval_upgrades = 0.5    # ship cannon and ship armor research
-buildings = 1.5
-
-[costs.orc]
-research = 0.5          # all orc research half price
 
 [costs]
 structures = 0.5        # every building and building upgrade half price
 
 [time]
 all = 0.5               # train, build and research twice as fast[/code]
-[b]Masters and umbrellas:[/b] all, units, structures, research. [b]Groups:[/b] workers, melee, ranged, siege, casters, air, naval, demolition, heroes (health only), buildings, building_upgrades (keep, castle, guard and cannon tower), melee_upgrades, ranged_upgrades, siege_upgrades, naval_upgrades, paladin_upgrades / ogre_mage_upgrades, mage_spells / death_knight_spells. "all" is everything (units, ships, structures, research), "units" is every unit and ship, "structures" every building: so [health] all, [costs] all and [time] all are the one-line whole-game settings, and [health] units gives tougher armies with normal buildings. Prices scale gold, lumber and oil.
-[b]Limits of the engine:[/b] 65535 hit points (32767 for structures), 2550 for a unit or structure price (steps of 10), 65535 for a research price, 255 for a build or research time.
+[b]Masters:[/b] all, units, structures, research. [b]Groups:[/b] workers, melee, ranged, siege, casters, air, naval, demolition, heroes (health only), buildings, building_upgrades (keep, castle, guard and cannon tower), melee_upgrades, ranged_upgrades, siege_upgrades, naval_upgrades, paladin_upgrades / ogre_mage_upgrades, mage_spells / death_knight_spells. Prices scale gold, lumber and oil alike.
+[b]Limits of the engine:[/b] 65535 hit points (32767 for buildings), 2550 for a unit or building price (steps of 10), 65535 for a research price, 255 for a build or research time.
 
-[size=4][b]5. Your own numbers for a single unit or building[/b][/size]
-One [b][unit.name][/b] table per unit, one [b][building.name][/b] table per structure (same keys; damage and range matter for towers). [b]-1[/b], or leaving a line out, keeps the game's own number. 0 is a real value where it makes sense. These are base numbers: they go in first, and the multipliers above apply on top.
+[size=4][b]7. Spell damage, mana cost and regeneration[/b][/size]
+Spells deal fixed damage, so once there is more health on the field they fall behind. [b][spell_damage][/b] multiplies the damage of every damage spell and the healing of Heal; [b][spell_cost][/b] multiplies every mana cost (rounded up). Both also take a number per spell that replaces the game's own first. [b][mana] regen[/b] makes casters refill faster; the 255 mana limit is part of the game and cannot be raised. These numbers are global, so the computer's casters get them too, and the game's own values come back in multiplayer.
+[code][spell_damage]
+all = 2.0            # every damage spell and Heal x2
+death_coil = -1      # or set one spell's damage yourself (-1 = the game's)
+
+[spell_cost]
+all = 1.0
+fireball = 50        # the game: 100
+heal = 3             # Heal and Exorcism cost mana PER HIT POINT (the game: 5 and 4)
+
+[mana]
+regen = 1.5          # 50 % faster mana regeneration[/code]
+
+[size=4][b]8. Your own numbers for a single unit or building[/b][/size]
+One [b][unit.name][/b] table per unit, one [b][building.name][/b] table per building (same keys; damage and range matter for towers). [b]-1[/b], or leaving a line out, keeps the game's own number. 0 is a real value where it makes sense. These are base numbers: they go in first, and the multipliers above apply on top.
 [code][unit.elven_destroyer]
 hit_points = 105        # game: 100
 armor = 11              # game: 10
@@ -194,8 +213,8 @@ upgrade_bonus = 2       # range that Longbow / Lighter Axes add. The game's own 
 
 [size=4][b]When do changes apply?[/b][/size]
 [list]
-[*][b]Right away:[/b] spells, targets, workers, unlimited gold mines and oil platforms, hall food, tree regrowth, hero and unit regeneration, the hotkey, the Longbow / Lighter Axes bonus.
-[*][b]When a new map starts[/b] (new mission, custom game, restart): health, prices, times and [unit.name] tables. A savegame keeps the numbers it was made with, so saves from before you installed the mod stay exactly as they were.
+[*][b]Right away:[/b] spells and their targets, workers, auto-production, unlimited mines and oil, hall food, tree regrowth, hero and unit regeneration, spell damage and mana cost, the hotkeys, the Longbow / Lighter Axes bonus.
+[*][b]When a new map starts[/b] (new mission, custom game, restart): health, prices, build times, the richer mines and [unit.name] tables. A savegame keeps the numbers it was made with, so saves from before you installed the mod stay exactly as they were.
 [*]The computer plays by the same numbers you do.
 [/list]
 
@@ -206,11 +225,19 @@ upgrade_bonus = 2       # range that Longbow / Lighter Axes add. The game's own 
 [*]Made for game build [b]1.0.2.2818[/b]. After a Blizzard patch the mod does nothing (the game runs normally) until it is updated. gameplay_options.log then says "staying inert".
 [*]Battle.net "Scan and Repair" may remove version.dll. Just extract the zip again; your gameplay_options.toml is not touched.
 [*][b]Nothing happens and there is no x86\gameplay_options.log after starting the game?[/b] Then the game you started is not the copy the mod is in. Check your shortcut: it must start Warcraft II.exe from the same x86 folder that holds version.dll (a second or older install elsewhere on the disk is the usual reason). Starting from the Battle.net app always runs the right one.
-[*]Trouble? Look at x86\gameplay_options.log first and include it when you report a problem.
+[*][b]Want to see what it is doing?[/b] Set log_casts = true under [general]. The log then writes a line for every spell cast, every unit auto-production starts, and a line saying why nothing was produced.
 [/list]
 
+[size=5][b]Bugs and ideas[/b][/size]
+Please report problems with [b]x86\gameplay_options.log[/b] and your [b]gameplay_options.toml[/b] attached (and, if the game crashed, the newest folder in [b]x86\Errors[/b]). Comments here cannot carry files, so the trackers are easier for both of us:
+[list]
+[*][url=https://github.com/Ensrick/war2r-gameplay-options/issues/new?template=bug_report.md]Report a bug on GitHub[/url] or [url=https://gitlab.com/ensrick7/war2r-gameplay-options/-/issues/new?issuable_template=Bug]on GitLab[/url]
+[*][url=https://github.com/Ensrick/war2r-gameplay-options/issues/new?template=feature_request.md]Ask for a feature on GitHub[/url] or [url=https://gitlab.com/ensrick7/war2r-gameplay-options/-/issues/new?issuable_template=Feature]on GitLab[/url]
+[/list]
+No account on either? Say it in the comments and I will ask for what I need. Feature requests are welcome: most of what is in this mod started as one.
+
 [size=5][b]Source[/b][/size]
-Open source (MIT license), including the reverse-engineering notes: [url=https://github.com/Ensrick/war2r-gameplay-options]github.com/Ensrick/war2r-gameplay-options[/url], mirrored at [url=https://gitlab.com/ensrick7/war2r-gameplay-options]gitlab.com/ensrick7/war2r-gameplay-options[/url]. Bug reports and feature requests are welcome on either tracker (the forms say which files to attach) or in the comments here. Please report problems as a GitHub issue with gameplay_options.log and your gameplay_options.toml attached.
+Open source (MIT license), including the reverse-engineering notes behind every feature: [url=https://github.com/Ensrick/war2r-gameplay-options]github.com/Ensrick/war2r-gameplay-options[/url], mirrored at [url=https://gitlab.com/ensrick7/war2r-gameplay-options]gitlab.com/ensrick7/war2r-gameplay-options[/url].
 
 [size=5][b]Credits[/b][/size]
 The war2.ru community (Mistral and others) for two decades of Warcraft II reverse engineering, and toml++ by Mark Gillard for the config parser.
