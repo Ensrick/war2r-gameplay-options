@@ -1,3 +1,8 @@
+[size=4][b]1.1.0[/b][/size]
+[list]
+[*]New [gold_mines] amount and [oil_platforms] amount: multiply the gold in every mine and the oil in every patch and platform when a new map starts (1.0 = unchanged). Both sides get it and "Gold left" shows the real number. A mine can hold up to 6,553,500, ten times what the map editor allows.
+[/list]
+
 [size=4][b]1.0.10[/b][/size]
 [list]
 [*]The mod is open source under the MIT license; source code and issue tracker on GitHub. No change to the mod's behaviour.

@@ -171,6 +171,24 @@ Off by default. It covers every mine on the map, the computer's too.
 unlimited = true
 ```
 
+### More gold and oil on the map, without making it endless
+
+`amount` multiplies what every gold mine (and every oil patch and platform) holds **when a new map starts**. Both
+sides get it, "Gold left" shows the real number, and a savegame keeps what it had. Good for long games with raised
+health, where an ordinary mine runs dry before the fight is decided, and it keeps the computer from being starved out
+quite so easily.
+
+```toml
+[gold_mines]
+amount = 3.0        # a 40,000 mine starts at 120,000
+
+[oil_platforms]
+amount = 2.0
+```
+
+A mine can hold up to 6,553,500. The map editor stops at 637,500, so anything up to 10.0 always fits; beyond that the
+value is capped. `unlimited` and `amount` are independent.
+
 ### Oil platforms that never run dry
 
 The same thing for oil, with its own switch. Off by default; it covers every platform on the map, the computer's too.
@@ -397,7 +415,9 @@ Every cast is then written to `x86\gameplay_options.log` with the caster, the ta
 | eye_of_kilrogg | max_active | 1 | Eyes out at the same time |
 | eye_of_kilrogg | auto_scout | false | Eyes fly to unexplored ground |
 | gold_mines | unlimited | false | Mines never run dry (all mines) |
+| gold_mines | amount | 1.0 | Multiplies the gold in every mine when a new map starts (cap 6,553,500 per mine) |
 | oil_platforms | unlimited | false | Oil platforms never run dry (all platforms) |
+| oil_platforms | amount | 1.0 | Multiplies the oil in every patch and platform when a new map starts |
 | workers | auto_repair / repair_idle_seconds / repair_radius | true / 1 / 10 | Idle workers repair your damaged buildings |
 | workers | auto_harvest / harvest_idle_seconds / harvest_radius | false / 10 / 5 | Idle workers go to the nearest mine or tree |
 | health / costs / time | all | 1.0 | Master multiplier of the section: everything (units, ships, structures, research) |

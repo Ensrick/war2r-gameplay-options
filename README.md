@@ -15,7 +15,7 @@ one `gameplay_options.toml` for every setting.
 | Autocast | Heal, Slow, Bloodlust, Raise Dead (on by default); Exorcism, Polymorph, Death Coil, Haste, Unholy Armor (opt-in) | `[spells] [autocast] [heal] [polymorph] [haste]` |
 | Eye of Kilrogg | idle ogre-magi cast it, the eye scouts unexplored ground by itself | `[eye_of_kilrogg]` |
 | Workers | idle workers repair nearby damage, then return to the nearest mine or tree | `[workers]` |
-| Gold mines, oil | optional unlimited mines / oil platforms, off by default | `[gold_mines]` `[oil_platforms]` |
+| Gold mines, oil | amount multiplier per new map; optional unlimited mines / oil platforms | `[gold_mines]` `[oil_platforms]` |
 | Heroes | 1 HP per second regeneration | `[heroes]` |
 | Map-start data | health / price / time multipliers (master x race x group, all 1.0 by default, health is units-only), per-unit base stats, Longbow / Lighter Axes range bonus | `[health] [costs] [time] [unit.NAME] [range]` |
 

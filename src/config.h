@@ -86,6 +86,8 @@ struct Config {
     // [gold_mines] / [oil_platforms]
     bool goldMinesUnlimited = false;
     bool oilPlatformsUnlimited = false;
+    double goldMinesAmount = 1.0;     // x the gold in every mine, once, when a new map starts
+    double oilAmount = 1.0;           // x the oil in every patch and platform, likewise
 
     // [workers]
     bool workerAutoHarvest = false;

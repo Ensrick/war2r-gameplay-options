@@ -4,6 +4,7 @@
 
 Steps (each one only when the file still needs it):
   1.0.6  adds the [oil_platforms] block after [gold_mines]
+  1.1.0  adds "amount = 1.0" to [gold_mines] and [oil_platforms]
   1.0.8  [health] "all" used to mean "every unit". It now means everything (units, ships, structures), and the new
          "units" key is the units-only master. An old value moves from "all" to "units", so units keep their health and
          buildings stay untouched. Same for [health.human] / [health.orc].
@@ -23,6 +24,10 @@ OIL_BLOCK = ['[oil_platforms]',
              "# true = oil platforms never run dry (every platform on the map, the computer's too). A platform keeps the amount it",
              '# had when you switched this on, never less than 5000.',
              'unlimited = false']
+AMOUNT = {
+    'gold_mines': ['# Multiplies the gold in every mine when a NEW map starts: 3.0 = three times as much, for both sides. "Gold left"', '# shows the real number. A mine holds up to 6,553,500, ten times what the map editor allows, so 10.0 always fits.'],
+    'oil_platforms': ['# The same for oil: every oil patch and platform, when a NEW map starts.'],
+}
 
 
 def leaves(tree, prefix=()):
@@ -63,6 +68,18 @@ def add_oil(lines, tree, notes):
         end -= 1
     lines[end:end] = [''] + OIL_BLOCK
     notes.append('added [oil_platforms] unlimited = false')
+
+
+def add_amounts(lines, notes):
+    """Runs after add_oil, on the text: both sections exist by now."""
+    for section, comment in AMOUNT.items():
+        s = span(lines, f'[{section}]')
+        if s is None or value_line(lines, s[0], s[1], 'amount') is not None:
+            continue
+        at = value_line(lines, s[0], s[1], 'unlimited')
+        at = s[0] + 1 if at is None else at + 1
+        lines[at:at] = comment + ['amount = 1.0']
+        notes.append(f'added [{section}] amount = 1.0')
 
 
 def health_units(lines, tree, notes):
@@ -115,6 +132,7 @@ def main():
     lines = raw.replace(CRLF, LF).split(LF)
     notes = []
     add_oil(lines, before, notes)
+    add_amounts(lines, notes)
     health_units(lines, before, notes)
     text = LF.join(lines)
     text = text.replace('#  4. GOLD MINES' + LF, '#  4. GOLD MINES AND OIL' + LF, 1)
@@ -125,7 +143,7 @@ def main():
 
     after = tomllib.loads(text)
     old, new = dict(leaves(before)), dict(leaves(after))
-    allowed = {('oil_platforms', 'unlimited')} | {t + (k,) for t in (('health',), ('health', 'human'), ('health', 'orc')) for k in ('all', 'units')}
+    allowed = {('oil_platforms', 'unlimited'), ('oil_platforms', 'amount'), ('gold_mines', 'amount')} | {t + (k,) for t in (('health',), ('health', 'human'), ('health', 'orc')) for k in ('all', 'units')}
     lost = [k for k, v in old.items() if k not in allowed and new.get(k, KeyError) != v]
     extra = [k for k in new if k not in old and k not in allowed]
     # the health move must keep the product of the two keys for units

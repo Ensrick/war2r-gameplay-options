@@ -79,6 +79,12 @@ static void ReadFactorNode(const toml::node_view<const toml::node> node, const c
     out = *v;
 }
 
+static void ReadFactor(const toml::table& root, const char* section, const char* key, double& out) {
+    char where[96];
+    sprintf_s(where, "[%s] %s", section, key);
+    ReadFactorNode(root[section][key], where, out);
+}
+
 // [section] all, [section.human] / [section.orc] all + groups, [section.neutral] all.
 // healthOnly: the same keys minus research, plus the "heroes" unit group.
 static void ReadMultipliers(const toml::table& root, const char* section, bool healthOnly, Multipliers& m) {
@@ -302,8 +308,8 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"haste", " flyers_only "},
         {"heroes", " units regen_hp_per_second regen_for "},
         {"eye_of_kilrogg", " cast cast_at_mana max_active auto_scout "},
-        {"gold_mines", " unlimited "},
-        {"oil_platforms", " unlimited "},
+        {"gold_mines", " unlimited amount "},
+        {"oil_platforms", " unlimited amount "},
         {"health", nullptr},  // multiplier trees and [range] validate their own keys
         {"costs", nullptr},
         {"time", nullptr},
@@ -369,6 +375,8 @@ static bool Load() {
     ReadBool(root, "eye_of_kilrogg", "auto_scout", c.eyeAutoScout);
     ReadBool(root, "gold_mines", "unlimited", c.goldMinesUnlimited);
     ReadBool(root, "oil_platforms", "unlimited", c.oilPlatformsUnlimited);
+    ReadFactor(root, "gold_mines", "amount", c.goldMinesAmount);
+    ReadFactor(root, "oil_platforms", "amount", c.oilAmount);
     ReadMultipliers(root, "health", true, c.health);
     ReadMultipliers(root, "costs", false, c.costs);
     ReadMultipliers(root, "time", false, c.time);

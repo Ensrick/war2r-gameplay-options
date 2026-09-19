@@ -562,6 +562,64 @@ int wmain(int argc, wchar_t** argv) {
           "[gold_mines] must not refill oil platforms (platform %u mine %u)", Field<uint16_t>(humanRig, kOffResources), Field<uint16_t>(oilMine, kOffResources));
     config::g.goldMinesUnlimited = false;
 
+    // [gold_mines] amount / [oil_platforms] amount: once per NEW map, on the first tick after the new-map hook; never
+    // for a game that came from a save, never a second time, never in a multiplayer map, capped at 65535.
+    {
+        auto world = [&](Unit*& m, Unit*& rich, Unit*& patch, Unit*& rig) {
+            ResetWorld();
+            defType(kTypeGoldMine, kTfBuilding | 0x400000, 25500);
+            defType(kTypeOilPatch, 0, 0);
+            defType(0x56, kTfBuilding | kTfOilPlatform, 650);
+            m = AddUnit(kTypeGoldMine, kNeutralPlayer, 50, 50, 25500, 0, 0);
+            rich = AddUnit(kTypeGoldMine, kNeutralPlayer, 56, 50, 25500, 0, 0);
+            patch = AddUnit(kTypeOilPatch, kNeutralPlayer, 10, 50, 0, 0, 0);
+            rig = AddUnit(0x56, 0, 20, 20, 650, 0, 0);
+            Field<uint16_t>(m, kOffResources) = 400;      // 40,000 gold
+            Field<uint16_t>(rich, kOffResources) = 6375;  // the most a map can hold: 637,500
+            Field<uint16_t>(patch, kOffResources) = 250;
+            Field<uint16_t>(rig, kOffResources) = 101;
+        };
+        Unit *m, *rich, *patch, *rig;
+        config::g.goldMinesAmount = 3.0;
+        config::g.oilAmount = 2.5;
+        world(m, rich, patch, rig);
+        mod::OnTick();
+        CHECK(Field<uint16_t>(m, kOffResources) == 400, "mine amounts must wait for a new map (%u)", Field<uint16_t>(m, kOffResources));
+        datatweaks::OnNewMapTablesLoaded();  // the hook fires before the map's units exist...
+        world(m, rich, patch, rig);          // ...then the map is populated
+        mod::OnTick();
+        CHECK(Field<uint16_t>(m, kOffResources) == 1200 && Field<uint16_t>(rich, kOffResources) == 19125, "gold x3 (%u, %u)",
+              Field<uint16_t>(m, kOffResources), Field<uint16_t>(rich, kOffResources));
+        CHECK(Field<uint16_t>(patch, kOffResources) == 625 && Field<uint16_t>(rig, kOffResources) == 253, "oil x2.5, patch and platform, rounded (%u, %u)",
+              Field<uint16_t>(patch, kOffResources), Field<uint16_t>(rig, kOffResources));
+        mod::OnTick();
+        CHECK(Field<uint16_t>(m, kOffResources) == 1200, "amount applied twice (%u)", Field<uint16_t>(m, kOffResources));
+
+        config::g.goldMinesAmount = 20.0;
+        datatweaks::OnNewMapTablesLoaded();
+        world(m, rich, patch, rig);
+        mod::OnTick();
+        CHECK(Field<uint16_t>(m, kOffResources) == 8000 && Field<uint16_t>(rich, kOffResources) == 65535, "cap is 65535 = 6,553,500 (%u)", Field<uint16_t>(rich, kOffResources));
+
+        datatweaks::OnNewMapTablesLoaded();  // a save loaded before the first tick of the new map
+        world(m, rich, patch, rig);
+        *At<uint16_t>(kRvaGameFromSave) = 1;
+        mod::OnTick();
+        CHECK(Field<uint16_t>(m, kOffResources) == 400, "a game that came from a save must keep its amounts (%u)", Field<uint16_t>(m, kOffResources));
+        *At<uint16_t>(kRvaGameFromSave) = 0;
+        mod::OnTick();
+        CHECK(Field<uint16_t>(m, kOffResources) == 400, "the pending flag must be spent, not kept for later (%u)", Field<uint16_t>(m, kOffResources));
+
+        *At<uint8_t>(kRvaNetGameAtLoad) = 1;  // multiplayer map
+        datatweaks::OnNewMapTablesLoaded();
+        *At<uint8_t>(kRvaNetGameAtLoad) = 0;
+        world(m, rich, patch, rig);
+        mod::OnTick();
+        CHECK(Field<uint16_t>(m, kOffResources) == 400, "a multiplayer map load must not arm the amounts (%u)", Field<uint16_t>(m, kOffResources));
+        config::g.goldMinesAmount = 1.0;
+        config::g.oilAmount = 1.0;
+    }
+
     // Idle workers. Play time is fed in 100 ms steps; repair needs 1 s idle, harvest 10 s.
     auto step = [&](int ms) { for (int t = 0; t < ms; t += 100) { Sleep(100); mod::OnTick(); } };
     static uint16_t regionMap[kMap * kMap];

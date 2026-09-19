@@ -58,6 +58,7 @@ constexpr uint32_t kRvaOilCostByType = 0x517A60;     // uint8[110], price / 10
 constexpr uint32_t kRvaUpgradeGold = 0x5188E0;       // uint16[52], PUD UGRD order
 constexpr uint32_t kRvaUpgradeLumber = 0x518948;     // uint16[52]
 constexpr uint32_t kRvaUpgradeOil = 0x5189B0;        // uint16[52]
+constexpr uint32_t kRvaGameFromSave = 0x51BFB0;      // uint16: 1 while the running game came from a savegame (mov [0x91BFB0],si at 0x4C4295)
 constexpr uint32_t kRvaNetGameAtLoad = 0x522F5B;     // uint8, network flag that is already valid while a map loads
 constexpr uint32_t kRvaNetGame = 0x51C6F4;            // nonzero while the game loop runs DONETWORKTURN (multiplayer)
 
@@ -99,6 +100,7 @@ constexpr uint8_t kTypeCorpse = 0x69;   // what the game AI's raise-dead filter 
 constexpr uint32_t kTfFlyer = 0x00000002;
 constexpr uint32_t kTfBuilding = 0x00000020;
 constexpr uint32_t kTfWorker = 0x00000100;
+constexpr uint8_t kTypeOilPatch = 0x5D;         // neutral; a platform built on it takes its oil over (0x4EDCB4)
 constexpr uint32_t kTfOilPlatform = 0x00000800;  // types 0x56 / 0x57; "oil left" lives in kOffResources like a mine's gold
 constexpr uint32_t kTfUndead = 0x00008000;
 constexpr uint32_t kTfCaster = 0x00020000;

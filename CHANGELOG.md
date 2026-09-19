@@ -6,6 +6,12 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 **On Nexus Mods right now: 1.0.0.** Later versions are built and tested offline and are in this repository; they reach
 Nexus together with the next upload.
 
+## 1.1.0 - 2026-09-19
+
+- New `[gold_mines] amount` and `[oil_platforms] amount` (1.0 by default): multiply the gold in every mine and the oil
+  in every patch and platform when a new map starts. Both sides get it, "Gold left" shows the real number, savegames
+  keep what they had. Cap 6,553,500 per mine (the map editor stops at 637,500, so up to 10.0 always fits).
+
 ## 1.0.10 - 2026-09-18
 
 - The mod is open source under the MIT license (replaces the restrictive license text of 1.0.9). Readme and Nexus

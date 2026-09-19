@@ -56,6 +56,7 @@ WORKERS
 
 OPTIONS (all off or neutral until you change them)
   - Hero regeneration (for example 1 HP per second).
+  - More gold and oil: a multiplier for what every mine, oil patch and platform holds when a new map starts.
   - Unlimited gold mines, and separately unlimited oil platforms.
   - Multipliers for HEALTH, PRICES and BUILD / RESEARCH TIME, all 1.0 (unchanged) by default. Each has master
     values (all, units, structures, research), the same per race (human / orc) and values per group (workers, melee,

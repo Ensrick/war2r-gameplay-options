@@ -3,6 +3,23 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.1.0 (2026-09-19, NOT uploaded, UNTESTED in game)
+
+- Author: unlimited mines "isn't always desirable, but I do need more gold so that starving the AI out isn't so easy",
+  and asked whether a trip could remove less than it pays. Advice given and accepted: multiply the mine's starting
+  amount instead. The "left" word is u16 in hundreds (max 6,553,500) while the PUD loader can only produce 6375
+  (`b * 0x19` from one byte), so there is a x10 headroom, no rounding (whole trips), the panel shows the truth and the
+  AI reads the same field.
+- When: the new-map hook runs before the map's units exist, so it only arms a flag (after the multiplayer gate); the
+  first tick of that map scales mines (0x5C), oil patches (0x5D) and platforms (flag 0x800), before the "unlimited"
+  refill so the peak it remembers is the scaled amount. Never for a loaded game: the hook does not fire for a save, and
+  the game's own "came from a savegame" word (`0x91BFB0`, set at `0x4C4295`) is checked too for the case "new map, then
+  a save loaded before the first tick". The flag is spent either way.
+- Decided against for now (author): bounty, raiding, passive hall income ("that awards building tons of halls").
+  In research: halls providing food (custom games start with one peasant), tree regrowth with a 3-tile building
+  exclusion. See docs/research/food_supply.md and tree_regrowth.md when they land.
+- First minor version under the semantic versioning rule (new setting).
+
 ## 1.0.10 (2026-09-18, NOT uploaded)
 
 - Author, after seeing the restrictive license: "Ah well, just make it open source, use the MIT license." LICENSE is

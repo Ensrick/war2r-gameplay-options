@@ -148,11 +148,16 @@ harvest_radius = 5
 # true = gold mines never run dry (every mine on the map, the computer's too). Starving a mine is a legitimate way to
 # win some campaign missions, but a computer that runs out of gold can stall a long game: your call.
 unlimited = false
+# Multiplies the gold in every mine when a NEW map starts: 3.0 = three times as much, for both sides. "Gold left"
+# shows the real number. A mine holds up to 6,553,500, ten times what the map editor allows, so 10.0 always fits.
+amount = 1.0
 
 [oil_platforms]
 # true = oil platforms never run dry (every platform on the map, the computer's too). A platform keeps the amount it
 # had when you switched this on, never less than 5000.
 unlimited = false
+# The same for oil: every oil patch and platform, when a NEW map starts.
+amount = 1.0
 
 ''' + banner('5. HEROES') + '''
 [heroes]

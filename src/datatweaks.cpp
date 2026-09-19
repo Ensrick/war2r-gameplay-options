@@ -7,6 +7,7 @@
 #include "config.h"
 #include "log.h"
 #include "mod.h"
+#include "tweaks.h"
 #include "units.h"
 #include "world.h"
 
@@ -146,6 +147,7 @@ void OnNewMapTablesLoaded() {
         logx::Write("map load: multiplayer game, data tables left alone");
         return;
     }
+    tweaks::OnNewMap();
     const int statsSet = ApplyUnitStats();
     ScaleUnits();
     ScaleStructures();

@@ -1,6 +1,7 @@
 #include "tweaks.h"
 
 #include "config.h"
+#include "log.h"
 
 using namespace game;
 
@@ -83,11 +84,46 @@ void RefillSources(const World& w) {
     }
 }
 
+// [gold_mines] amount / [oil_platforms] amount: the "left" word of every mine, oil patch and platform is multiplied
+// ONCE per new map. The new-map hook runs before any unit exists, so it only raises a flag; the first tick of that
+// map does the work. A savegame stores the word, so a loaded game is never touched: the hook does not fire for one,
+// and the game's own "came from a savegame" word is checked as well in case a save is loaded before that first tick.
+// The word holds up to 65535 (6,553,500); the map format stops at 6375 (637,500), so x10 always fits.
+bool g_newMapPending = false;
+
+void ScaleNewMapSources(const World& w) {
+    if (!g_newMapPending) return;
+    g_newMapPending = false;
+    if (*At<uint16_t>(kRvaGameFromSave) != 0) return;
+    const double gold = config::g.goldMinesAmount, oil = config::g.oilAmount;
+    if (gold == 1.0 && oil == 1.0) return;
+    int mines = 0, wells = 0;
+    for (unsigned i = 0; i < w.unitCount; ++i) {
+        Unit* u = UnitAt(w, i);
+        if ((Field<uint8_t>(u, kOffStateFlags) & 0x07) != 0) continue;
+        const uint8_t type = TypeOf(u);
+        const bool isMine = type == kTypeGoldMine;
+        const bool isOil = !isMine && (type == kTypeOilPatch || (w.typeFlags[type] & kTfOilPlatform) != 0);
+        if (!isMine && !isOil) continue;
+        uint16_t& left = Field<uint16_t>(u, kOffResources);
+        if (left == 0) continue;
+        double scaled = left * (isMine ? gold : oil) + 0.5;
+        if (scaled < 1.0) scaled = 1.0;
+        if (scaled > 65535.0) scaled = 65535.0;
+        left = static_cast<uint16_t>(scaled);
+        ++(isMine ? mines : wells);
+    }
+    logx::Write("new map: gold x%.2f in %d mines, oil x%.2f in %d patches / platforms", gold, mines, oil, wells);
+}
+
 }  // namespace
 
 void OnTick(const World& w, unsigned elapsedMs) {
     HeroRegen(w, elapsedMs);
+    ScaleNewMapSources(w);  // before the refill, so "unlimited" remembers the scaled amount as the peak
     RefillSources(w);
 }
+
+void OnNewMap() { g_newMapPending = true; }
 
 }  // namespace tweaks

@@ -85,9 +85,11 @@ harvest_radius = 5[/code]
 [size=4][b]3. Gold mines, oil platforms and heroes[/b][/size]
 [code][gold_mines]
 unlimited = true          # off by default. Covers every mine, the computer's too
+amount = 3.0              # or: three times the gold in every mine when a new map starts (1.0 = unchanged)
 
 [oil_platforms]
 unlimited = true          # off by default. Same thing for oil, its own switch
+amount = 2.0              # x the oil in every patch and platform when a new map starts
 
 [heroes]
 regen_hp_per_second = 1   # 0 = off
