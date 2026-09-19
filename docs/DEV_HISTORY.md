@@ -3,6 +3,21 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.5.0 (2026-09-19, UNTESTED in game)
+
+- Author: "include options for autocast for all spells" and, on Raise Dead not firing, "Yes" to matching the computer
+  AI. Research docs/research/autocast_all_spells.md (agent, re-checked: the eight mana costs match the exe): every
+  area spell splashes through FUN_004af9e0 -> FUN_004afb50 with NO owner test (flyers and buildings included), runes
+  have no owner at all, blizzard / death and decay channel until mana runs out, holy vision may move the local
+  player's camera (0x91AD80 / 84, inferred).
+- Implemented by the same agent (src/autocast.cpp): per-spell safe rules, friendly = own / allied units on both grids,
+  building footprints and walls; positional tiles always computed on the map; a watchdog stops only the channels the
+  mod started (stop handler 0x4D8580 at the caster's tile); module-owned claims only. Seven mutation checks caught.
+- Raise Dead: FUN_004cac80 -> FUN_004cb3e0 (31 x 31 box, ground grid) with filter FUN_004ca8d0 (type 0x69, state 2,
+  not hidden). No enemy requirement any more; nearest corpse wins (the computer takes the first in scan order).
+- The selftest now uses a temp folder per process: two checkouts testing at once rewrote each other's config file
+  (the 64-tick reload switched auto-harvest off mid-test) and failed at random.
+
 ## 1.4.1 (2026-09-19) - crash fix
 
 - Author, first session with 1.4.0: "The game crashed". Blizzard crash report `x86\Errors\2026-09-19 03.03.05 ...\`

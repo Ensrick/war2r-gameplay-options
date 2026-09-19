@@ -1,3 +1,10 @@
+[size=4][b]1.5.0[/b][/size]
+[list]
+[*]Autocast for every remaining spell, each its own switch under [spells], all off by default: fireball, blizzard, death_and_decay, whirlwind, flame_shield, runes, invisibility, holy_vision. Area spells hurt your own units in the game, so they are only cast with no friendly unit, flyer, building or wall in the blast area.
+[*]A Blizzard or Death and Decay the mod started is stopped when a friendly walks in, when no enemy is left, or below [autocast] channel_mana_reserve. New [autocast] area_min_enemies (3) and fireball_min_enemies (2).
+[*]Changed: Raise Dead now works like the computer's: any fresh corpse within 15 tiles, with or without an enemy nearby.
+[/list]
+
 [size=4][b]1.4.1[/b][/size]
 [list]
 [*]Fixed a crash with [workers] auto_harvest on: a worker standing idle on the outer edge of the map could be sent to a "tree" one tile outside the map. Tiles outside the map no longer count as forest, and no order to a position outside the map reaches the game any more.

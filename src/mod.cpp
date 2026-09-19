@@ -100,9 +100,13 @@ void __cdecl OnTick() {
     tweaks::OnTick(w, elapsedMs);
     workers::OnTick(w, elapsedMs);
     trees::OnTick(w, elapsedMs);
-    if (config::g.enabled && g_tick % static_cast<unsigned>(config::g.intervalTicks) == 0) {
-        autocast::Pass(w);
-        eye::Pass(w);
+    if (g_tick % static_cast<unsigned>(config::g.intervalTicks) == 0) {
+        if (config::g.enabled) {
+            autocast::Pass(w);
+            eye::Pass(w);
+        } else {
+            autocast::GuardChannels(w);  // a Blizzard the mod started must not keep burning friends after Ctrl+F9
+        }
     }
 }
 

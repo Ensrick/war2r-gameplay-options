@@ -20,6 +20,7 @@ constexpr uint32_t kRvaMoveHandler = 0xD8690;        // order 3 entry of the han
 constexpr uint32_t kRvaHarvestHandler = 0xD85E0;     // order 23: target = gold mine, or target null and x,y = a forest tile
 constexpr uint32_t kRvaReturnHandler = 0xD8960;      // order 24: null target = the game finds the depot itself
 constexpr uint32_t kRvaRepairHandler = 0xD8920;      // order 27: target = building
+constexpr uint32_t kRvaStopHandler = 0xD8580;        // order 2 entry of 0x8C1498: SetOrder(unit, 2); reads only the unit's own tile
 constexpr uint32_t kRvaShowMessage = 0xD3160;    // void __cdecl (const char* text, int 8, int duration, int 0), the cheat-toggle banner
 
 // --- data ---
@@ -36,6 +37,14 @@ constexpr uint32_t kRvaAlliance = 0x519578;           // uint8[16*16], [caster*1
 constexpr uint32_t kRvaTypeFlags = 0x5185F0;          // uint32[unit type]
 constexpr uint32_t kRvaSpellsResearched = 0x519250;   // uint32[16], PUD ALOW bit layout
 constexpr uint32_t kRvaManaCostByOrder = 0x4C5EB8;    // uint16[order id]
+constexpr uint32_t kRvaOrderRange = 0x4C1744;         // uint8[order id]: cast range in tiles, 0xFF = anywhere (FUN_004d9420)
+// Missiles (docs/research/autocast_all_spells.md): a pool of kMissileSize records, slot count written once at 0x4C498D.
+constexpr uint32_t kRvaMissilePool = 0x51C700;        // uint8_t* [slots * kMissileSize]
+constexpr uint32_t kRvaMissileSlots = 0x51BFBC;       // uint32: 400 in Remastered mode
+// Runes: one table for all players, no owner (FUN_004e2ba0 places, FUN_004e2cd0 triggers, FUN_004e2ca0 clears per map).
+constexpr uint32_t kRvaRuneX = 0x518D14;              // uint8[kMaxRunes]
+constexpr uint32_t kRvaRuneY = 0x518D48;              // uint8[kMaxRunes]
+constexpr uint32_t kRvaRuneTimers = 0x518D80;         // uint16[kMaxRunes], 0 = free slot, placed with 0x800 steps
 constexpr uint32_t kRvaExploredMap = 0x51AD60;       // uint8_t* [mapSize*mapSize] for the LOCAL player, 0x10 = never explored
 constexpr uint32_t kRvaVisibleMap = 0x51AD5C;        // uint8_t* same layout, 0x10 = currently fogged
 constexpr uint32_t kRvaRegionMap = 0x51AD7C;         // uint16* [mapSize*mapSize]: 0xFFFE tree, 0xFFFC tree being chopped, else region id
@@ -128,6 +137,12 @@ constexpr uint16_t kTreeBaseExpected = 0x66;
 constexpr int kTreeTableStride = 10;
 constexpr int kTreeStateSolid = 24;
 constexpr int kTreeStateCleared = 25;
+constexpr int kMaxRunes = 50;
+constexpr int kMissileSize = 0x40;
+constexpr int kMisOffSource = 0x30;        // Unit*: the one unit its splash never hurts (FUN_004afb50)
+constexpr int kMisOffType = 0x34;          // uint8
+constexpr int kMisOffFlags = 0x35;         // uint8, bit 0 = free slot
+constexpr uint8_t kMissileWhirlwind = 0x0C;  // FUN_004af5c0
 constexpr uint8_t kStateDying = 2;     // low nibble of kOffStateFlags; a raisable corpse is type kTypeCorpse in this state
 constexpr uint8_t kTypeCorpse = 0x69;   // what the game AI's raise-dead filter (FUN_004ca8d0) looks for
 
@@ -157,6 +172,8 @@ constexpr uint8_t kOrderAttack = 8, kOrderAttackTarget = 9, kOrderAttackArea = 1
 constexpr uint8_t kOrderDefend = 12, kOrderStand = 13, kOrderStandAttack = 14, kOrderDefendGround = 15, kOrderDefendStopped = 16;
 constexpr uint8_t kOrderHarvest = 23, kOrderReturnGoods = 24, kOrderRepair = 27;
 constexpr uint8_t kOrderSpellEye = 0x30;
+constexpr uint8_t kOrderHolyVision = 0x26, kOrderFlameShield = 0x2A, kOrderFireball = 0x2B, kOrderInvisibility = 0x2D;
+constexpr uint8_t kOrderBlizzard = 0x2F, kOrderWhirlwind = 0x34, kOrderRunes = 0x37, kOrderDeathAndDecay = 0x38;
 constexpr uint8_t kOrderSpellFirst = 38;  // spell order id = kOrderSpellFirst + spell index
 constexpr uint8_t kOrderNone = 60;        // "no next order"
 

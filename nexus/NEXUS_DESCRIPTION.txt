@@ -82,6 +82,17 @@ auto_harvest = true
 harvest_idle_seconds = 10
 harvest_radius = 5[/code]
 
+[size=4][b]Autocast for every spell[/b][/size]
+Every spell has its own switch under [b][spells][/b]. The eight area and utility spells (fireball, blizzard, death_and_decay, whirlwind, flame_shield, runes, invisibility, holy_vision) are off by default. Area spells hurt your own units and buildings in the game, so the mod only casts them with no friendly unit, building or wall in the blast area, and it stops a Blizzard or Death and Decay it started as soon as a friendly walks in. Raise Dead works like the computer's: any fresh corpse within 15 tiles.
+[code][spells]
+fireball = true
+blizzard = true
+
+[autocast]
+channel_mana_reserve = 0   # stop Blizzard / Death and Decay below this much mana (0 = never)
+area_min_enemies = 3       # enemies needed close together for Blizzard, Death and Decay, Whirlwind
+fireball_min_enemies = 2   # enemies needed along a Fireball's path[/code]
+
 [size=4][b]3. Gold mines, oil, food, trees and heroes[/b][/size]
 [code][gold_mines]
 unlimited = true          # off by default. Covers every mine, the computer's too

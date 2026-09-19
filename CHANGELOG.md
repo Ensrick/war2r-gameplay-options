@@ -7,6 +7,17 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-19). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.5.0 - 2026-09-19
+
+- Autocast for every remaining spell, each its own switch under `[spells]`, all off by default: `fireball`,
+  `blizzard`, `death_and_decay`, `whirlwind`, `flame_shield`, `runes`, `invisibility`, `holy_vision`. Area spells hurt
+  your own units and buildings in the game, so they are only cast with no friendly unit, flyer, building or wall in the
+  blast area (for Fireball: along its whole burning path).
+- A Blizzard or Death and Decay the mod started is stopped when a friendly walks in, when no enemy is left, or below
+  `[autocast] channel_mana_reserve` mana. New `[autocast] area_min_enemies` (3) and `fireball_min_enemies` (2).
+- **Changed:** Raise Dead (on by default) now works like the computer's: it raises any fresh corpse within 15 tiles,
+  with or without an enemy nearby, instead of only during a fight within `search_radius`.
+
 ## 1.4.1 - 2026-09-19
 
 - Fixed a crash with `[workers] auto_harvest` on: a worker standing idle on the outer edge of the map could be sent to

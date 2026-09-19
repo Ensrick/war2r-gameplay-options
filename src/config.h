@@ -13,6 +13,15 @@ enum Spell {
     kSpellHaste,
     kSpellUnholyArmor,
     kSpellRaiseDead,
+    // Added in the "every spell" round: all off by default. Evidence: docs/research/autocast_all_spells.md.
+    kSpellHolyVision,
+    kSpellFlameShield,
+    kSpellFireball,
+    kSpellInvisibility,
+    kSpellBlizzard,
+    kSpellDeathAndDecay,
+    kSpellWhirlwind,
+    kSpellRunes,
     kSpellCount
 };
 
@@ -62,10 +71,15 @@ struct Config {
     int combatRadius = 6;         // an ally counts as fighting when an enemy is this close to it
     bool ownUnitsOnly = true;     // friendly spells skip allied players' units
     bool castWhileAttacking = true;
+    int channelManaReserve = 0;   // a Blizzard / Death and Decay the mod started is stopped below this mana; 0 = never
+    int areaMinEnemies = 3;       // Blizzard, Death and Decay, Whirlwind: enemies within 2 tiles of the target tile
+    int fireballMinEnemies = 2;   // enemies the Fireball's splash line would hit; 1 = the computer's own rule
 
     // [spells]
-    // Out of the box only Heal, Slow, Bloodlust and Raise Dead run; everything else is opt-in.
-    bool spell[kSpellCount] = {true, false, true, false, true, false, false, false, true};
+    // Out of the box only Heal, Slow, Bloodlust and Raise Dead run; everything else is opt-in. Holy Vision may move the
+    // camera to its target for your own paladins [unverified, test in game].
+    bool spell[kSpellCount] = {true,  false, true,  false, true,  false, false, false, true,
+                               false, false, false, false, false, false, false, false};
 
     // [heal]
     int healMinMissingHp = 10;    // a scratch is not worth a paladin's attention

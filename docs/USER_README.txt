@@ -31,6 +31,10 @@ WHAT IT DOES
 OUT OF THE BOX only this is switched on:
   - Autocast for Heal, Slow, Bloodlust and Raise Dead.
   - Idle workers repair damaged buildings nearby.
+NEW IN 1.5: autocast switches for every remaining spell (Fireball, Blizzard, Death and Decay, Whirlwind, Flame Shield,
+Runes, Invisibility, Holy Vision), all off. Area spells hurt your own units, so the mod only casts them with nothing
+friendly in the blast area.
+
 Everything else below is there for you to turn on in gameplay_options.toml. Nothing changes the game's balance until
 you say so.
 

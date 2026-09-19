@@ -1,0 +1,3 @@
+Autocast for every remaining spell, each its own switch under [spells], all off by default: fireball, blizzard, death_and_decay, whirlwind, flame_shield, runes, invisibility, holy_vision. Area spells are only cast with no friendly unit, flyer, building or wall in the blast area.
+A Blizzard or Death and Decay the mod started is stopped when a friendly walks in, when no enemy is left, or below [autocast] channel_mana_reserve. New [autocast] area_min_enemies (3) and fireball_min_enemies (2).
+Changed: Raise Dead now works like the computer's: any fresh corpse within 15 tiles, with or without an enemy nearby.

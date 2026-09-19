@@ -54,23 +54,29 @@ inline int Distance(Unit* a, Unit* b) {
     return dx > dy ? dx : dy;
 }
 
-// Calls fn(unit) for every grid entry (both layers: ground, then air) within `radius` tiles of `centre`, corpses
-// included; stops when fn returns true.
+// Calls fn(unit) for every grid entry (both layers: ground, then air) within `radius` tiles of the tile cx, cy, clipped
+// to the map, corpses included; stops when fn returns true.
 template <typename Fn>
-inline bool ScanGridRaw(const World& w, Unit* centre, int radius, Fn fn) {
-    const int cx = Field<int16_t>(centre, kOffX), cy = Field<int16_t>(centre, kOffY);
+inline bool ScanTileRaw(const World& w, int cx, int cy, int radius, Fn fn) {
     for (int y = cy - radius; y <= cy + radius; ++y) {
         if (y < 0 || y >= w.mapSize) continue;
         for (int x = cx - radius; x <= cx + radius; ++x) {
             if (x < 0 || x >= w.mapSize) continue;
             const int tile = y * w.mapSize + x;
             Unit* u = w.grid[tile];
-            if (u && u != centre && fn(u)) return true;
+            if (u && fn(u)) return true;
             u = w.airGrid ? w.airGrid[tile] : nullptr;  // a flyer can share the tile with a ground unit
-            if (u && u != centre && fn(u)) return true;
+            if (u && fn(u)) return true;
         }
     }
     return false;
+}
+
+// The same around a unit, the unit itself left out.
+template <typename Fn>
+inline bool ScanGridRaw(const World& w, Unit* centre, int radius, Fn fn) {
+    return ScanTileRaw(w, Field<int16_t>(centre, kOffX), Field<int16_t>(centre, kOffY), radius,
+                       [&](Unit* u) { return u != centre && fn(u); });
 }
 
 // Same, live units only.

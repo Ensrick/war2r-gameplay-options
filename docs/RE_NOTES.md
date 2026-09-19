@@ -80,6 +80,7 @@ running action step ends, and +0x2F goes back to 0x3C ("none"). The game's UI re
 | `research/workers_and_gold.md` | order handler table `0x8C1498` and action table `0x8C13A0`, gold left at unit+0x82, region map `0x91AD7C` (0xFFFE = tree), worker flags +0x75, repair rules, idle detection, IssueOrder lock table |
 | `research/tree_regrowth.md` | terrain maps: tile ids `0x91AD68`, square flags `0x91AD58`, region words; tree felling `FUN_004eb400` and the per-tileset removal table (`0x9347E8`, stride `0x9347E0`, base `0x9347F0`), stump tile 0x7E, the 4-corner model, why regions only ever merge, what savegames store, the regrowth recipe behind `[trees]` |
 | `research/data_tables.md` | every UDTA / UGRD runtime table, loaders, the new-map-only `call FinalizeTables` at `0x4D2C46` vs the savegame one at `0x4C4602`, sight function pointers, HP readers, game speed table |
+| `research/autocast_all_spells.md` | the eight later spells (holy vision, flame shield, fireball, invisibility, blizzard, death and decay, whirlwind, runes): orders, research bits, ranges `0x8C1744`, hit-frame actions, the owner-blind splash `FUN_004afb50`, missile pool `0x91C700` / `0x91BFBC`, rune table `0x918D14..0x918D80`, stop handler `0x4D8580`, the computer's rules; behind `kSpellHolyVision..kSpellRunes` and the channel watchdog in `src/autocast.cpp` |
 
 ## Attack range and the range upgrade (found 2026-09-18)
 

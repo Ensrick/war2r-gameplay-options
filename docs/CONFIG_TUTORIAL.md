@@ -50,6 +50,56 @@ haste = true         # off by default
 slow = false         # on by default
 ```
 
+Fireball, Flame Shield, Invisibility, Blizzard, Holy Vision, Death and Decay, Whirlwind and Runes have switches too
+(`fireball`, `flame_shield`, `invisibility`, `blizzard`, `holy_vision`, `death_and_decay`, `whirlwind`, `runes`), all
+off. Read the next two sections before you turn one on.
+
+### Fireball, Blizzard, Death and Decay, Whirlwind, Runes, Flame Shield: read this first
+
+These six spells hurt **everyone** in their area: your own units, your allies' units, flyers and buildings, just like
+when you cast them yourself. The game has no protection against friendly fire. So the mod only casts them where no
+unit, flyer or building of yours or of an ally, and no wall, is close ("within N tiles" = N tiles in any direction,
+diagonals included):
+
+| Spell | Cast at | Nothing friendly within |
+|---|---|---|
+| fireball | an enemy, when its burning line (the target tile and about 7 tiles behind it, away from the mage) hits at least `fireball_min_enemies` enemies | 2 tiles of that line (walls: 1) |
+| blizzard, death_and_decay | the biggest enemy group, at least `area_min_enemies` enemies within 2 tiles, and only with mana for 3 waves | 4 tiles (walls: 3) |
+| whirlwind | the same kind of group; one whirlwind per death knight at a time | 6 tiles, because it wanders |
+| runes | 2 or more enemy ground units, not within 2 tiles of runes already on the ground | 6 tiles, **the ogre-mage included**: a rune hurts whoever steps on it, whoever owns it |
+| flame_shield | one of your melee units in a fight with 2 or more enemies close | 3 tiles, **the mage included**; only the shielded unit is safe |
+
+The mage or death knight that casts a Fireball, Blizzard, Death and Decay or Whirlwind is never hurt by it, so it may
+stand close. A caster looks for a target within `search_radius` and never further than the spell's own range.
+
+What the mod cannot foresee: one of your units walking into the area later. Blizzard and Death and Decay keep going,
+wave after wave, until the caster runs out of mana. So the mod watches every Blizzard and Death and Decay it started and
+stops it as soon as a friendly unit or building comes within 4 tiles, when no enemy is left within 3 tiles, or when the
+caster's mana drops below `channel_mana_reserve`. This keeps working while autocasting is switched off with the hotkey.
+A Blizzard you cast yourself is never touched. A Flame Shield stays on its unit for a while, a Whirlwind wanders and
+runes stay on the ground for 2048 game steps: keep your own units clear of them.
+
+```toml
+[spells]
+blizzard = true
+death_and_decay = true
+
+[autocast]
+area_min_enemies = 4          # only into real crowds (default 3)
+fireball_min_enemies = 1      # fireball a single enemy too, as the computer does (default 2)
+channel_mana_reserve = 50     # stop a Blizzard / Death and Decay while 50 mana are left (default 0 = until empty)
+```
+
+### Holy Vision and Invisibility
+
+`holy_vision`: an idle paladin at full mana reveals the part of the map with the most ground you have never explored.
+It may move your camera to that spot every time it is cast (not tested in game yet). Leave it off if that gets in the
+way.
+
+`invisibility`: a mage makes one of your hurt casters or ranged units (half health or less) invisible while you pull it
+back with a move order and an enemy is close. Never on a unit that is invisible already. Any attack or spell of the
+invisible unit ends it.
+
 ### Paladins heal sooner, or later
 
 Heal waits until a unit has lost at least this many hit points. Default 10.
@@ -116,6 +166,9 @@ own_units_only = false
 [autocast]
 search_radius = 5
 ```
+
+Raise Dead is the exception: it works exactly like the computer's death knights. A death knight raises any corpse up
+to 15 tiles away in any direction, whatever `search_radius` says, and it does not wait for an enemy to show up.
 
 ### Keep casters swinging instead of casting mid-fight
 
@@ -451,12 +504,16 @@ Every cast is then written to `x86\gameplay_options.log` with the caster, the ta
 | general | toggle_key | "F9" | Ctrl + key toggles autocast |
 | general | interval_ticks | 10 | Game steps between autocast passes. Lower reacts faster |
 | general | log_casts | false | Write every cast to gameplay_options.log |
-| autocast | search_radius | 8 | Tiles a caster searches for targets |
+| autocast | search_radius | 8 | Tiles a caster searches for targets (Raise Dead always looks 15 tiles around, like the computer) |
 | autocast | combat_radius | 6 | A unit counts as fighting when an enemy is this close to it |
 | autocast | own_units_only | true | Friendly spells skip allies' units |
 | autocast | cast_while_attacking | true | Casters may interrupt their own attack to cast |
+| autocast | area_min_enemies | 3 | Enemies within 2 tiles of the target before Blizzard, Death and Decay or Whirlwind is cast (1 to 50) |
+| autocast | fireball_min_enemies | 2 | Enemies the Fireball's burning line must hit; 1 = the computer's own rule (1 to 50) |
+| autocast | channel_mana_reserve | 0 | A Blizzard / Death and Decay the mod started stops below this mana; 0 = until empty (0 to 255) |
 | spells | heal, slow, bloodlust, raise_dead | true | One switch per spell |
 | spells | exorcism, polymorph, death_coil, haste, unholy_armor | false | |
+| spells | holy_vision, flame_shield, fireball, invisibility, blizzard, death_and_decay, whirlwind, runes | false | Friendly fire: see "Fireball, Blizzard, ... read this first" |
 | heal | min_missing_hp | 10 | Heal only units missing at least this many HP |
 | heal | below_percent | 100 | Also require HP at or below this percent. 100 = off |
 | polymorph | targets | flyers, casters, big ground units | Valid targets in priority order |

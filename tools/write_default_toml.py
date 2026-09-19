@@ -81,8 +81,20 @@ bloodlust = true
 death_coil = false
 haste = false
 unholy_armor = false
-# Raise Dead is only cast while an enemy is within search_radius, so skeletons are not wasted.
+# Raise Dead works like the computer's: any fresh corpse within 15 tiles, enemies around or not.
 raise_dead = true
+# Area spells hurt YOUR units and buildings too. They are only cast with no friendly unit, building or wall in the
+# blast area, and a Blizzard / Death and Decay the mod started is stopped when a friendly walks in (see [autocast]).
+fireball = false
+blizzard = false
+death_and_decay = false
+whirlwind = false
+flame_shield = false
+runes = false
+invisibility = false
+# Holy Vision: an idle paladin at full mana looks at the least explored part of the map. It may move the camera to
+# its target for your own paladins (not tested in game yet).
+holy_vision = false
 
 [autocast]
 # How far (tiles) a caster looks for targets. It walks into range if needed.
@@ -93,6 +105,13 @@ combat_radius = 6
 own_units_only = true
 # true = casters may interrupt their own attack to cast.
 cast_while_attacking = true
+# Blizzard and Death and Decay keep casting wave after wave. The mod stops the ones it started when a friendly walks
+# in, when no enemy is left, or when the caster's mana drops below this (0 = let them run until the game stops them).
+channel_mana_reserve = 0
+# Blizzard, Death and Decay and Whirlwind need at least this many enemies close together.
+area_min_enemies = 3
+# Fireball needs at least this many enemies along its path (1 = the computer's own rule).
+fireball_min_enemies = 2
 
 [heal]
 # Heal only units missing at least this many hit points.

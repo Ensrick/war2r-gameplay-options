@@ -14,8 +14,10 @@
 namespace config {
 
 Config g;
-const char* const kSpellKeys[kSpellCount] = {"heal",       "exorcism", "slow",         "polymorph", "bloodlust",
-                                             "death_coil", "haste",    "unholy_armor", "raise_dead"};
+const char* const kSpellKeys[kSpellCount] = {"heal",         "exorcism",     "slow",     "polymorph",    "bloodlust",
+                                             "death_coil",   "haste",        "unholy_armor", "raise_dead", "holy_vision",
+                                             "flame_shield", "fireball",     "invisibility", "blizzard", "death_and_decay",
+                                             "whirlwind",    "runes"};
 
 const char* const kStatKeys[kStatCount] = {"hit_points", "armor", "basic_damage", "piercing_damage", "range",
                                            "sight",      "gold",  "lumber",       "oil",             "build_time"};
@@ -306,8 +308,10 @@ static void WarnUnknownKeys(const toml::table& root) {
         const char* keys;
     } kKnown[] = {
         {"general", " enabled toggle_key interval_ticks log_casts "},
-        {"autocast", " search_radius combat_radius own_units_only cast_while_attacking "},
-        {"spells", " heal exorcism slow polymorph bloodlust death_coil haste unholy_armor raise_dead "},
+        {"autocast", " search_radius combat_radius own_units_only cast_while_attacking channel_mana_reserve area_min_enemies "
+                     "fireball_min_enemies "},
+        {"spells", " heal exorcism slow polymorph bloodlust death_coil haste unholy_armor raise_dead holy_vision flame_shield "
+                   "fireball invisibility blizzard death_and_decay whirlwind runes "},
         {"heal", " min_missing_hp below_percent "},
         {"polymorph", " targets "},
         {"haste", " flyers_only "},
@@ -372,6 +376,9 @@ static bool Load() {
     ReadInt(root, "autocast", "combat_radius", 1, 15, c.combatRadius);
     ReadBool(root, "autocast", "own_units_only", c.ownUnitsOnly);
     ReadBool(root, "autocast", "cast_while_attacking", c.castWhileAttacking);
+    ReadInt(root, "autocast", "channel_mana_reserve", 0, 255, c.channelManaReserve);
+    ReadInt(root, "autocast", "area_min_enemies", 1, 50, c.areaMinEnemies);
+    ReadInt(root, "autocast", "fireball_min_enemies", 1, 50, c.fireballMinEnemies);
     for (int i = 0; i < kSpellCount; ++i) ReadBool(root, "spells", kSpellKeys[i], c.spell[i]);
     ReadInt(root, "heal", "min_missing_hp", 1, 65535, c.healMinMissingHp);
     ReadInt(root, "heal", "below_percent", 1, 100, c.healBelowPct);
@@ -421,7 +428,7 @@ static bool Load() {
     ReadHeroes(root, c);
     g = c;
 
-    char spells[200] = "";
+    char spells[320] = "";
     for (int i = 0; i < kSpellCount; ++i) {
         if (!g.spell[i]) continue;
         strcat_s(spells, kSpellKeys[i]);
@@ -430,9 +437,10 @@ static bool Load() {
     int polyCount = 0;
     for (uint8_t r : g.polymorphRank) polyCount += r != 0;
     logx::Write("config: enabled=%d interval=%d radius=%d combat=%d own_only=%d while_attacking=%d heal_missing>=%d "
-                "heal<=%d%% poly_targets=%d haste_flyers=%d spells: %s",
+                "heal<=%d%% poly_targets=%d haste_flyers=%d channel_reserve=%d area_min=%d fireball_min=%d spells: %s",
                 g.enabled, g.intervalTicks, g.searchRadius, g.combatRadius, g.ownUnitsOnly, g.castWhileAttacking,
-                g.healMinMissingHp, g.healBelowPct, polyCount, g.hasteFlyersOnly, spells);
+                g.healMinMissingHp, g.healBelowPct, polyCount, g.hasteFlyersOnly, g.channelManaReserve, g.areaMinEnemies,
+                g.fireballMinEnemies, spells);
     return true;
 }
 

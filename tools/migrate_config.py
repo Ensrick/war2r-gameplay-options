@@ -7,6 +7,7 @@ Steps (each one only when the file still needs it):
   1.1.0  adds "amount = 1.0" to [gold_mines] and [oil_platforms]
   1.2.0  adds the [food] block after [oil_platforms]
   1.3.0  adds the [trees] block after [food]
+  1.5.0  adds the eight new [spells] switches (false) and three [autocast] keys; the Raise Dead comment is updated
   1.4.0  [heroes] gains the "regen" switch (true when the old regen_hp_per_second was above 0, so nothing changes) and
          the [unit_regen] block is added after [heroes]
   1.0.8  [health] "all" used to mean "every unit". It now means everything (units, ships, structures), and the new
@@ -31,6 +32,10 @@ OIL_BLOCK = ['[oil_platforms]',
 FOOD_BLOCK = ['[food]', '# true = every Town Hall / Great Hall, Keep / Stronghold and Castle / Fortress gives hall_food_amount food instead', "# of the game's 1. In a custom game that starts with one peasant you can then train from the hall right away,", '# without waiting for a farm. A farm still gives 4, the 200 food limit stays. The computer gets the same.', 'hall_food = false', 'hall_food_amount = 5']
 TREES_BLOCK = ['[trees]', "# EXPERIMENTAL. true = felled forest grows back, so lumber never runs out for good (the computer's too). Every stump", '# waits its own time between regrow_min_minutes and regrow_max_minutes of play, so a felled patch fills back in bit', '# by bit. A tree never grows back close to a building, a wall or a ground unit, never where it would close a', '# passage, and only where a forest stood before. Flyers do not hold it up.', 'regrow = false', 'regrow_min_minutes = 10', 'regrow_max_minutes = 20', '# No regrowth within this many tiles of a building or wall / of a ground unit of any player.', 'building_distance = 3', 'unit_distance = 3']
 UNIT_REGEN_BLOCK = ['[unit_regen]', '# true = every unit regenerates hit points while you play: land units, flyers and ships, never a structure. A hurt', '# unit is then worth keeping instead of being a waste of food. Heroes follow [heroes] regen while that is on.', 'enabled = false', 'hp_per_second = 1', '# "all" = every unit on the map (the enemy\'s too), "mine" = only your own.', 'regen_for = "all"']
+SPELLS_NEW = ['# Area spells hurt YOUR units and buildings too. They are only cast with no friendly unit, building or wall in the', '# blast area, and a Blizzard / Death and Decay the mod started is stopped when a friendly walks in (see [autocast]).', 'fireball = false', 'blizzard = false', 'death_and_decay = false', 'whirlwind = false', 'flame_shield = false', 'runes = false', 'invisibility = false', '# Holy Vision: an idle paladin at full mana looks at the least explored part of the map. It may move the camera to', '# its target for your own paladins (not tested in game yet).', 'holy_vision = false']
+AUTOCAST_NEW = ['# Blizzard and Death and Decay keep casting wave after wave. The mod stops the ones it started when a friendly walks', "# in, when no enemy is left, or when the caster's mana drops below this (0 = let them run until the game stops them).", 'channel_mana_reserve = 0', '# Blizzard, Death and Decay and Whirlwind need at least this many enemies close together.', 'area_min_enemies = 3', "# Fireball needs at least this many enemies along its path (1 = the computer's own rule).", 'fireball_min_enemies = 2']
+RAISE_DEAD_COMMENT = "# Raise Dead works like the computer's: any fresh corpse within 15 tiles, enemies around or not."
+OLD_RAISE_DEAD_COMMENT = '# Raise Dead is only cast while an enemy is within search_radius, so skeletons are not wasted.'
 AMOUNT = {
     'gold_mines': ['# Multiplies the gold in every mine when a NEW map starts: 3.0 = three times as much, for both sides. "Gold left"', '# shows the real number. A mine holds up to 6,553,500, ten times what the map editor allows, so 10.0 always fits.'],
     'oil_platforms': ['# The same for oil: every oil patch and platform, when a NEW map starts.'],
@@ -144,6 +149,39 @@ def add_regen(lines, tree, notes):
         notes.append('added [unit_regen] enabled = false')
 
 
+def append_missing(lines, tree, section, block, notes):
+    """Appends the key lines of `block` (with the comments right above each) that [section] does not have yet."""
+    have = tree.get(section, {})
+    s = span(lines, f'[{section}]')
+    if s is None:
+        notes.append(f'no [{section}] section: new keys not added')
+        return
+    new, pending = [], []
+    for line in block:
+        if line.startswith('#'):
+            pending.append(line)
+            continue
+        key = line.split('=')[0].strip()
+        if key not in have:
+            new += pending + [line]
+        pending = []
+    if not new:
+        return
+    end = s[1]
+    while end > s[0] + 1 and not lines[end - 1].strip():
+        end -= 1
+    lines[end:end] = new
+    notes.append(f'[{section}] gained ' + ', '.join(l.split('=')[0].strip() for l in new if not l.startswith('#')))
+
+
+def spells_150(lines, tree, notes):
+    for i, line in enumerate(lines):
+        if line == OLD_RAISE_DEAD_COMMENT:
+            lines[i] = RAISE_DEAD_COMMENT
+    append_missing(lines, tree, 'spells', SPELLS_NEW, notes)
+    append_missing(lines, tree, 'autocast', AUTOCAST_NEW, notes)
+
+
 def health_units(lines, tree, notes):
     health = tree.get('health', {})
     for table, who in (('health', None), ('health.human', 'human'), ('health.orc', 'orc')):
@@ -198,6 +236,7 @@ def main():
     add_food(lines, before, notes)
     add_trees(lines, before, notes)
     add_regen(lines, before, notes)
+    spells_150(lines, before, notes)
     health_units(lines, before, notes)
     text = LF.join(lines)
     text = text.replace('#  5. HEROES' + LF, '#  5. HEROES AND REGENERATION' + LF, 1)
@@ -214,7 +253,8 @@ def main():
     old, new = dict(leaves(before)), dict(leaves(after))
     allowed = {('oil_platforms', 'unlimited'), ('oil_platforms', 'amount'), ('gold_mines', 'amount'), ('food', 'hall_food'),
                ('food', 'hall_food_amount'), ('heroes', 'regen'), ('unit_regen', 'enabled'), ('unit_regen', 'hp_per_second'),
-               ('unit_regen', 'regen_for')} | {('trees', k) for k in ('regrow', 'regrow_min_minutes', 'regrow_max_minutes',
+               ('unit_regen', 'regen_for')} | {('spells', l.split('=')[0].strip()) for l in SPELLS_NEW if not l.startswith('#')} | {
+               ('autocast', l.split('=')[0].strip()) for l in AUTOCAST_NEW if not l.startswith('#')} | {('trees', k) for k in ('regrow', 'regrow_min_minutes', 'regrow_max_minutes',
                'building_distance', 'unit_distance')} | {t + (k,) for t in (('health',), ('health', 'human'), ('health', 'orc')) for k in ('all', 'units')}
     hero_amount = ('heroes', 'regen_hp_per_second')
     if old.get(hero_amount) == 0 and new.get(('heroes', 'regen')) is False:

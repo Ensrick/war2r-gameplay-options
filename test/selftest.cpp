@@ -40,6 +40,7 @@ static void __cdecl FakeIssueOrder(Unit* caster, int16_t x, int16_t y, Unit* tar
                           : rva == kRvaHarvestHandler ? kOrderHarvest
                           : rva == kRvaReturnHandler  ? kOrderReturnGoods
                           : rva == kRvaRepairHandler  ? kOrderRepair
+                          : rva == kRvaStopHandler    ? kOrderStop
                                                       : static_cast<uint8_t>(*At<uint16_t>(kRvaPendingSpellOrder));
     Field<uint8_t>(caster, kOffNextOrder) = order;
     Field<Unit*>(caster, kOffOrderTarget) = target;
@@ -104,9 +105,10 @@ static void Idle(Unit* u) {  // back to standing with nothing pending
 static Unit* TargetOf(Unit* u) { return Field<Unit*>(u, kOffOrderTarget); }
 
 // The shipped defaults are conservative (4 spells + auto-repair). The behaviour scenarios below exercise every
-// feature, so they switch everything on; unholy armor stays off because several scenarios rely on that.
+// feature, so they switch everything on; unholy armor stays off because several scenarios rely on that. The spells of
+// the "every spell" round (holy vision .. runes) have their own block and switch themselves on one at a time.
 static void EnableEverythingForTests() {
-    for (int i = 0; i < kSpellCount; ++i) config::g.spell[i] = i != kSpellUnholyArmor;
+    for (int i = 0; i < kSpellCount; ++i) config::g.spell[i] = i <= kSpellRaiseDead && i != kSpellUnholyArmor;
     config::g.eyeCast = config::g.eyeAutoScout = true;
     config::g.workerAutoHarvest = config::g.workerAutoRepair = true;
     config::g.heroRegen = true;
@@ -299,9 +301,13 @@ int wmain(int argc, wchar_t** argv) {
     g_base = reinterpret_cast<uintptr_t>(img);
     printf("mapped game image at %p\n", img);
 
+    // One folder per run: the config reload re-reads this file every 64 ticks, so two checkouts testing at the same
+    // time used to rewrite each other's settings and fail at random.
     wchar_t dir[MAX_PATH];
     GetTempPathW(MAX_PATH, dir);
-    wcscat_s(dir, L"war2r_gameplay_options_selftest");
+    wchar_t leaf[64];
+    swprintf_s(leaf, L"war2r_gameplay_options_selftest_%lu", GetCurrentProcessId());
+    wcscat_s(dir, leaf);
     CreateDirectoryW(dir, nullptr);
     wchar_t ini[MAX_PATH];
     swprintf_s(ini, L"%s\\gameplay_options.toml", dir);
@@ -325,6 +331,35 @@ int wmain(int argc, wchar_t** argv) {
     // Remastered 1.0.2 rebalanced heal 6 -> 5 and bloodlust 50 -> 60 versus the 1999 BNE table.
     CHECK(mana[0x27] == 5 && mana[0x29] == 4 && mana[0x2C] == 50 && mana[0x2E] == 200, "human mana costs");
     CHECK(mana[0x33] == 100 && mana[0x35] == 50 && mana[0x36] == 100, "orc mana costs");
+    // The eight spells of docs/research/autocast_all_spells.md: costs, cast ranges (0x8C1744) and the tables they use.
+    {
+        CHECK(mana[kOrderHolyVision] == 70 && mana[kOrderFlameShield] == 80 && mana[kOrderFireball] == 100 &&
+                  mana[kOrderInvisibility] == 200 && mana[kOrderBlizzard] == 25 && mana[kOrderWhirlwind] == 100 &&
+                  mana[kOrderRunes] == 200 && mana[kOrderDeathAndDecay] == 30,
+              "mana costs of the eight later spells");
+        const uint8_t* range = At<uint8_t>(kRvaOrderRange);
+        CHECK(range[kOrderHolyVision] == 0xFF && range[kOrderFlameShield] == 6 && range[kOrderFireball] == 10 &&
+                  range[kOrderInvisibility] == 6 && range[kOrderBlizzard] == 10 && range[kOrderWhirlwind] == 12 &&
+                  range[kOrderRunes] == 10 && range[kOrderDeathAndDecay] == 12 && range[0x27] == 6,
+              "order range table 0x8C1744");
+        auto abs32 = [&](uint32_t rva) { uint32_t v; memcpy(&v, At<uint8_t>(rva), 4); return v; };
+        auto bytes = [&](uint32_t rva, const char* expect, size_t n) { return memcmp(At<uint8_t>(rva), expect, n) == 0; };
+        // Whirlwind spawn FUN_004af5c0: slot count, pool, free bit, source unit at +0x30, type 0x0C at +0x34.
+        CHECK(bytes(0xAF5DC, "\xA1", 1) && abs32(0xAF5DD) == g_base + kRvaMissileSlots && bytes(0xAF5E2, "\x8B\x35", 2) &&
+                  abs32(0xAF5E4) == g_base + kRvaMissilePool,
+              "missile pool / slot count are not read at 0x4AF5DC..0x4AF5E7");
+        CHECK(bytes(0xAF5F1, "\xF6\x46\x35\x01", 4) && bytes(0xAF61C, "\x89\x7E\x30", 3) && bytes(0xAF625, "\xC6\x46\x34\x0C", 4),
+              "whirlwind missile layout (free bit +0x35, source +0x30, type 0x0C at +0x34)");
+        // Rune tick FUN_004e2cd0: timer u16[], x u8[], y u8[].
+        CHECK(bytes(0xE2CE0, "\x0F\xB7\x04\x75", 4) && abs32(0xE2CE4) == g_base + kRvaRuneTimers && bytes(0xE2CF1, "\x0F\xB6\x96", 3) &&
+                  abs32(0xE2CF4) == g_base + kRvaRuneX && bytes(0xE2CF9, "\x0F\xB6\xBE", 3) && abs32(0xE2CFC) == g_base + kRvaRuneY,
+              "rune table is not read at 0x4E2CE0..0x4E2CFF");
+        // Blizzard / Death and Decay hit-frame actions only stop on "mana < cost": the channel the watchdog exists for.
+        const uint32_t* actions = At<uint32_t>(0x4C1590);
+        CHECK(actions[kOrderBlizzard] == g_base + 0xE19A0 && actions[kOrderDeathAndDecay] == g_base + 0xE2530 &&
+                  actions[kOrderWhirlwind] == g_base + 0xE27F0 && actions[kOrderRunes] == g_base + 0xE25A0,
+              "spell action table 0x8C1590 entries");
+    }
 
     // The order handlers the mod passes to IssueOrder must be the entries of the game's own handler table
     // (VA 0x8C1498, indexed by order id), and the gold decrement the refill relies on must be where we found it.
@@ -335,6 +370,10 @@ int wmain(int argc, wchar_t** argv) {
         CHECK(handlers[kOrderReturnGoods] == g_base + kRvaReturnHandler, "return handler is not table entry 24");
         CHECK(handlers[kOrderRepair] == g_base + kRvaRepairHandler, "repair handler is not table entry 27");
         CHECK(handlers[kOrderSpellEye] == g_base + kRvaSpellOrderHandler, "spell handler is not table entry 0x30");
+        CHECK(handlers[kOrderStop] == g_base + kRvaStopHandler, "stop handler is not table entry 2");
+        const uint8_t later[] = {kOrderHolyVision, kOrderFlameShield, kOrderFireball, kOrderInvisibility,
+                                 kOrderBlizzard,   kOrderWhirlwind,   kOrderRunes,    kOrderDeathAndDecay};
+        for (uint8_t o : later) CHECK(handlers[o] == g_base + kRvaSpellOrderHandler, "order 0x%02X does not use the spell handler", o);
         const uint8_t decrement[] = {0x66, 0x01, 0x88, 0x82, 0x00, 0x00, 0x00};  // add word [eax+0x82], cx
         CHECK(memcmp(At<uint8_t>(0xC99C8), decrement, sizeof(decrement)) == 0, "gold decrement not at 0x4C99C8: +0x82 may be wrong");
     }
@@ -377,6 +416,10 @@ int wmain(int argc, wchar_t** argv) {
         bool spellsOk = true;
         for (int i = 0; i < kSpellCount; ++i) spellsOk = spellsOk && config::g.spell[i] == expectSpell[i];
         CHECK(config::g.enabled && spellsOk, "default spells must be heal, slow, bloodlust, raise_dead only");
+        bool laterOff = true;
+        for (int i = kSpellHolyVision; i < kSpellCount; ++i) laterOff = laterOff && !config::g.spell[i];
+        CHECK(laterOff && config::g.channelManaReserve == 0 && config::g.areaMinEnemies == 3 && config::g.fireballMinEnemies == 2,
+              "holy_vision .. runes must be off by default; channel_mana_reserve 0, area_min_enemies 3, fireball_min_enemies 2");
         CHECK(!config::g.eyeCast && !config::g.eyeAutoScout && !config::g.workerAutoHarvest && config::g.workerAutoRepair &&
                   !config::g.heroRegen && config::g.heroRegenPerSecond == 2 && !config::g.unitRegen && config::g.unitRegenPerSecond == 1 && !config::g.goldMinesUnlimited && !config::g.oilPlatformsUnlimited && config::g.rangeUpgradeBonus == 1,
               "default options: everything off except worker auto-repair");
@@ -589,21 +632,84 @@ int wmain(int argc, wchar_t** argv) {
     CHECK(OrderOf(dk) == 0x35 && TargetOf(dk) == fighter, "haste_flyers_only=0 should haste the defending grunt");
     config::g.hasteFlyersOnly = true;
 
-    // Raise Dead: at the nearest corpse tile, only with an enemy around, one death knight per corpse.
+    // Raise Dead, the computer's own rule (FUN_004cac80 -> FUN_004cb3e0 / FUN_004ca8d0): a corpse in the ground grid
+    // within 15 tiles (31 x 31 box, not search_radius), cast at its tile, no enemy needed; one death knight per corpse.
+    auto corpseAt = [&](int x, int y) {
+        Unit* c = AddUnit(kTypeCorpse, 1, x, y, 0, 0, 0);
+        Field<uint8_t>(c, kOffStateFlags) = kStateDying;
+        return c;
+    };
+    auto raisedAt = [&](Unit* k, int x, int y) {
+        return OrderOf(k) == 0x32 && TargetOf(k) == nullptr && Field<int16_t>(k, kOffOrderX) == x && Field<int16_t>(k, kOffOrderY) == y;
+    };
     ResetWorld();
     dk = AddUnit(kTypeDeathKnight, 0, 10, 10, 60, 255, kOrderStand);
-    Unit* corpse = AddUnit(kTypeCorpse, 1, 12, 11, 0, 0, 0);
-    Field<uint8_t>(corpse, kOffStateFlags) = kStateDying;
+    corpseAt(12, 11);
     mod::RunAutocastPass();
-    CHECK(OrderOf(dk) == kOrderStand, "raised dead with no enemy around");
+    CHECK(raisedAt(dk, 12, 11), "raise dead with no enemy anywhere, at the corpse tile (order %u at %d,%d)", OrderOf(dk),
+          Field<int16_t>(dk, kOffOrderX), Field<int16_t>(dk, kOffOrderY));
+    Unit* dk2 = AddUnit(kTypeDeathKnight, 0, 11, 12, 60, 255, kOrderStand);
     AddUnit(kFootman, 1, 16, 10, 60, 0, kOrderAttack);
     mod::RunAutocastPass();
-    CHECK(OrderOf(dk) == 0x32 && TargetOf(dk) == nullptr && Field<int16_t>(dk, kOffOrderX) == 12 &&
-              Field<int16_t>(dk, kOffOrderY) == 11,
-          "raise dead at the corpse tile (order %u)", OrderOf(dk));
-    Unit* dk2 = AddUnit(kTypeDeathKnight, 0, 11, 12, 60, 255, kOrderStand);
-    mod::RunAutocastPass();
     CHECK(OrderOf(dk2) == 0x33, "second death knight should coil, the corpse is taken (order %u)", OrderOf(dk2));
+    ResetWorld();  // 15 tiles away (beyond search_radius 8): yes; 16: no
+    dk = AddUnit(kTypeDeathKnight, 0, 20, 20, 60, 255, kOrderStand);
+    corpseAt(36, 20);
+    corpseAt(20, 36);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(dk) == kOrderStand, "raised a corpse 16 tiles away (order %u at %d,%d)", OrderOf(dk), Field<int16_t>(dk, kOffOrderX),
+          Field<int16_t>(dk, kOffOrderY));
+    corpseAt(35, 35);
+    mod::RunAutocastPass();
+    CHECK(raisedAt(dk, 35, 35), "a corpse 15 tiles away (diagonal) must be raised (order %u at %d,%d)", OrderOf(dk),
+          Field<int16_t>(dk, kOffOrderX), Field<int16_t>(dk, kOffOrderY));
+    ResetWorld();
+    dk = AddUnit(kTypeDeathKnight, 0, 20, 20, 60, 255, kOrderStand);
+    Unit* hiddenCorpse = corpseAt(22, 20);
+    Field<uint8_t>(hiddenCorpse, kOffStateFlags) = kStateDying | 0x08;
+    mod::RunAutocastPass();
+    CHECK(OrderOf(dk) == kOrderStand, "raised a hidden corpse");
+    Field<uint8_t>(hiddenCorpse, kOffStateFlags) = kStateDying;
+    g_airGrid[20 * kMap + 22] = hiddenCorpse;  // the computer reads the ground grid only
+    g_grid[20 * kMap + 22] = nullptr;
+    mod::RunAutocastPass();
+    CHECK(OrderOf(dk) == kOrderStand, "raised a corpse that is only in the air grid");
+    g_airGrid[20 * kMap + 22] = nullptr;
+    g_grid[20 * kMap + 22] = hiddenCorpse;
+    At<uint32_t>(kRvaSpellsResearched)[0] = 0xFFFFFFFF & ~0x2000u;
+    mod::RunAutocastPass();
+    CHECK(OrderOf(dk) == kOrderStand, "raise dead without the research");
+    At<uint32_t>(kRvaSpellsResearched)[0] = 0xFFFFFFFF;
+    Field<uint8_t>(dk, kOffMana) = static_cast<uint8_t>(At<uint16_t>(kRvaManaCostByOrder)[0x32] - 1);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(dk) == kOrderStand, "raise dead with %u mana (cost %u)", Field<uint8_t>(dk, kOffMana), At<uint16_t>(kRvaManaCostByOrder)[0x32]);
+    Field<uint8_t>(dk, kOffMana) = static_cast<uint8_t>(At<uint16_t>(kRvaManaCostByOrder)[0x32]);
+    mod::RunAutocastPass();
+    CHECK(raisedAt(dk, 22, 20), "raise dead at exactly the mana cost (order %u)", OrderOf(dk));
+    ResetWorld();  // two death knights in one pass, two corpses: never the same one
+    dk = AddUnit(kTypeDeathKnight, 0, 10, 10, 60, 255, kOrderStand);
+    dk2 = AddUnit(kTypeDeathKnight, 0, 11, 12, 60, 255, kOrderStand);
+    corpseAt(12, 11);
+    corpseAt(20, 20);
+    mod::RunAutocastPass();
+    CHECK(raisedAt(dk, 12, 11) && raisedAt(dk2, 20, 20), "two death knights, two corpses: %d,%d and %d,%d", Field<int16_t>(dk, kOffOrderX),
+          Field<int16_t>(dk, kOffOrderY), Field<int16_t>(dk2, kOffOrderX), Field<int16_t>(dk2, kOffOrderY));
+    ResetWorld();  // ... and one corpse: the second one does not raise it again
+    dk = AddUnit(kTypeDeathKnight, 0, 10, 10, 60, 255, kOrderStand);
+    dk2 = AddUnit(kTypeDeathKnight, 0, 11, 12, 60, 255, kOrderStand);
+    corpseAt(12, 11);
+    mod::RunAutocastPass();
+    CHECK(raisedAt(dk, 12, 11) && OrderOf(dk2) != 0x32, "two death knights raised the same corpse (second order %u)", OrderOf(dk2));
+    ResetWorld();  // a corpse on the map edge and in the corner is a tile on the map
+    dk = AddUnit(kTypeDeathKnight, 0, 2, 2, 60, 255, kOrderStand);
+    corpseAt(0, 0);
+    mod::RunAutocastPass();
+    CHECK(raisedAt(dk, 0, 0), "raise dead at a corpse in the corner (order %u)", OrderOf(dk));
+    ResetWorld();
+    dk = AddUnit(kTypeDeathKnight, 0, kMap - 1, 40, 60, 255, kOrderStand);
+    corpseAt(kMap - 1, 30);
+    mod::RunAutocastPass();
+    CHECK(raisedAt(dk, kMap - 1, 30), "raise dead at a corpse on the east edge (order %u)", OrderOf(dk));
 
     // Neutral units are never enemies. Targets outside search_radius are ignored.
     ResetWorld();
@@ -684,6 +790,575 @@ int wmain(int argc, wchar_t** argv) {
     mod::RunAutocastPass();
     CHECK(OrderOf(eyeUnit) == kOrderStop, "an eye the player took over must be left alone");
     memset(exploredMap, 0, sizeof(exploredMap));
+
+    // ---- The eight later spells: holy vision, flame shield, fireball, invisibility, blizzard, death and decay,
+    // whirlwind, runes (docs/research/autocast_all_spells.md). Every area spell hurts own and allied units, flyers and
+    // buildings alike (FUN_004afb50 has no owner test), so most scenarios put one friendly into the danger area.
+    {
+        bool savedSpells[kSpellCount];
+        memcpy(savedSpells, config::g.spell, sizeof(savedSpells));
+        const bool savedEye = config::g.eyeCast, savedLog = config::g.logCasts;
+        config::g.eyeCast = false;  // an idle full-mana ogre-mage would cast the eye instead of standing still
+        config::g.logCasts = true;  // every cast and watchdog log line runs at least once
+        auto only = [&](int s) {
+            for (int i = 0; i < kSpellCount; ++i) config::g.spell[i] = i == s;
+        };
+        struct Sz { uint16_t w, h; };
+        Sz* sizes = At<Sz>(kRvaUnitSizeByType);
+        uint8_t* rangeT = At<uint8_t>(kRvaAttackRangeByType);
+        Sz savedSizes[110];
+        uint8_t savedRanges[110];
+        memcpy(savedSizes, sizes, sizeof(savedSizes));
+        memcpy(savedRanges, rangeT, sizeof(savedRanges));
+        constexpr uint8_t kBarracks = 0x3C, kCastle = 0x5A, kAxe = 9;
+        defType(kBarracks, kTfBuilding, 800);
+        sizes[kBarracks] = {3, 3};
+        defType(kCastle, kTfBuilding, 1600);
+        sizes[kCastle] = {4, 4};
+        defType(kAxe, kTfFleshy | kTfAttacker, 40);
+        rangeT[kFootman] = rangeT[kGrunt] = rangeT[kOgre] = 1;
+        rangeT[kAxe] = 4;
+        rangeT[kTypeMage] = 2;
+        rangeT[kDragon] = 4;
+        static uint8_t missiles[16 * kMissileSize];
+        memset(missiles, 0, sizeof(missiles));
+        for (int i = 0; i < 16; ++i) missiles[i * kMissileSize + kMisOffFlags] = 1;  // all free
+        *At<uint8_t*>(kRvaMissilePool) = missiles;
+        *At<uint32_t>(kRvaMissileSlots) = 16;
+        uint16_t* runeTimers = At<uint16_t>(kRvaRuneTimers);
+        memset(runeTimers, 0, kMaxRunes * sizeof(uint16_t));
+        static uint16_t sqTest[kMap * kMap];
+        memset(sqTest, 0, sizeof(sqTest));
+        uint16_t* const savedSq = *At<uint16_t*>(kRvaSquareFlags);
+        const int refusedBefore = game::RefusedOrderCount();
+        auto ox = [](Unit* u) { return static_cast<int>(Field<int16_t>(u, kOffOrderX)); };
+        auto oy = [](Unit* u) { return static_cast<int>(Field<int16_t>(u, kOffOrderY)); };
+        auto castAt = [&](Unit* c, uint8_t order, int x, int y) {
+            return OrderOf(c) == order && TargetOf(c) == nullptr && ox(c) == x && oy(c) == y;
+        };
+        auto tileOnMap = [&](Unit* c) { return ox(c) >= 0 && oy(c) >= 0 && ox(c) < kMap && oy(c) < kMap; };
+        uint32_t serial = 5000;
+        auto caster = [&](uint8_t type, int x, int y) {
+            Unit* u = AddUnit(type, 0, x, y, 60, 255, kOrderStand);
+            Field<uint32_t>(u, kOffSerial) = ++serial;
+            return u;
+        };
+        auto slot = [](int i) { return reinterpret_cast<Unit*>(g_units + i * kUnitSize); };
+        struct Blocker {
+            uint8_t type, owner;
+            int x, y;
+            const char* what;
+        };
+
+        // Fireball: splashes on the aimed tile and on the ~6 tiles past it along the flight line (FUN_004ae7c0).
+        auto fireballWorld = [&](int enemies) {
+            ResetWorld();
+            Unit* m = caster(kTypeMage, 20, 30);
+            AddUnit(kGrunt, 1, 26, 30, 60, 0, kOrderAttack);
+            if (enemies > 1) AddUnit(kGrunt, 1, 27, 30, 60, 0, kOrderAttack);
+            return m;
+        };
+        Unit* mg = fireballWorld(2);
+        only(-1);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand, "fireball cast while its switch is off");
+        only(kSpellFireball);
+        Field<uint8_t>(mg, kOffMana) = 99;
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand, "fireball cast with 99 mana");
+        Field<uint8_t>(mg, kOffMana) = 255;
+        mod::RunAutocastPass();
+        CHECK(castAt(mg, kOrderFireball, 26, 30), "fireball at the nearer grunt's tile (order %u at %d,%d)", OrderOf(mg), ox(mg), oy(mg));
+        const Blocker fireballBlockers[] = {
+            {kFootman, 0, 31, 31, "an own footman beside the splash line, 5 tiles past the target"},
+            {kFootman, 2, 33, 32, "an allied footman at the end of the splash line"},
+            {kDragon, 0, 32, 29, "an own dragon over the splash line"},
+            {kBarracks, 0, 34, 26, "an own barracks whose footprint (not its top-left tile) is 2 tiles from the line"},
+        };
+        for (const Blocker& b : fireballBlockers) {
+            mg = fireballWorld(2);
+            AddUnit(b.type, b.owner, b.x, b.y, 100, 0, kOrderStand);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(mg) == kOrderStand, "fireball cast with %s", b.what);
+        }
+        mg = fireballWorld(2);
+        AddUnit(kFootman, 0, 22, 30, 60, 0, kOrderStand);  // on the way in: the fireball splashes only from the aimed tile on
+        mod::RunAutocastPass();
+        CHECK(castAt(mg, kOrderFireball, 26, 30), "a friendly between the mage and the aimed tile must not stop the fireball");
+        mg = fireballWorld(2);
+        *At<uint16_t*>(kRvaSquareFlags) = sqTest;
+        sqTest[31 * kMap + 30] = kSqWalls;  // walls have no owner: any wall next to a splash point counts as ours
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand, "fireball cast next to a wall");
+        sqTest[31 * kMap + 30] = 0;
+        *At<uint16_t*>(kRvaSquareFlags) = savedSq;
+        mg = fireballWorld(1);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand, "fireball at a single grunt with fireball_min_enemies = 2");
+        config::g.fireballMinEnemies = 1;
+        mod::RunAutocastPass();
+        CHECK(castAt(mg, kOrderFireball, 26, 30), "fireball_min_enemies = 1 fires at a single grunt");
+        config::g.fireballMinEnemies = 2;
+        ResetWorld();  // the splash line runs off the map: the points outside are skipped, the aimed tile is on it
+        mg = caster(kTypeMage, 50, 30);
+        AddUnit(kGrunt, 1, 57, 30, 60, 0, kOrderAttack);
+        AddUnit(kGrunt, 1, 58, 30, 60, 0, kOrderAttack);
+        mod::RunAutocastPass();
+        CHECK(castAt(mg, kOrderFireball, 57, 30), "fireball toward the map edge (order %u at %d,%d)", OrderOf(mg), ox(mg), oy(mg));
+        ResetWorld();  // two mages, one group: the second may not fire at the same tile in the same pass
+        mg = caster(kTypeMage, 20, 30);
+        Unit* mg2 = caster(kTypeMage, 20, 32);
+        AddUnit(kGrunt, 1, 26, 30, 60, 0, kOrderAttack);
+        AddUnit(kGrunt, 1, 26, 31, 60, 0, kOrderAttack);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderFireball && OrderOf(mg2) == kOrderStand, "two mages fireballed the same group (%u / %u)", OrderOf(mg), OrderOf(mg2));
+
+        // Blizzard and Death and Decay: 5 impacts a wave on the 5x5 tiles around the target, channelled.
+        struct AreaCase {
+            int spell;
+            uint8_t casterType, order;
+            int threeWaves;
+        };
+        const AreaCase areaCases[] = {{kSpellBlizzard, kTypeMage, kOrderBlizzard, 75}, {kSpellDeathAndDecay, kTypeDeathKnight, kOrderDeathAndDecay, 90}};
+        for (const AreaCase& ac : areaCases) {
+            const char* name = config::kSpellKeys[ac.spell];
+            auto areaWorld = [&](int cx, int cy) {
+                ResetWorld();
+                Unit* c = caster(ac.casterType, cx, cy);
+                AddUnit(kGrunt, 1, 27, 20, 60, 0, kOrderAttack);  // slots 1..3
+                AddUnit(kGrunt, 1, 28, 21, 60, 0, kOrderAttack);
+                AddUnit(kGrunt, 1, 27, 22, 60, 0, kOrderAttack);
+                return c;
+            };
+            only(-1);
+            Unit* c = areaWorld(20, 20);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == kOrderStand, "%s cast while its switch is off", name);
+            only(ac.spell);
+            Field<uint8_t>(c, kOffMana) = static_cast<uint8_t>(ac.threeWaves - 1);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == kOrderStand, "%s started without mana for three waves", name);
+            Field<uint8_t>(c, kOffMana) = static_cast<uint8_t>(ac.threeWaves);
+            mod::RunAutocastPass();
+            CHECK(castAt(c, ac.order, 27, 20), "%s at the group (order %u at %d,%d)", name, OrderOf(c), ox(c), oy(c));
+            const Blocker areaBlockers[] = {
+                {kFootman, 0, 31, 21, "an own footman 4 tiles from the group"},
+                {kFootman, 2, 29, 23, "an allied footman"},
+                {kDragon, 0, 25, 18, "an own dragon overhead"},
+                {kBarracks, 0, 22, 16, "an own barracks whose footprint (not its top-left tile) is 4 tiles away"},
+            };
+            for (const Blocker& b : areaBlockers) {
+                c = areaWorld(20, 20);
+                AddUnit(b.type, b.owner, b.x, b.y, 100, 0, kOrderStand);
+                mod::RunAutocastPass();
+                CHECK(OrderOf(c) == kOrderStand, "%s cast with %s", name, b.what);
+            }
+            c = areaWorld(20, 20);  // exactly 4 tiles from one group tile: that tile is out, the next one is used
+            AddUnit(kFootman, 0, 27, 16, 60, 0, kOrderStand);
+            mod::RunAutocastPass();
+            CHECK(castAt(c, ac.order, 27, 22), "%s should move to the group tile 5+ tiles from the footman (order %u at %d,%d)", name,
+                  OrderOf(c), ox(c), oy(c));
+            c = areaWorld(20, 20);  // 5 tiles from every group tile: fine
+            AddUnit(kFootman, 0, 27, 15, 60, 0, kOrderStand);
+            mod::RunAutocastPass();
+            CHECK(castAt(c, ac.order, 27, 20), "%s refused with the nearest friendly 5 tiles away", name);
+            c = areaWorld(24, 20);  // the caster is the missile's source and never hurt; a unit next to it is
+            mod::RunAutocastPass();
+            CHECK(castAt(c, ac.order, 27, 20), "%s: the caster itself must not count as a friendly in the area", name);
+            c = areaWorld(24, 20);
+            AddUnit(kFootman, 0, 24, 22, 60, 0, kOrderStand);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == kOrderStand, "%s cast with a footman beside the caster inside the area", name);
+            c = areaWorld(20, 20);
+            *At<uint16_t*>(kRvaSquareFlags) = sqTest;
+            sqTest[20 * kMap + 30] = kSqWalls;
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == kOrderStand, "%s cast with a wall 3 tiles from the group", name);
+            sqTest[20 * kMap + 30] = 0;
+            *At<uint16_t*>(kRvaSquareFlags) = savedSq;
+            c = areaWorld(20, 20);
+            Field<uint8_t>(slot(3), kOffStateFlags) = kStateDying;
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == kOrderStand, "%s at 2 enemies with area_min_enemies = 3", name);
+            c = areaWorld(20, 20);  // claims: the second caster must not stack a spell on the same group
+            Unit* c2 = caster(ac.casterType, 20, 22);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == ac.order && OrderOf(c2) == kOrderStand, "%s: two casters on one group (%u / %u)", name, OrderOf(c), OrderOf(c2));
+
+            // Watchdog: stops a channel the mod started once it turns unsafe or useless, never one the player gave.
+            c = areaWorld(20, 20);
+            mod::RunAutocastPass();
+            CHECK(castAt(c, ac.order, 27, 20), "%s watchdog setup", name);
+            AddUnit(ac.spell == kSpellBlizzard ? kFootman : kDragon, 0, 29, 20, 60, 0, kOrderMove);  // walks / flies in
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == kOrderStop, "%s: the watchdog did not stop the channel when a friendly entered (order %u)", name, OrderOf(c));
+            c = areaWorld(20, 20);
+            mod::RunAutocastPass();
+            for (int i = 1; i <= 3; ++i) Field<uint8_t>(slot(i), kOffStateFlags) = kStateDying;
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == kOrderStop, "%s: the watchdog did not stop the channel once the enemies were gone (order %u)", name, OrderOf(c));
+            config::g.channelManaReserve = 100;
+            const int reserveStart = 100 + ac.threeWaves / 3;  // the reserve plus one wave
+            c = areaWorld(20, 20);
+            Field<uint8_t>(c, kOffMana) = static_cast<uint8_t>(reserveStart - 1);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == kOrderStand, "%s started with less than channel_mana_reserve + one wave", name);
+            Field<uint8_t>(c, kOffMana) = static_cast<uint8_t>(reserveStart);
+            mod::RunAutocastPass();
+            CHECK(castAt(c, ac.order, 27, 20), "%s with channel_mana_reserve = 100 and mana %d", name, reserveStart);
+            Field<uint8_t>(c, kOffMana) = 100;
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == ac.order, "%s stopped at exactly the reserve", name);
+            Field<uint8_t>(c, kOffMana) = 99;
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == kOrderStop, "%s: the watchdog did not stop the channel below the reserve (order %u)", name, OrderOf(c));
+            config::g.channelManaReserve = 0;
+            c = areaWorld(20, 20);  // the player's own channel (same order, same tile) is never touched
+            Field<uint8_t>(c, kOffOrder) = ac.order;
+            Field<int16_t>(c, kOffOrderX) = 27;
+            Field<int16_t>(c, kOffOrderY) = 20;
+            AddUnit(kFootman, 0, 29, 20, 60, 0, kOrderMove);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == ac.order, "%s: the watchdog stopped a channel the player ordered", name);
+            c = areaWorld(20, 20);  // the mod's caster dies and a new unit in the same slot gets the same channel from the player
+            mod::RunAutocastPass();
+            Field<uint32_t>(c, kOffSerial) = ++serial;
+            AddUnit(kFootman, 0, 29, 20, 60, 0, kOrderMove);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == ac.order, "%s: the watchdog stopped the channel of a new unit in a reused slot", name);
+            c = areaWorld(20, 20);  // a mod channel the player sends elsewhere is the player's from then on
+            mod::RunAutocastPass();
+            Field<int16_t>(c, kOffOrderX) = 28;
+            Field<int16_t>(c, kOffOrderY) = 21;
+            AddUnit(kFootman, 0, 30, 21, 60, 0, kOrderMove);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == ac.order, "%s: the watchdog stopped a channel the player re-aimed", name);
+            c = areaWorld(20, 20);  // with autocast switched off the watchdog still guards what the mod started
+            mod::RunAutocastPass();
+            config::g.enabled = false;
+            AddUnit(kFootman, 0, 29, 20, 60, 0, kOrderMove);
+            for (int i = 0; i < 40; ++i) mod::OnTick();
+            CHECK(OrderOf(c) == kOrderStop, "%s: the watchdog did not run while autocast was off (order %u)", name, OrderOf(c));
+            config::g.enabled = true;
+        }
+
+        // Whirlwind: wanders at random (FUN_004aeb70), so nobody friendly within 6 tiles; one per death knight.
+        auto wwWorld = [&](int cx, int cy) {
+            ResetWorld();
+            Unit* c = caster(kTypeDeathKnight, cx, cy);
+            AddUnit(kGrunt, 1, 27, 20, 60, 0, kOrderAttack);
+            AddUnit(kGrunt, 1, 28, 21, 60, 0, kOrderAttack);
+            AddUnit(kGrunt, 1, 27, 22, 60, 0, kOrderAttack);
+            return c;
+        };
+        only(-1);
+        Unit* dkn = wwWorld(20, 20);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(dkn) == kOrderStand, "whirlwind cast while its switch is off");
+        only(kSpellWhirlwind);
+        Field<uint8_t>(dkn, kOffMana) = 99;
+        mod::RunAutocastPass();
+        CHECK(OrderOf(dkn) == kOrderStand, "whirlwind cast with 99 mana");
+        Field<uint8_t>(dkn, kOffMana) = 255;
+        mod::RunAutocastPass();
+        CHECK(castAt(dkn, kOrderWhirlwind, 27, 20), "whirlwind at the group (order %u at %d,%d)", OrderOf(dkn), ox(dkn), oy(dkn));
+        const Blocker wwBlockers[] = {
+            {kFootman, 0, 33, 21, "an own footman 6 tiles from the group"},
+            {kFootman, 2, 22, 24, "an allied footman 5 tiles from the group"},
+            {kDragon, 0, 30, 25, "an own dragon 5 tiles from the group"},
+            {kCastle, 0, 19, 13, "an own castle whose footprint (not its top-left tile) is 6 tiles away"},
+        };
+        for (const Blocker& b : wwBlockers) {
+            dkn = wwWorld(20, 20);
+            AddUnit(b.type, b.owner, b.x, b.y, 100, 0, kOrderStand);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(dkn) == kOrderStand, "whirlwind cast with %s", b.what);
+        }
+        dkn = wwWorld(20, 20);
+        AddUnit(kFootman, 0, 35, 21, 60, 0, kOrderStand);  // 7 tiles from the group
+        mod::RunAutocastPass();
+        CHECK(OrderOf(dkn) == kOrderWhirlwind, "whirlwind refused with the nearest friendly 7 tiles away");
+        dkn = wwWorld(20, 20);
+        uint8_t* ww = missiles + 3 * kMissileSize;  // a whirlwind of this death knight is still in flight
+        ww[kMisOffFlags] = 2;
+        ww[kMisOffType] = kMissileWhirlwind;
+        *reinterpret_cast<Unit**>(ww + kMisOffSource) = dkn;
+        mod::RunAutocastPass();
+        CHECK(OrderOf(dkn) == kOrderStand, "second whirlwind while the first one is in flight");
+        *reinterpret_cast<Unit**>(ww + kMisOffSource) = slot(1);  // someone else's
+        mod::RunAutocastPass();
+        CHECK(OrderOf(dkn) == kOrderWhirlwind, "another unit's whirlwind must not block this death knight");
+        ww[kMisOffFlags] = 1;
+        dkn = wwWorld(20, 20);
+        *At<uint8_t*>(kRvaMissilePool) = nullptr;
+        mod::RunAutocastPass();
+        CHECK(OrderOf(dkn) == kOrderStand, "whirlwind cast although the missile pool could not be read");
+        *At<uint8_t*>(kRvaMissilePool) = missiles;
+        dkn = wwWorld(20, 20);
+        Unit* dkn2 = caster(kTypeDeathKnight, 20, 22);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(dkn) == kOrderWhirlwind && OrderOf(dkn2) == kOrderStand, "two whirlwinds on one group (%u / %u)", OrderOf(dkn), OrderOf(dkn2));
+
+        // Runes: no owner, no spared source (FUN_004e2cd0): 6 tiles of room around the plus, the ogre-mage included.
+        auto runesWorld = [&](int cx, int cy, bool enemyFlyer) {
+            ResetWorld();
+            Unit* c = caster(kTypeOgreMage, cx, cy);
+            AddUnit(kGrunt, 1, 27, 20, 60, 0, kOrderAttack);
+            AddUnit(enemyFlyer ? kDragon : kGrunt, 1, 28, 20, 60, 0, kOrderAttack);
+            return c;
+        };
+        only(-1);
+        Unit* ogm = runesWorld(20, 20, false);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(ogm) == kOrderStand, "runes cast while its switch is off");
+        only(kSpellRunes);
+        Field<uint8_t>(ogm, kOffMana) = 199;
+        mod::RunAutocastPass();
+        CHECK(OrderOf(ogm) == kOrderStand, "runes cast with 199 mana");
+        Field<uint8_t>(ogm, kOffMana) = 255;
+        mod::RunAutocastPass();
+        CHECK(castAt(ogm, kOrderRunes, 27, 20), "runes around the grunts (order %u at %d,%d)", OrderOf(ogm), ox(ogm), oy(ogm));
+        ogm = runesWorld(22, 20, false);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(ogm) == kOrderStand, "runes laid 5 tiles from the casting ogre-mage");
+        const Blocker runeBlockers[] = {
+            {kFootman, 0, 33, 20, "an own footman 6 tiles from the runes"},
+            {kFootman, 2, 24, 17, "an allied footman"},
+            {kDragon, 0, 30, 24, "an own dragon"},
+            {kCastle, 0, 29, 12, "an own castle whose footprint (not its top-left tile) is 5 tiles away"},
+        };
+        for (const Blocker& b : runeBlockers) {
+            ogm = runesWorld(20, 20, false);
+            AddUnit(b.type, b.owner, b.x, b.y, 100, 0, kOrderStand);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(ogm) == kOrderStand, "runes cast with %s", b.what);
+        }
+        ogm = runesWorld(20, 20, false);
+        AddUnit(kFootman, 0, 35, 20, 60, 0, kOrderStand);  // 7 tiles away
+        mod::RunAutocastPass();
+        CHECK(OrderOf(ogm) == kOrderRunes, "runes refused with the nearest friendly 7 tiles away");
+        ogm = runesWorld(20, 20, true);  // an enemy flyer never triggers a rune
+        mod::RunAutocastPass();
+        CHECK(OrderOf(ogm) == kOrderStand, "runes cast for one grunt and one dragon");
+        ogm = runesWorld(20, 20, false);
+        runeTimers[7] = 100;
+        At<uint8_t>(kRvaRuneX)[7] = 29;
+        At<uint8_t>(kRvaRuneY)[7] = 21;
+        mod::RunAutocastPass();
+        CHECK(OrderOf(ogm) == kOrderStand, "runes laid 2 tiles from a live rune");
+        runeTimers[7] = 0;
+        ogm = runesWorld(20, 20, false);
+        Unit* ogm2 = caster(kTypeOgreMage, 20, 22);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(ogm) == kOrderRunes && OrderOf(ogm2) == kOrderStand, "two ogre-magi laid runes on one group (%u / %u)", OrderOf(ogm),
+              OrderOf(ogm2));
+
+        // Flame shield: an own melee fighter with nobody friendly within 3 tiles, the mage included (the shield only
+        // spares the shielded unit).
+        Unit* fsTarget = nullptr;
+        auto fsWorld = [&](int mx, int my, uint8_t targetType, uint8_t targetOrder, int enemies) {
+            ResetWorld();
+            Unit* m = caster(kTypeMage, mx, my);
+            fsTarget = AddUnit(targetType, 0, 25, 20, 60, 0, targetOrder);
+            AddUnit(kGrunt, 1, 26, 20, 60, 0, kOrderAttack);
+            if (enemies > 1) AddUnit(kGrunt, 1, 27, 21, 60, 0, kOrderAttack);
+            return m;
+        };
+        only(-1);
+        mg = fsWorld(20, 20, kGrunt, kOrderAttackTarget, 2);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand, "flame shield cast while its switch is off");
+        only(kSpellFlameShield);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderFlameShield && TargetOf(mg) == fsTarget, "flame shield on the fighting grunt (order %u)", OrderOf(mg));
+        mg = fsWorld(23, 20, kGrunt, kOrderAttackTarget, 2);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand, "flame shield cast by a mage 2 tiles from the shielded unit");
+        const Blocker fsBlockers[] = {
+            {kFootman, 0, 22, 22, "an own footman 3 tiles from the shielded unit"},
+            {kFootman, 2, 28, 18, "an allied footman 3 tiles from the shielded unit"},
+            {kDragon, 0, 25, 22, "an own dragon next to the shielded unit"},
+            {kBarracks, 0, 26, 15, "an own barracks whose footprint (not its top-left tile) is 3 tiles away"},
+        };
+        for (const Blocker& b : fsBlockers) {
+            mg = fsWorld(20, 20, kGrunt, kOrderAttackTarget, 2);
+            AddUnit(b.type, b.owner, b.x, b.y, 100, 0, kOrderStand);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(mg) == kOrderStand, "flame shield cast with %s", b.what);
+        }
+        mg = fsWorld(20, 20, kDragon, kOrderAttackTarget, 2);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand, "flame shield on a flyer (the hit-frame action refuses those)");
+        mg = fsWorld(20, 20, kAxe, kOrderAttackTarget, 2);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand, "flame shield on a ranged unit");
+        mg = fsWorld(20, 20, kGrunt, kOrderAttackTarget, 1);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand, "flame shield with a single enemy near");
+        mg = fsWorld(20, 20, kGrunt, kOrderStand, 2);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand, "flame shield on a grunt that is not fighting");
+        mg = fsWorld(20, 20, kGrunt, kOrderAttackTarget, 2);
+        Field<uint16_t>(fsTarget, kOffFlameTimer) = 300;
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand, "flame shield on a unit that already has one");
+        mg = fsWorld(20, 20, kGrunt, kOrderAttackTarget, 2);
+        mg2 = caster(kTypeMage, 20, 24);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderFlameShield && OrderOf(mg2) == kOrderStand, "two flame shields on one grunt (%u / %u)", OrderOf(mg),
+              OrderOf(mg2));
+
+        // Invisibility: a hurt own caster / ranged unit the player is pulling back, never one that is invisible already.
+        Unit* invTarget = nullptr;
+        auto invWorld = [&](uint8_t type, int hp, uint8_t order) {
+            ResetWorld();
+            Unit* m = caster(kTypeMage, 20, 20);
+            invTarget = AddUnit(type, 0, 23, 20, hp, 0, order);
+            AddUnit(kGrunt, 1, 27, 20, 60, 0, kOrderAttack);
+            return m;
+        };
+        only(-1);
+        mg = invWorld(kTypeMage, 20, kOrderMove);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand, "invisibility cast while its switch is off");
+        only(kSpellInvisibility);
+        Field<uint8_t>(mg, kOffMana) = 199;
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand, "invisibility cast with 199 mana");
+        Field<uint8_t>(mg, kOffMana) = 255;
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderInvisibility && TargetOf(mg) == invTarget, "invisibility on the retreating hurt mage (order %u)", OrderOf(mg));
+        mg = invWorld(kTypeMage, 20, kOrderMove);
+        Field<uint16_t>(invTarget, kOffInvisTimer) = 100;
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand, "invisibility recast on a unit that is invisible already");
+        mg = invWorld(kTypeMage, 40, kOrderMove);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand, "invisibility on a unit above half health");
+        mg = invWorld(kTypeMage, 20, kOrderStand);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand, "invisibility on a unit that is not being pulled back");
+        mg = invWorld(kFootman, 20, kOrderMove);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand, "invisibility on a melee unit");
+        mg = invWorld(kAxe, 15, kOrderMove);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderInvisibility && TargetOf(mg) == invTarget, "invisibility on the retreating hurt axethrower");
+        mg = invWorld(kTypeMage, 20, kOrderMove);
+        Field<int16_t>(slot(2), kOffX) = 30;  // the grunt, now 7 tiles from the target (grid entry moved along)
+        g_grid[20 * kMap + 27] = nullptr;
+        g_grid[20 * kMap + 30] = slot(2);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand, "invisibility with no enemy within combat_radius");
+        mg = invWorld(kTypeMage, 20, kOrderMove);
+        mg2 = caster(kTypeMage, 20, 22);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderInvisibility && OrderOf(mg2) == kOrderStand, "two invisibilities on one unit (%u / %u)", OrderOf(mg),
+              OrderOf(mg2));
+
+        // Holy vision: idle paladin at full mana, at the tile whose 31x35 window holds the most unexplored ground.
+        auto exploreAllBut = [&](int x0, int y0, int x1, int y1) {
+            for (int y = 0; y < kMap; ++y)
+                for (int x = 0; x < kMap; ++x)
+                    exploredMap[y * kMap + x] = (x >= x0 && x <= x1 && y >= y0 && y <= y1) ? kTileUnexplored : 0;
+        };
+        exploreAllBut(40, 0, kMap - 1, kMap - 1);
+        only(-1);
+        ResetWorld();
+        Unit* pl = caster(kTypePaladin, 10, 10);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(pl) == kOrderStand, "holy vision cast while its switch is off");
+        only(kSpellHolyVision);
+        Field<uint8_t>(pl, kOffMana) = 254;
+        mod::RunAutocastPass();
+        CHECK(OrderOf(pl) == kOrderStand, "holy vision below full mana");
+        Field<uint8_t>(pl, kOffMana) = 255;
+        Field<uint8_t>(pl, kOffOrder) = kOrderAttackTarget;
+        mod::RunAutocastPass();
+        CHECK(OrderOf(pl) == kOrderAttackTarget, "holy vision by a busy paladin");
+        Idle(pl);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(pl) == kOrderHolyVision && TargetOf(pl) == nullptr && ox(pl) >= 25 && tileOnMap(pl),
+              "holy vision toward the unexplored east (order %u at %d,%d)", OrderOf(pl), ox(pl), oy(pl));
+        const int hvX = ox(pl), hvY = oy(pl);
+        Unit* pl2 = caster(kTypePaladin, 12, 10);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(pl2) == kOrderStand || (OrderOf(pl2) == kOrderHolyVision && (abs(ox(pl2) - hvX) > 15 || abs(oy(pl2) - hvY) > 15)),
+              "second holy vision on the same area (%d,%d vs %d,%d)", ox(pl2), oy(pl2), hvX, hvY);
+        exploreAllBut(-1, -1, -1, -1);
+        ResetWorld();
+        pl = caster(kTypePaladin, 10, 10);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(pl) == kOrderStand, "holy vision with nothing left to explore");
+        exploreAllBut(40, 0, kMap - 1, kMap - 1);
+        *At<uint8_t*>(kRvaExploredMap) = nullptr;
+        mod::RunAutocastPass();
+        CHECK(OrderOf(pl) == kOrderStand, "holy vision without an explored map");
+        *At<uint8_t*>(kRvaExploredMap) = exploredMap;
+
+        // Priorities: the spells that existed first go first.
+        ResetWorld();
+        pl = caster(kTypePaladin, 10, 10);
+        Unit* hurtFoot = AddUnit(kFootman, 0, 11, 10, 20, 0, kOrderStand);
+        config::g.spell[kSpellHeal] = true;
+        mod::RunAutocastPass();
+        CHECK(OrderOf(pl) == 0x27 && TargetOf(pl) == hurtFoot, "heal must come before holy vision (order %u)", OrderOf(pl));
+        mg = fireballWorld(2);
+        only(kSpellFireball);
+        config::g.spell[kSpellSlow] = true;
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == 0x2C, "slow must come before fireball (order %u)", OrderOf(mg));
+        dkn = wwWorld(20, 20);
+        only(kSpellDeathAndDecay);
+        config::g.spell[kSpellDeathCoil] = true;
+        mod::RunAutocastPass();
+        CHECK(OrderOf(dkn) == 0x33, "death coil must come before death and decay (order %u)", OrderOf(dkn));
+
+        // Every positional cast lands on the map, with the caster on each edge and in each corner.
+        const struct { int x, y; } spots[] = {{0, 0}, {kMap - 1, 0}, {0, kMap - 1}, {kMap - 1, kMap - 1},
+                                              {32, 0}, {0, 32}, {kMap - 1, 32}, {32, kMap - 1}};
+        for (const auto& s : spots) {
+            const int dx = s.x == 0 ? 1 : (s.x == kMap - 1 ? -1 : 0), dy = s.y == 0 ? 1 : (s.y == kMap - 1 ? -1 : 0);
+            auto group = [&](int k) {  // three grunts around the tile k steps inward
+                const int px = s.x + k * dx, py = s.y + k * dy;
+                AddUnit(kGrunt, 1, px, py, 60, 0, kOrderAttack);
+                AddUnit(kGrunt, 1, px + (px < kMap / 2 ? 1 : -1), py, 60, 0, kOrderAttack);
+                AddUnit(kGrunt, 1, px, py + (py < kMap / 2 ? 1 : -1), 60, 0, kOrderAttack);
+            };
+            const struct {
+                int spell;
+                uint8_t type, order;
+                int steps;
+            } edgeCases[] = {{kSpellFireball, kTypeMage, kOrderFireball, 5},     {kSpellBlizzard, kTypeMage, kOrderBlizzard, 6},
+                             {kSpellDeathAndDecay, kTypeDeathKnight, kOrderDeathAndDecay, 6}, {kSpellWhirlwind, kTypeDeathKnight, kOrderWhirlwind, 6},
+                             {kSpellRunes, kTypeOgreMage, kOrderRunes, 7}};
+            for (const auto& e : edgeCases) {
+                ResetWorld();
+                Unit* c = caster(e.type, s.x, s.y);
+                group(e.steps);
+                only(e.spell);
+                mod::RunAutocastPass();
+                CHECK(OrderOf(c) == e.order && TargetOf(c) == nullptr && tileOnMap(c), "%s with the caster at %d,%d: order %u at %d,%d",
+                      config::kSpellKeys[e.spell], s.x, s.y, OrderOf(c), ox(c), oy(c));
+            }
+            ResetWorld();
+            exploreAllBut(kMap - 1 - s.x - 5, kMap - 1 - s.y - 5, kMap - 1 - s.x + 5, kMap - 1 - s.y + 5);
+            pl = caster(kTypePaladin, s.x, s.y);
+            only(kSpellHolyVision);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(pl) == kOrderHolyVision && tileOnMap(pl), "holy vision with the paladin at %d,%d: order %u at %d,%d", s.x, s.y,
+                  OrderOf(pl), ox(pl), oy(pl));
+        }
+        CHECK(game::RefusedOrderCount() == refusedBefore, "the new spells produced %d order(s) outside the map",
+              game::RefusedOrderCount() - refusedBefore);
+
+        memset(exploredMap, 0, sizeof(exploredMap));
+        memcpy(sizes, savedSizes, sizeof(savedSizes));
+        memcpy(rangeT, savedRanges, sizeof(savedRanges));
+        memcpy(config::g.spell, savedSpells, sizeof(savedSpells));
+        config::g.eyeCast = savedEye;
+        config::g.logCasts = savedLog;
+    }
 
     // Unlimited gold mines: off by default; when on, a mine is put back to the most it held, never below 5000 gold.
     ResetWorld();
@@ -1783,7 +2458,8 @@ int wmain(int argc, wchar_t** argv) {
     // TOML config: a custom file is honoured, typos and bad values are survivable, a syntax error keeps old settings.
     WriteFileText(ini,
                   "[general]\ntoggle_key = \"F7\"\ninterval_ticks = 3\nbogus_key = 1\n"
-                  "[spells]\nheal = false\nunholy_armor = true\npolymorph = true\n"
+                  "[autocast]\nchannel_mana_reserve = 300\narea_min_enemies = 4\nfireball_min_enemies = 1\n"
+                  "[spells]\nheal = false\nunholy_armor = true\npolymorph = true\nblizzard = true\nruns = true\nrunes = true\n"
                   "[heal]\nmin_missing_hp = 25\n"
                   "[polymorph]\ntargets = [\"grunt\", \"not_a_unit\", \"dragon\"]\n"
                   "[haste]\nflyers_only = false\n"
@@ -1796,6 +2472,12 @@ int wmain(int argc, wchar_t** argv) {
           config::g.treesUnitDistance);
     CHECK(config::g.toggleKey == VK_F7 && config::g.intervalTicks == 3, "general section not applied");
     CHECK(!config::g.spell[kSpellHeal] && config::g.spell[kSpellUnholyArmor] && config::g.spell[kSpellSlow], "spells section");
+    CHECK(config::g.spell[kSpellBlizzard] && config::g.spell[kSpellRunes] && !config::g.spell[kSpellFireball] &&
+              !config::g.spell[kSpellHolyVision],
+          "later spell switches from [spells] (a misspelled key must not switch anything on)");
+    CHECK(config::g.channelManaReserve == 255 && config::g.areaMinEnemies == 4 && config::g.fireballMinEnemies == 1,
+          "[autocast] channel_mana_reserve (300 is clamped to 255) / area_min_enemies / fireball_min_enemies (%d / %d / %d)",
+          config::g.channelManaReserve, config::g.areaMinEnemies, config::g.fireballMinEnemies);
     CHECK(config::g.healMinMissingHp == 25 && config::g.healBelowPct == 100 && !config::g.hasteFlyersOnly, "tuning values");
     CHECK(config::g.polymorphRank[kGrunt] == 1 && config::g.polymorphRank[kDragon] == 2 && config::g.polymorphRank[kOgre] == 0,
           "polymorph target list (grunt %u dragon %u ogre %u)", config::g.polymorphRank[kGrunt],
