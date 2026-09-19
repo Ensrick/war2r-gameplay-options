@@ -147,7 +147,7 @@ upgrade_bonus = 2       # range that Longbow / Lighter Axes add. The game's own 
 [/list]
 
 [size=5][b]Source[/b][/size]
-Open source, including the reverse-engineering notes: GITHUB LINK HERE
+Open source, including the reverse-engineering notes: [url=https://github.com/Ensrick/war2r-gameplay-options]github.com/Ensrick/war2r-gameplay-options[/url]
 
 [size=5][b]Credits[/b][/size]
 The war2.ru community (Mistral and others) for two decades of Warcraft II reverse engineering, and toml++ by Mark Gillard for the config parser.

@@ -1,5 +1,7 @@
 # Nexus page material
 
+Nexus page (created by the author 2026-09-18): https://www.nexusmods.com/warcraft2/mods/8 (game domain `warcraft2`, mod id 8).
+
 The Nexus texts live in `nexus/` as plain BBCode text files, ready to paste:
 
 | File | Goes into |
@@ -12,7 +14,9 @@ Keep them in step with `docs/USER_README.txt`, `docs/CONFIG_TUTORIAL.md` and `CH
 
 ## Before publishing
 
-- Replace `GITHUB LINK HERE` in the description (the repo is private today).
+- The description links to https://github.com/Ensrick/war2r-gameplay-options. That repo is PRIVATE, so the link is a
+  404 for everyone else until the author decides to make it public. Visibility is the author's call.
+- The description cannot be edited through the Nexus API: paste `nexus/NEXUS_DESCRIPTION.txt` on the website.
 - The shipped config has the destroyer example switched on (the author's in-game test case). Decide whether the public
   file should ship it commented out; the description currently says it is on.
 - Add the Buy Me a Coffee block (memory `reference_bmc_button.md`) if wanted on this page.
