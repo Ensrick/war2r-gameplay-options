@@ -534,6 +534,112 @@ Good to know:
 - The spell descriptions in the game's tooltips are fixed text ("Deals 34 hit point damage", "1 hit point per 5 mana")
   and do not change; the mana cost shown in the tooltip does.
 
+### Buildings that train by themselves
+
+```toml
+[auto_production]
+enabled = true          # Ctrl+F10 also turns it on and off in game
+```
+
+Every **idle** building of yours then trains on its own, all of them in the same moment: town halls, keeps and castles
+make workers, barracks, aviaries / roosts, mage towers / temples and shipyards make the army. The computer's buildings
+are never touched, a building you have selected is left alone (so your own click is never stolen), and the mod never
+starts a research or a building upgrade.
+
+What it builds: **workers, footmen / grunts, archers / axethrowers (rangers / berserkers once upgraded), knights /
+ogres (paladins / ogre-mages once upgraded), mages / death knights, gryphon riders / dragons, ballistas / catapults,
+destroyers, battleships / juggernaughts, submarines / turtles when you are rich, and one oil tanker once you own an
+oil platform**. It never builds transports, flying machines / zeppelins, dwarves / sappers or heroes, and it never
+builds a second tanker: ferrying, scouting and oil runs stay yours.
+
+```toml
+[auto_production]
+workers_per_hall_tier = 6   # 6 workers with a town hall, 12 with a keep, 18 with a castle
+food_free_min = 4           # always leave this much food free: 4, or
+food_free_percent = 10      # 10 % of your supply, whichever is more
+reserve_extra = 0.25        # money kept back for upgrades (below)
+upgrade_bias = 0.25         # a line with upgrades gets a bigger share (below)
+filler_min = 10             # spare money for this many units unblocks the filler rule (below)
+navy_weight = 1.0           # how much of the map's water turns into ships (0 = never build ships)
+navy_max = 80               # ships are never more than this much of the army, in percent
+
+[auto_production.units]         # switch a whole class off
+flyers = false
+
+[auto_production.bank_multiple] # spare money the bank must hold, as a multiple of the unit's own price
+all = 4.0
+knights = 8.0                   # be richer before each knight
+```
+
+**The food you keep.** Before anything is trained the mod checks the food you would have **after** that unit: at least
+`food_free_min`, or `food_free_percent` of your supply, whichever is larger, must still be free. That room is yours,
+for peasants, transports, zeppelins or a tanker of your own. Units already in training count as used food (the game's
+own "not enough food" message does not count them, which is why it lets you overshoot).
+
+**The upgrade reserve.** The mod adds up every upgrade you could buy right now (weapons, armor, the ranger / berserker
+line, spells, the paladin / ogre-mage upgrade, keeps, castles, guard and cannon towers) and keeps the dearest one plus
+`reserve_extra` of all the others in the bank. The more you could be researching, the more it saves, so a unit is only
+built when it does not eat your next upgrade.
+
+**When a unit is affordable.** Not a fixed sum: everything left after the reserve must pay for `bank_multiple` of that
+unit, in every resource it costs. Four grunts' worth of spare gold before a grunt, four battleships' worth of spare
+gold, lumber and oil before a battleship. Raise the price of a unit anywhere (`[costs]`, `[unit.knight]`, the map's own
+data) and the threshold rises with it. `all` is the master, a class name overrides it for that class, and submarines
+always want twice their number.
+
+**Ships come from the map.** On the first pass of a map the mod counts the water tiles and the oil patches and
+platforms on it, and writes what it found to the log:
+
+```
+production: map is 50 % water with 2 oil source(s): ships get 72 / 60 / 54 % of the army by hall tier
+```
+
+The share is the water fraction plus 5 % per oil source (at most 30 % from oil), a little higher while you only have a
+town hall and lower with a castle, then `navy_weight` and the `navy_max` cap. A map with no oil and less than 10 %
+water is a land map: no ships at all, whatever else happens. `navy_weight = 0` turns ships off everywhere.
+
+**The army composition.** Land and ships have their own percentages per hall tier, and the map's share decides how the
+army is split between the two:
+
+```toml
+[auto_production.land_tier3]  # with a castle / fortress
+archers = 15
+knights = 40
+casters = 25
+flyers = 15
+siege = 5
+
+[auto_production.navy_tier3]
+destroyers = 25
+battleships = 60
+submarines = 10
+```
+
+These are shares, not hard limits, and they only have to be shares of each other (60 and 20 mean the same as 6 and 2).
+Four things bend them:
+
+- **what you can pay for.** A class you cannot afford drops out and its share goes to the others.
+- **the filler.** When a building can afford nothing from its mix but the bank is fat (more than `filler_min` of
+  something it could train), it builds that instead. This is what keeps a gold-rich, lumber-poor game moving: grunts
+  out of a tier-3 barracks, where grunts have no share at all. It never crosses the land / ship line.
+- **your upgrades.** Every upgrade level of a class's line adds `upgrade_bias` (25 % by default) to its share, so a
+  fully upgraded line is built more often.
+- **the hall tier.** A keep switches to `land_tier2` / `navy_tier2`, a castle to the tier-3 tables.
+
+A building whose classes are all well past their share (more than 2 units and more than 25 % over) waits instead, so
+the money goes to whatever is behind.
+
+**Submarines / turtles** are a luxury: they need twice the bank margin of anything else and never take more than a
+fifth of your ships, whatever `navy_tierN` says. They are also blind to what they cannot see: the mod does not build
+spotters for them, so keep a flying machine or a zeppelin of your own around if you care about enemy submarines.
+
+Good to know:
+
+- Auto-production only runs in single player, like every other feature that gives orders.
+- A new unit stands next to the building that made it. Warcraft II has no rally point, so the mod cannot set one.
+- If a unit cannot be placed (no free tile), that building waits 10 seconds before trying again.
+- `[general] log_casts = true` writes one line per start to `x86\gameplay_options.log`.
+
 ### Change or remove the hotkey
 
 `Ctrl` plus this key toggles autocast in game.
@@ -600,6 +706,18 @@ Every cast is then written to `x86\gameplay_options.log` with the caster, the ta
 | costs.human / costs.orc | all, units, structures, research, the 8 unit groups, buildings, building_upgrades, the research groups | 1.0 each | Price multipliers, caps 2550 / 65535 |
 | time.human / time.orc | same keys as costs | 1.0 each | Training, construction, upgrade and research time, cap 255 |
 | range | upgrade_bonus | 1 | Range added by Longbow / Lighter Axes |
+| auto_production | enabled / toggle_key | false / "F10" | Idle buildings of yours train by themselves; Ctrl + key toggles it |
+| auto_production | workers_per_hall_tier | 6 | Workers wanted per hall tier (6 / 12 / 18 with hall / keep / castle) |
+| auto_production | food_free_min / food_free_percent | 4 / 10 | Food always left free: the larger of the two |
+| auto_production | reserve_extra | 0.25 | Bank kept for upgrades: the dearest purchasable one + this much of the rest |
+| auto_production | upgrade_bias | 0.25 | Extra share per upgrade level of a class's line |
+| auto_production | filler_min | 10 | Spare money for this many units before the filler rule builds off-mix |
+| auto_production | navy_weight | 1.0 | Scales the ship share the map asks for; 0 = never build ships |
+| auto_production | navy_max | 80 | Ships never take more than this much of the army, in percent |
+| auto_production.units | workers, infantry, archers, knights, casters, flyers, siege, tankers, destroyers, battleships, submarines | true each | Switch a class off |
+| auto_production.bank_multiple | all, then the same class names | 4.0 | Spare bank needed, as a multiple of the unit's own price (submarines always want twice) |
+| auto_production.land_tier1 / 2 / 3 | infantry, archers, knights, casters, flyers, siege | see the recipe | Land shares in percent, per hall tier |
+| auto_production.navy_tier1 / 2 / 3 | destroyers, battleships, submarines | see the recipe | Ship shares in percent, per hall tier |
 | spell_cost | all | 1.0 | Multiplies every spell's mana cost, rounded up, 1 to 255 |
 | spell_cost | holy_vision ... death_and_decay (18 spells) | -1 each | Your own mana cost for one spell, -1 = the game's. Heal and exorcism: mana per hit point |
 | spell_damage | all | 1.0 | Multiplies every damage number and the heal limit; makes heal and exorcism cheaper per hit point |

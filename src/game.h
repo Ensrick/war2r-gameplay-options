@@ -36,6 +36,9 @@ constexpr uint32_t kRvaHealCapInsn = 0xE2289;           // `mov eax, 0x28` in FU
 constexpr uint32_t kRvaManaRegenReloadInsn = 0xEF586;   // `mov byte [esi+0x74], 0x28` in FUN_004ef480, after +1 mana
 constexpr uint32_t kRvaManaRegenCreateInsn = 0xEDF17;   // same store for a new caster in CreateUnit FUN_004edb10
 constexpr uint32_t kRvaManaRegenConvertInsn = 0xED334;  // same store in the type change FUN_004ed2c0 (knight -> paladin ...)
+// Production (docs/research/production.md).
+constexpr uint32_t kRvaStartProduction = 0xACE10;  // int __cdecl (Unit* building, u8 id, u8 kind): 1 = started and paid. The AI's
+                                                   // own call (0x4AE2E2: push kind, push id, push building, add esp, 0xC)
 
 // --- data ---
 constexpr uint32_t kRvaLocalPlayer = 0x518CCD;        // uint8, compared against unit owner by the selection code
@@ -97,6 +100,24 @@ constexpr uint32_t kRvaFarmCount = 0x51B48C;         // uint16[16]: completed fa
 constexpr uint32_t kRvaHallCount = 0x51B52C;         // uint16[16]: town / great halls
 constexpr uint32_t kRvaKeepCount = 0x51B54C;         // uint16[16]: keeps / strongholds
 constexpr uint32_t kRvaCastleCount = 0x51B56C;       // uint16[16]: castles / fortresses
+constexpr uint32_t kRvaUnitsCounted = 0x51B38C;      // uint16[16]: every complete non-building unit ("food used" before the free ones)
+constexpr uint32_t kRvaFoodFreeUnits = 0x51B6AC;     // uint16[16]: skeletons, daemons, critters (0x8C0B80[0x37..0x39])
+constexpr uint32_t kRvaUnitsInTraining = 0x5193F0;   // uint16[16]: +1 in StartProduction kind 0 (0x4AD079), -1 when it ends
+constexpr uint32_t kRvaPlayerOil = 0x519168;         // int32[16]
+// Production rules (docs/research/production.md sections 2 and 4).
+constexpr uint32_t kRvaTrainedAt = 0x438248;         // uint8[0x3A] (.rdata): building type that trains each unit, 'n' = none
+constexpr uint32_t kRvaResearchAt = 0x438284;        // uint8[52] (.rdata): building type that researches each UGRD index
+constexpr uint32_t kRvaTrainRequirement = 0x4C0428;  // int (__cdecl*)(Unit* building)[0x3A], null = never trainable
+constexpr uint32_t kRvaUnitsAllowed = 0x519210;      // uint32[16], ALOW units / buildings (PUD handler FUN_004d19d0)
+constexpr uint32_t kRvaSpellsAllowed = 0x519290;     // uint32[16], ALOW spells allowed
+constexpr uint32_t kRvaSpellsInResearch = 0x5192D0;  // uint32[16], set by StartProduction kind 1
+constexpr uint32_t kRvaUpgradesAllowed = 0x519310;   // uint32[16], ALOW upgrades allowed
+constexpr uint32_t kRvaUpgradesInResearch = 0x519350;  // uint32[16], set by StartProduction kind 2
+constexpr uint32_t kRvaUpgradeLevels = 0x518BEC;     // uint8[16] per line: +0x00 missile, +0x10 melee, +0x30 shields, +0x40 ship
+                                                     // cannons, +0x50 ship armor, +0x70 siege, +0x80 ranger, +0x90 longbow,
+                                                     // +0xA0 scouting, +0xB0 marksmanship (group table 0x8C03F8)
+constexpr uint32_t kRvaSelectedUnit = 0x5342EC;      // Unit*: the unit whose buttons are shown (every button condition reads it)
+constexpr uint32_t kRvaSelection = 0x5342F0;         // Unit*[12]: the selection list whose HP / mana the panel caches (FUN_004e6db0)
 constexpr uint32_t kRvaGameFromSave = 0x51BFB0;      // uint16: 1 while the running game came from a savegame (mov [0x91BFB0],si at 0x4C4295)
 constexpr uint32_t kRvaNetGameAtLoad = 0x522F5B;     // uint8, network flag that is already valid while a map loads
 constexpr uint32_t kRvaNetGame = 0x51C6F4;            // nonzero while the game loop runs DONETWORKTURN (multiplayer)
@@ -109,6 +130,7 @@ constexpr uint8_t kNeutralPlayer = 15;
 constexpr int kOffSerial = 0x14;        // uint32 creation serial, unique per created unit
 constexpr int kOffX = 0x18;             // int16 tile x
 constexpr int kOffY = 0x1A;             // int16 tile y
+constexpr int kOffJobFlags = 0x1C;      // uint16, buildings: 0x10 producing, 0x20 cancel asked (StartProduction, FUN_004ad250)
 constexpr int kOffStateFlags = 0x1E;    // low nibble: free/dying/dead/hidden
 constexpr int kOffHp = 0x22;            // uint16
 constexpr int kOffMana = 0x26;          // uint8
@@ -122,6 +144,8 @@ constexpr int kOffBloodTimer = 0x48;    // uint16
 constexpr int kOffHasteTimer = 0x4A;    // int16, > 0 haste, < 0 slow
 constexpr int kOffFlameTimer = 0x4E;    // uint16
 constexpr int kOffWorkerFlags = 0x75;   // uint8: 0x80 gold job, 0x40 lumber job, 0x20 carrying
+constexpr int kOffJobKind = 0x6C;       // uint8, buildings: 0 unit, 1 spell, 2 upgrade, 3 building upgrade
+constexpr int kOffJobId = 0x6D;         // uint8: unit type / UGRD index / target building type
 constexpr int kOffResources = 0x82;     // uint16, gold mine / oil: what is left, in hundreds
 constexpr int kOffOrderX = 0x84;        // int16, order destination when there is no target unit
 constexpr int kOffOrderY = 0x86;        // int16

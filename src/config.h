@@ -44,6 +44,42 @@ enum SpellDamageKey {
     kDamageRunes, kDamageHeal, kSpellDamageCount
 };
 
+// [auto_production] unit classes. Workers and tankers follow their own rule; the rest form the army, split into a
+// land group and a navy group whose sizes come from the map. Transports, flying machines / zeppelins, dwarves /
+// sappers and heroes are in no class: the mod never builds them.
+enum ProductionClass {
+    kProdWorkers, kProdInfantry, kProdArchers, kProdKnights, kProdCasters, kProdFlyers, kProdSiege, kProdTankers,
+    kProdDestroyers, kProdBattleships, kProdSubmarines, kProdClassCount
+};
+constexpr int kProdTiers = 3;
+constexpr int kResourceCount = 3;  // gold, lumber, oil
+
+struct AutoProduction {
+    bool enabled = false;
+    int toggleKey = 0x79;             // VK_F10, pressed together with Ctrl
+    int workersPerHallTier = 6;       // workers wanted: this x the best hall tier (hall 1, keep 2, castle 3)
+    int foodFreeMin = 4;              // food left free for your own peasants, transports, zeppelins: the larger of
+    int foodFreePercent = 10;         // these two, counted AFTER the unit the mod is about to train
+    double bankMultiple = 4.0;        // train only while the spare bank holds this many of the unit's current price
+    double classBankMultiple[kProdClassCount] = {};  // [auto_production.bank_multiple] per class, 0 = use the one above
+    double reserveExtra = 0.25;       // bank kept for upgrades: the dearest one + this x all the others
+    double upgradeBias = 0.25;        // each upgrade level of a class's line raises its share by this much
+    int fillerMin = 10;               // nothing of the mix affordable here: build what the bank buys this many of
+    double navyWeight = 1.0;          // x the navy share the map asks for
+    int navyMax = 80;                 // percent of the army, ships at most
+    bool unitClass[kProdClassCount] = {true, true, true, true, true, true, true, true, true, true, true};
+    // Land army shares in percent, per hall tier: infantry, archers, knights, casters, flyers, siege.
+    int land[kProdTiers][kProdClassCount] = {
+        {0, 75, 20, 0, 0, 0, 5, 0, 0, 0, 0},
+        {0, 10, 25, 60, 0, 0, 5, 0, 0, 0, 0},
+        {0, 0, 15, 40, 25, 15, 5, 0, 0, 0, 0}};
+    // Navy shares in percent, per hall tier: destroyers, battleships, submarines (submarines never above 20 %).
+    int navy[kProdTiers][kProdClassCount] = {
+        {0, 0, 0, 0, 0, 0, 0, 0, 80, 20, 0},
+        {0, 0, 0, 0, 0, 0, 0, 0, 25, 60, 10},
+        {0, 0, 0, 0, 0, 0, 0, 0, 25, 60, 10}};
+};
+
 // One multiplier tree, used three times: [health], [costs], [time].
 // Effective multiplier = all x race.all x (race.units | race.research umbrella) x group. Everything defaults to 1.0.
 struct RaceMultipliers {
@@ -169,6 +205,9 @@ struct Config {
     bool unitRegen = false;
     int unitRegenPerSecond = 1;
     bool unitRegenMineOnly = false;
+
+    // [auto_production] and its sub-tables: your idle production buildings train by themselves (never the computer's)
+    AutoProduction production;
 };
 
 namespace config {
@@ -178,6 +217,7 @@ extern const char* const kSpellKeys[kSpellCount];
 extern const char* const kStatKeys[kStatCount];
 extern const char* const kSpellCostKeys[kSpellCostCount];
 extern const char* const kSpellDamageKeys[kSpellDamageCount];
+extern const char* const kProductionClassKeys[kProdClassCount];
 
 // Loads <dir>\gameplay_options.toml, writing the default file first if it is missing.
 // Returns false when the file has a syntax error (the previous / default settings stay in force).

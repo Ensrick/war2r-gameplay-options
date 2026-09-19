@@ -7,6 +7,7 @@
 #include "config.h"
 #include "log.h"
 #include "mod.h"
+#include "production.h"
 #include "spells.h"
 #include "trees.h"
 #include "tweaks.h"
@@ -152,6 +153,7 @@ void OnNewMapTablesLoaded() {
     }
     tweaks::OnNewMap();
     trees::OnNewMap();
+    production::OnNewMap();  // the water / oil profile is counted again on the first pass of the new map
     const int statsSet = ApplyUnitStats();
     ScaleUnits();
     ScaleStructures();

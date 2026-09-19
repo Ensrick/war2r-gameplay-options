@@ -3,8 +3,10 @@
 // recorder so nothing of the game executes. Usage: selftest.exe "<path to Warcraft II.exe>"
 #include <windows.h>
 #include <share.h>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <initializer_list>
 
 #include "../src/mod.h"
 #include "../src/world.h"
@@ -13,6 +15,7 @@
 #include "../src/game.h"
 #include "../src/hook.h"
 #include "../src/log.h"
+#include "../src/production.h"
 #include "../src/spells.h"
 #include "../src/trees.h"
 
@@ -594,6 +597,776 @@ static void SpellNumberTests(const wchar_t* dir, const wchar_t* ini) {
     ResetSpellConfig();
     spells::Sync(false);
     CHECK(AllSitesAreGame() && CostsAreGame(), "the test must leave the image as the game made it");
+}
+
+// ---- [auto_production] (src/production.cpp, docs/research/production.md) ----
+// StartProduction (0x4ACE10) is swapped for this recorder: it does to the building, the bank and the training counter
+// what the game's function does, so a pass over several buildings sees the same numbers it would in the game.
+struct ProdStart {
+    Unit* at;
+    uint8_t type;
+};
+static ProdStart g_prodStarts[512];
+static int g_prodStartCount = 0, g_prodAttempts = 0;
+static bool g_prodRefuse = false;
+static uint32_t g_prodSerial = 5000;
+static uint16_t g_prodSquare[kMap * kMap];  // the square-flag map the production tests own (water bit 0x40)
+
+static int __cdecl FakeStartProduction(Unit* b, uint8_t id, uint8_t kind) {
+    ++g_prodAttempts;
+    if (g_prodRefuse || kind != 0 || (Field<uint16_t>(b, kOffJobFlags) & 0x10)) return 0;
+    const uint8_t p = OwnerOf(b);
+    At<int32_t>(kRvaPlayerGold)[p] -= At<uint8_t>(kRvaGoldCostByType)[id] * 10;
+    At<int32_t>(kRvaPlayerLumber)[p] -= At<uint8_t>(kRvaLumberCostByType)[id] * 10;
+    At<int32_t>(kRvaPlayerOil)[p] -= At<uint8_t>(kRvaOilCostByType)[id] * 10;
+    ++At<uint16_t>(kRvaUnitsInTraining)[p];
+    Field<uint16_t>(b, kOffJobFlags) |= 0x10;
+    Field<uint8_t>(b, kOffJobKind) = kind;
+    Field<uint8_t>(b, kOffJobId) = id;
+    if (g_prodStartCount < 512) g_prodStarts[g_prodStartCount++] = {b, id};
+    return 1;
+}
+
+static Unit* AddProd(uint8_t type, uint8_t owner, int x, int y) {
+    Unit* u = AddUnit(type, owner, x, y, 100, 0, kOrderStand);
+    Field<uint32_t>(u, kOffSerial) = ++g_prodSerial;
+    if (At<uint32_t>(kRvaTypeFlags)[type] & kTfBuilding) {
+        Field<uint16_t>(u, kOffStateFlags) = kStateComplete;
+        Field<uint8_t>(u, kOffOrder) = 0x21;  // idle building
+    } else {
+        ++At<uint16_t>(kRvaUnitsCounted)[owner];
+    }
+    return u;
+}
+
+// Training ends in every busy building of `owner`: the unit appears next to it (FUN_004acb00), or, with placed =
+// false, "exit blocked": no unit, the money comes back.
+static void FinishTraining(uint8_t owner, bool placed = true) {
+    const int n = g_unitCount;
+    for (int i = 0; i < n; ++i) {
+        Unit* b = reinterpret_cast<Unit*>(g_units + i * kUnitSize);
+        if (OwnerOf(b) != owner || !(Field<uint16_t>(b, kOffJobFlags) & 0x10)) continue;
+        const uint8_t id = Field<uint8_t>(b, kOffJobId);
+        Field<uint16_t>(b, kOffJobFlags) &= ~0x30;
+        --At<uint16_t>(kRvaUnitsInTraining)[owner];
+        if (placed && g_unitCount < 64) {
+            AddProd(id, owner, g_unitCount % kMap, 40 + g_unitCount / kMap);
+        } else {
+            At<int32_t>(kRvaPlayerGold)[owner] += At<uint8_t>(kRvaGoldCostByType)[id] * 10;
+            At<int32_t>(kRvaPlayerLumber)[owner] += At<uint8_t>(kRvaLumberCostByType)[id] * 10;
+            At<int32_t>(kRvaPlayerOil)[owner] += At<uint8_t>(kRvaOilCostByType)[id] * 10;
+        }
+    }
+}
+
+static int StartsOf(uint8_t type) {
+    int n = 0;
+    for (int i = 0; i < g_prodStartCount; ++i) n += g_prodStarts[i].type == type;
+    return n;
+}
+static int StartsAt(Unit* b) {
+    int n = 0;
+    for (int i = 0; i < g_prodStartCount; ++i) n += g_prodStarts[i].at == b;
+    return n;
+}
+
+// Everything the production tests write into the image, saved once and put back at the end.
+struct ProdSnapshot {
+    uint32_t rva;
+    uint32_t size;
+    uint8_t bytes[0x200];
+};
+static ProdSnapshot g_prodSnaps[] = {
+    {kRvaTypeFlags, 110 * 4, {}},
+    {kRvaGoldCostByType, 110, {}},      {kRvaLumberCostByType, 110, {}}, {kRvaOilCostByType, 110, {}},
+    {kRvaUpgradeGold, 104, {}},         {kRvaUpgradeLumber, 104, {}},    {kRvaUpgradeOil, 104, {}},
+    {kRvaUnitsAllowed, 0x180, {}},      {kRvaUpgradeLevels, 0xC0, {}},   {kRvaFoodSupply, 32, {}},
+    {kRvaUnitsCounted, 32, {}},         {kRvaFoodFreeUnits, 32, {}},     {kRvaUnitsInTraining, 32, {}},
+    {kRvaPlayerGold, 64, {}},           {kRvaPlayerLumber, 64, {}},      {kRvaPlayerOil, 64, {}},
+    {kRvaSelectedUnit, 4 + 12 * 4, {}}, {kRvaSquareFlags, 4, {}},
+};
+static void ProdSave() {
+    for (auto& s : g_prodSnaps) memcpy(s.bytes, At<uint8_t>(s.rva), s.size < sizeof(s.bytes) ? s.size : sizeof(s.bytes));
+}
+static void ProdRestore() {
+    for (auto& s : g_prodSnaps) memcpy(At<uint8_t>(s.rva), s.bytes, s.size < sizeof(s.bytes) ? s.size : sizeof(s.bytes));
+}
+
+// A fresh game for player 0: rich, 200 food, dry land, everything allowed except the two hall upgrades (so the reserve
+// starts at zero), no research, nothing selected. Prices are the game's (unitdata.dat, tens).
+static void ProdWorld() {
+    ResetWorld();
+    g_prodStartCount = g_prodAttempts = 0;
+    g_prodRefuse = false;
+    uint32_t* tf = At<uint32_t>(kRvaTypeFlags);
+    for (int t = 0x3A; t <= 0x63; ++t) tf[t] = kTfBuilding;
+    tf[0x56] = tf[0x57] = kTfBuilding | kTfOilPlatform;
+    tf[kTypeOilPatch] = 0;  // scenery, not a building: only the map profile counts it
+    const struct { uint8_t type, gold, lumber, oil; } kPrices[] = {
+        {0x00, 60, 0, 0},   {0x02, 40, 0, 0},     {0x04, 90, 30, 0},    {0x06, 80, 10, 0},  {0x08, 50, 5, 0},
+        {0x0A, 120, 0, 0},  {0x0C, 80, 10, 0},    {0x0E, 70, 25, 0},    {0x12, 50, 5, 0},   {0x1A, 40, 20, 0},
+        {0x1C, 60, 20, 50}, {0x1E, 70, 35, 70},   {0x20, 100, 50, 100}, {0x26, 80, 15, 90}, {0x28, 50, 10, 0},
+        {0x2A, 225, 0, 0},  {0x58, 200, 100, 20}, {0x5A, 250, 120, 50}, {0x60, 50, 15, 0},  {0x62, 100, 30, 0},
+    };
+    for (const auto& pr : kPrices)
+        for (int race = 0; race < 2; ++race) {
+            At<uint8_t>(kRvaGoldCostByType)[pr.type + race] = pr.gold;
+            At<uint8_t>(kRvaLumberCostByType)[pr.type + race] = pr.lumber;
+            At<uint8_t>(kRvaOilCostByType)[pr.type + race] = pr.oil;
+        }
+    memset(At<uint8_t>(kRvaUnitsAllowed), 0, 0x180);  // ALOW: units, spells known / allowed / in research, upgrades
+    for (int p = 0; p < 2; ++p) At<uint32_t>(kRvaUnitsAllowed)[p] = 0x07FFFFFF;  // no keep (bit 27) / castle (bit 28) upgrade
+    memset(At<uint8_t>(kRvaUpgradeLevels), 0, 0xC0);
+    memset(At<uint8_t>(kRvaUpgradeGold), 0, 104);
+    memset(At<uint8_t>(kRvaUpgradeLumber), 0, 104);
+    memset(At<uint8_t>(kRvaUpgradeOil), 0, 104);
+    for (int p = 0; p < 2; ++p) {
+        At<uint16_t>(kRvaFoodSupply)[p] = 200;
+        At<uint16_t>(kRvaUnitsCounted)[p] = At<uint16_t>(kRvaFoodFreeUnits)[p] = At<uint16_t>(kRvaUnitsInTraining)[p] = 0;
+        At<int32_t>(kRvaPlayerGold)[p] = At<int32_t>(kRvaPlayerLumber)[p] = At<int32_t>(kRvaPlayerOil)[p] = 100000;
+    }
+    memset(At<uint8_t>(kRvaSelectedUnit), 0, 4 + 12 * 4);
+    memset(g_prodSquare, 0, sizeof(g_prodSquare));  // all land
+    *At<uint16_t*>(kRvaSquareFlags) = g_prodSquare;
+    production::OnNewMap();
+    config::g.production = AutoProduction();
+    config::g.production.enabled = true;
+    config::g.logCasts = false;
+}
+
+// Makes `percent` of the map water and adds `oilPatches` oil patches, then has the profile counted again.
+static void ProdWaterMap(int percent, int oilPatches) {
+    const int tiles = kMap * kMap;
+    for (int i = 0; i < tiles; ++i) g_prodSquare[i] = static_cast<uint16_t>(i < tiles * percent / 100 ? kSqWater : kSqLand);
+    for (int i = 0; i < oilPatches; ++i) AddProd(kTypeOilPatch, kNeutralPlayer, 40 + i, 60);
+    production::OnNewMap();
+}
+
+static bool ProdPass(unsigned nowMs) {
+    World w;
+    if (!BuildWorld(w)) return false;
+    production::Pass(w, nowMs);
+    return true;
+}
+
+// A decision-core plan: tier, every class trainable, the game's human prices, a big bank.
+static production::Plan CorePlan(int tier) {
+    production::Plan p;
+    p.tier = tier;
+    p.bank = {{1000000, 1000000, 1000000}};
+    p.supply = 200;
+    const int prices[kProdClassCount][3] = {{400, 0, 0},     {600, 0, 0},       {500, 50, 0},  {800, 100, 0},
+                                            {1200, 0, 0},    {2250, 0, 0},      {900, 300, 0}, {400, 200, 0},
+                                            {700, 350, 700}, {1000, 500, 1000}, {800, 150, 900}};
+    for (int c = 0; c < kProdClassCount; ++c) {
+        p.trainable[c] = true;
+        for (int r = 0; r < 3; ++r) p.cost[c].r[r] = prices[c][r];
+    }
+    return p;
+}
+static unsigned ArmyMask() {
+    unsigned m = 0;
+    for (int c = 0; c < kProdClassCount; ++c)
+        if (production::IsArmy(c)) m |= 1u << c;
+    return m;
+}
+static unsigned GroupMask(production::Group g) {
+    unsigned m = 0;
+    for (int c = 0; c < kProdClassCount; ++c)
+        if (production::GroupOf(c) == g) m |= 1u << c;
+    return m;
+}
+constexpr unsigned kBarracksMask = 1u << kProdInfantry | 1u << kProdArchers | 1u << kProdKnights | 1u << kProdSiege;
+
+// Trains `rounds` units out of a plan with money for everything, and checks the counts came out in the configured
+// percentages of the group the map's navy share points at (navyShare 0 = all land, 1 = all ships).
+static void CheckMix(int tier, production::Group group, double navyShare, const AutoProduction& cfg,
+                     const int (&mix)[kProdTiers][kProdClassCount], int rounds, const char* what) {
+    production::Plan p = CorePlan(tier);
+    p.navyShare = navyShare;
+    for (int i = 0; i < rounds; ++i) {
+        bool saving = false;
+        const int c = production::PickArmyClass(p, cfg, ArmyMask(), &saving);
+        if (c < 0) break;
+        production::Commit(p, c);
+    }
+    int sum = 0;
+    for (int c = 0; c < kProdClassCount; ++c)
+        if (production::GroupOf(c) == group) sum += mix[tier - 1][c];
+    bool ok = production::ArmySize(p) == rounds && sum > 0;
+    char got[256] = "";
+    for (int c = 0; c < kProdClassCount; ++c) {
+        if (production::GroupOf(c) == production::kGroupNone) continue;
+        const double want = production::GroupOf(c) == group ? mix[tier - 1][c] * static_cast<double>(rounds) / sum : 0;
+        ok = ok && fabs(p.count[c] - want) <= 2;
+        char one[32];
+        sprintf_s(one, "%d/%d ", p.count[c], static_cast<int>(want + 0.5));
+        strcat_s(got, one);
+    }
+    CHECK(ok, "%s: got/wanted per class %s(army %d)", what, got, production::ArmySize(p));
+}
+
+static bool g_fakeCtrl = false, g_fakeF10 = false;
+static bool FakeKeys(int vk) { return (vk == VK_CONTROL && g_fakeCtrl) || (vk == VK_F10 && g_fakeF10); }
+
+static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
+    using namespace production;
+    const AutoProduction defaults;
+
+    // The engine tables the module mirrors are what the research found in this exe.
+    {
+        const uint8_t* at = At<uint8_t>(kRvaTrainedAt);
+        CHECK(at[0x00] == 0x3C && at[0x01] == 0x3D && at[0x02] == 0x4A && at[0x03] == 0x4B && at[0x04] == 0x3C && at[0x06] == 0x3C &&
+                  at[0x08] == 0x3C && at[0x0A] == 0x50 && at[0x0B] == 0x51 && at[0x0C] == 0x3C && at[0x12] == 0x3C && at[0x1A] == 0x48 &&
+                  at[0x1E] == 0x48 && at[0x20] == 0x48 && at[0x21] == 0x49 && at[0x26] == 0x48 && at[0x27] == 0x49 && at[0x2A] == 0x46 &&
+                  at[0x2B] == 0x47 && at[0x14] == 'n',
+              "trained-at table 0x838248");
+        CHECK(At<uint8_t>(kRvaResearchAt)[0] == 0x52 && At<uint8_t>(kRvaResearchAt)[24] == 0x4C && At<uint8_t>(kRvaResearchAt)[33] == 0x3E &&
+                  At<uint8_t>(kRvaResearchAt)[51] == 0x51,
+              "research-at table 0x838284");
+        const uint32_t* req = At<uint32_t>(kRvaTrainRequirement);
+        const struct { uint8_t type; uint32_t fnRva; } kReq[] = {
+            {0x00, 0xA1F70}, {0x02, 0xA1F70}, {0x0A, 0xA1F70}, {0x1A, 0xA1F70}, {0x1E, 0xA1F70}, {0x2A, 0xA1F70},
+            {0x04, 0xAC6C0}, {0x06, 0xAC6F0}, {0x0C, 0xAC730}, {0x08, 0xAC770}, {0x12, 0xAC7A0}, {0x20, 0xAC7F0},
+            {0x26, 0xAC7D0}};
+        bool reqOk = true;
+        for (const auto& r : kReq)
+            for (int race = 0; race < 2; ++race) reqOk = reqOk && req[r.type + race] == g_base + r.fnRva;
+        CHECK(reqOk, "requirement table 0x8C0428 is not the one production.cpp mirrors");
+        const uint8_t call[] = {0x6A, 0x00, 0x8A, 0x41, 0x27, 0x24, 0x01, 0x0F, 0xB6, 0xC0, 0x50, 0x51, 0xE8};
+        CHECK(memcmp(At<uint8_t>(0xAE2D6), call, sizeof(call)) == 0, "the AI's StartProduction call (0x4AE2D6) changed");
+    }
+
+    // ---- Decision core ----
+    // Food: 4 or 10 % of the supply, whichever is larger, must still be free AFTER the unit; units in training count.
+    CHECK(FoodAllows(20, 15, 0, 4, 10) && !FoodAllows(20, 16, 0, 4, 10), "food gate: 4 free after the unit at supply 20");
+    CHECK(FoodAllows(20, 14, 1, 4, 10) && !FoodAllows(20, 14, 2, 4, 10), "food gate: units in training are used food");
+    CHECK(FoodAllows(200, 179, 0, 4, 10) && !FoodAllows(200, 180, 0, 4, 10), "food gate: 10 %% of 200 = 20 free");
+    CHECK(FoodAllows(250, 179, 0, 4, 10) && !FoodAllows(250, 180, 0, 4, 10), "food gate: the supply counts as 200 at most");
+    CHECK(FoodAllows(55, 48, 0, 4, 10) && !FoodAllows(55, 49, 0, 4, 10), "food gate: 10 %% of 55 rounds up to 6");
+
+    // The share of the army the map asks to be ships.
+    CHECK(NavyShare(0, 0, 1, 1.0, 80) == 0 && NavyShare(9, 0, 1, 1.0, 80) == 0, "no oil and under 10 %% water: a land map");
+    CHECK(fabs(NavyShare(9, 2, 2, 1.0, 80) - 0.19) < 1e-9, "9 %% water and two oil patches: 19 %% ships (%.3f)", NavyShare(9, 2, 2, 1.0, 80));
+    CHECK(fabs(NavyShare(50, 0, 1, 1.0, 80) - 0.60) < 1e-9 && fabs(NavyShare(50, 0, 2, 1.0, 80) - 0.50) < 1e-9 &&
+              fabs(NavyShare(50, 0, 3, 1.0, 80) - 0.45) < 1e-9,
+          "50 %% water: 60 / 50 / 45 %% ships by hall tier");
+    CHECK(fabs(NavyShare(50, 6, 2, 1.0, 100) - 0.80) < 1e-9 && fabs(NavyShare(50, 20, 2, 1.0, 100) - 0.80) < 1e-9,
+          "each oil source adds 5 %%, together at most 30 %% (%.2f)", NavyShare(50, 20, 2, 1.0, 100));
+    CHECK(fabs(NavyShare(90, 6, 1, 1.0, 80) - 0.80) < 1e-9 && fabs(NavyShare(90, 6, 1, 1.0, 50) - 0.50) < 1e-9, "navy_max caps it");
+    CHECK(fabs(NavyShare(50, 0, 2, 0.5, 80) - 0.25) < 1e-9 && NavyShare(50, 0, 2, 0.0, 80) == 0, "navy_weight scales it");
+
+    // The bank threshold is a multiple of the CURRENT price, per resource the unit costs.
+    {
+        Plan p = CorePlan(1);
+        p.bank = {{2400, 0, 0}};  // a grunt costs 600
+        CHECK(CanAfford(p, defaults, kProdInfantry) && fabs(Buys(p, kProdInfantry) - 4) < 1e-9, "spare 2400 = four grunts: yes");
+        p.bank = {{2399, 0, 0}};
+        CHECK(!CanAfford(p, defaults, kProdInfantry), "one gold short of four grunts: no");
+        p.bank = {{100000, 100000, 100000}};
+        p.reserve = {{98000, 0, 0}};
+        CHECK(!CanAfford(p, defaults, kProdInfantry), "the upgrade reserve is not spare money");
+        p.reserve = {{0, 0, 0}};
+        p.cost[kProdInfantry] = {{1200, 0, 0}};  // the price doubled ([costs] or [unit.grunt])
+        CHECK(fabs(Buys(p, kProdInfantry) - 83.33) < 0.01, "Buys() follows the live price");
+        p.cost[kProdInfantry] = {{600, 0, 0}};
+        p.bank = {{3200, 600, 3600}};  // exactly four submarines' worth of every resource one costs
+        CHECK(!CanAfford(p, defaults, kProdSubmarines) && CanAfford(p, defaults, kProdInfantry), "four submarines' worth is not enough");
+        p.bank = {{6400, 1200, 7200}};
+        CHECK(CanAfford(p, defaults, kProdSubmarines), "eight submarines' worth is");
+        AutoProduction perClass;
+        perClass.classBankMultiple[kProdInfantry] = 1.0;
+        p.bank = {{1200, 0, 0}};
+        CHECK(CanAfford(p, perClass, kProdInfantry) && !CanAfford(p, defaults, kProdInfantry), "[bank_multiple] per class");
+    }
+    // Reserve: the dearest + 25 % of the others, per resource; more items, more reserve.
+    {
+        const Price items[] = {{{1000, 0, 0}}, {{500, 300, 0}}, {{200, 0, 100}}, {{800, 0, 0}}};
+        const Price r3 = Reserve(items, 3, 0.25), r4 = Reserve(items, 4, 0.25), r0 = Reserve(items, 0, 0.25), rx = Reserve(items, 4, 0);
+        CHECK(r3.r[0] == 1175 && r3.r[1] == 300 && r3.r[2] == 100, "reserve of 3 items (%d/%d/%d)", r3.r[0], r3.r[1], r3.r[2]);
+        CHECK(r4.r[0] == 1375 && r4.r[0] > r3.r[0], "a fourth purchasable upgrade raises the reserve (%d)", r4.r[0]);
+        CHECK(r0.r[0] == 0 && r0.r[1] == 0 && rx.r[0] == 1000, "no upgrades = no reserve; extra 0 = the dearest only");
+    }
+    // Workers and the single tanker.
+    {
+        Plan p = CorePlan(1);
+        p.count[kProdWorkers] = 5;
+        CHECK(WantWorker(p, defaults), "5 workers at tier 1: one more");
+        p.count[kProdWorkers] = 6;
+        CHECK(!WantWorker(p, defaults), "6 workers at tier 1 is the target");
+        p.tier = 2;
+        CHECK(WantWorker(p, defaults), "a keep raises the target to 12");
+        p.count[kProdWorkers] = 12;
+        CHECK(!WantWorker(p, defaults), "12 at tier 2");
+        p.tier = 3;
+        p.count[kProdWorkers] = 17;
+        CHECK(WantWorker(p, defaults), "17 of 18 at tier 3");
+        p.used = 190;
+        CHECK(!WantWorker(p, defaults), "the food gate holds for workers too");
+        Plan t = CorePlan(1);
+        CHECK(WantTanker(t, defaults, true) && !WantTanker(t, defaults, false), "a tanker only with an oil platform");
+        t.count[kProdTankers] = 1;
+        CHECK(!WantTanker(t, defaults, true), "one tanker is the most the mod ever builds");
+    }
+    // The mixes: tier 1 mostly infantry, tier 2 mostly knights, tier 3 casters and flyers, ships by hall tier.
+    CheckMix(1, kGroupLand, 0.0, defaults, defaults.land, 200, "tier 1 land mix");
+    CheckMix(2, kGroupLand, 0.0, defaults, defaults.land, 200, "tier 2 land mix");
+    CheckMix(3, kGroupLand, 0.0, defaults, defaults.land, 200, "tier 3 land mix");
+    CheckMix(1, kGroupNavy, 1.0, defaults, defaults.navy, 200, "tier 1 navy mix");
+    CheckMix(2, kGroupNavy, 1.0, defaults, defaults.navy, 200, "tier 2 navy mix");
+    CheckMix(3, kGroupNavy, 1.0, defaults, defaults.navy, 200, "tier 3 navy mix");
+    {
+        Plan p = CorePlan(3);
+        for (int i = 0; i < 100; ++i) {
+            bool saving = false;
+            const int c = PickArmyClass(p, defaults, ArmyMask(), &saving);
+            if (c < 0) break;
+            Commit(p, c);
+        }
+        CHECK(p.count[kProdInfantry] == 0, "tier 3 with money for everything: no grunts at all (%d)", p.count[kProdInfantry]);
+        bool saving = false;
+        CHECK(PickArmyClass(p, defaults, 1u << kProdInfantry, &saving) == -1 && !saving, "a class at 0 %% is never trained by the mix");
+    }
+    // Submarines never take more than a fifth of the fleet, whatever the config asks for.
+    {
+        AutoProduction subHeavy;
+        subHeavy.navy[1][kProdSubmarines] = 90;
+        Plan p = CorePlan(2);
+        p.navyShare = 1.0;
+        for (int i = 0; i < 200; ++i) {
+            bool saving = false;
+            const int c = PickArmyClass(p, subHeavy, ArmyMask(), &saving);
+            if (c < 0) break;
+            Commit(p, c);
+        }
+        CHECK(p.count[kProdSubmarines] * 5 <= ArmySize(p) + 2 && p.count[kProdSubmarines] > 30,
+              "submarines capped at a fifth of the fleet (%d of %d)", p.count[kProdSubmarines], ArmySize(p));
+    }
+    // Land and navy together: the map's share decides how much of the army is ships.
+    {
+        Plan p = CorePlan(2);
+        p.navyShare = 0.5;
+        double target[kProdClassCount];
+        Targets(p, defaults, target);
+        double land = 0, navy = 0;
+        for (int c = 0; c < kProdClassCount; ++c) (GroupOf(c) == kGroupNavy ? navy : land) += target[c];
+        CHECK(fabs(land - navy) < 1e-6 && land > 0, "half water: half the army is ships (land %.2f navy %.2f)", land, navy);
+        for (int c = 0; c < kProdClassCount; ++c)
+            if (GroupOf(c) == kGroupNavy) p.trainable[c] = false;  // no shipyard
+        Targets(p, defaults, target);
+        land = navy = 0;
+        for (int c = 0; c < kProdClassCount; ++c) (GroupOf(c) == kGroupNavy ? navy : land) += target[c];
+        CHECK(navy == 0 && land > 0, "without a shipyard the whole army is land (land %.2f navy %.2f)", land, navy);
+    }
+    // The filler: gold piling up, no lumber, tier 3 (where infantry has no share at all) still makes grunts.
+    {
+        Plan p = CorePlan(3);
+        p.bank = {{60000, 100, 0}};
+        p.count[kProdInfantry] = 20;
+        bool saving = false;
+        CHECK(PickArmyClass(p, defaults, kBarracksMask, &saving) == -1 && !saving, "tier 3, no lumber: nothing of the mix");
+        CHECK(PickFiller(p, defaults, kBarracksMask) == kProdInfantry, "the filler picks the class the gold buys most of");
+        int infantry = 0;
+        for (int i = 0; i < 20; ++i) {
+            const int c = PickFiller(p, defaults, kBarracksMask);
+            if (c != kProdInfantry) break;
+            ++infantry;
+            Commit(p, c);
+        }
+        CHECK(infantry == 20, "and keeps picking it while the gold lasts (%d of 20)", infantry);
+        CHECK(PickFiller(p, defaults, GroupMask(kGroupNavy)) == -1, "but never a ship on a land map");
+        p.bank = {{3000, 100, 0}};  // only five grunts' worth: below filler_min
+        CHECK(PickFiller(p, defaults, kBarracksMask) == -1, "a thin bank is not a filler reason");
+        AutoProduction eager;
+        eager.fillerMin = 4;
+        CHECK(PickFiller(p, eager, kBarracksMask) == kProdInfantry, "filler_min decides how thick the bank must be");
+    }
+    // A building saves when what it trains is well over its share, so the money goes to the other buildings.
+    {
+        Plan p = CorePlan(1);
+        p.navyShare = 0.3;
+        for (int c : {kProdArchers, kProdKnights, kProdCasters, kProdFlyers, kProdBattleships, kProdSubmarines}) p.trainable[c] = false;
+        p.count[kProdInfantry] = 10;
+        p.count[kProdDestroyers] = 12;
+        bool saving = false;
+        CHECK(PickArmyClass(p, defaults, GroupMask(kGroupNavy), &saving) == -1 && saving,
+              "12 destroyers on a 30 %% water map: the shipyard saves");
+        CHECK(PickArmyClass(p, defaults, kBarracksMask, &saving) == kProdInfantry && !saving, "while the barracks trains");
+        p.count[kProdDestroyers] = 5;
+        CHECK(PickArmyClass(p, defaults, GroupMask(kGroupNavy), &saving) == kProdDestroyers, "5 destroyers is within tolerance");
+    }
+    // upgrade_bias: a line with 4 upgrade levels takes a bigger share; bias 0 ignores upgrades.
+    {
+        Plan p = CorePlan(1);
+        double plain[kProdClassCount], upgraded[kProdClassCount];
+        Targets(p, defaults, plain);
+        p.levels[kProdArchers] = 4;
+        Targets(p, defaults, upgraded);
+        CHECK(upgraded[kProdArchers] > plain[kProdArchers] * 1.2 && upgraded[kProdInfantry] < plain[kProdInfantry],
+              "upgrade_bias must shift the mix to the upgraded line (%.2f -> %.2f)", plain[kProdArchers], upgraded[kProdArchers]);
+        AutoProduction noBias;
+        noBias.upgradeBias = 0;
+        Targets(p, noBias, upgraded);
+        CHECK(fabs(upgraded[kProdArchers] - plain[kProdArchers]) < 1e-9, "upgrade_bias 0 must ignore upgrades");
+    }
+
+    // ---- Engine: real passes over the fake world ----
+    PatchJump(kRvaStartProduction, &FakeStartProduction);
+    ProdSave();
+
+    // Off by default: the shipped config, the tick, nothing starts.
+    ProdWorld();
+    config::g.production.enabled = false;
+    CHECK(!defaults.enabled && defaults.toggleKey == VK_F10, "auto-production must be off by default, Ctrl+F10");
+    AddProd(0x3D, 0, 10, 10);
+    AddProd(0x4B, 0, 14, 10);
+    {
+        World w;
+        CHECK(BuildWorld(w), "fake world");
+        production::OnTick(w, 5000);
+        CHECK(g_prodAttempts == 0, "switched off: no production");
+        config::g.production.enabled = true;
+        production::OnTick(w, 600);
+        CHECK(g_prodAttempts == 0, "less than a second of play: no pass yet");
+        production::OnTick(w, 500);
+        CHECK(StartsOf(0x03) == 1 && StartsOf(0x01) == 1, "orc: a peon at the great hall and a grunt at the barracks (%d, %d)",
+              StartsOf(0x03), StartsOf(0x01));
+    }
+
+    // Toggle: Ctrl+F10 flips it with a banner.
+    {
+        const int messages = g_messages;
+        const bool before = config::g.production.enabled;
+        mod::SetKeyReaderForTest(&FakeKeys);
+        g_fakeCtrl = g_fakeF10 = true;
+        mod::OnTick();
+        CHECK(config::g.production.enabled != before && g_messages == messages + 1, "Ctrl+F10 must flip auto-production with a banner");
+        mod::OnTick();
+        CHECK(config::g.production.enabled != before, "holding the keys flips once");
+        g_fakeF10 = false;
+        mod::OnTick();
+        g_fakeF10 = true;
+        mod::OnTick();
+        CHECK(config::g.production.enabled == before, "a second press flips it back");
+        g_fakeCtrl = false;
+        mod::OnTick();
+        g_fakeF10 = false;
+        mod::SetKeyReaderForTest(nullptr);
+    }
+
+    // Workers: every idle hall at once, up to 6 x the best hall tier.
+    ProdWorld();
+    Unit* hall1 = AddProd(0x4A, 0, 5, 5);
+    Unit* hall2 = AddProd(0x4A, 0, 15, 5);
+    for (int i = 0; i < 3; ++i) AddProd(0x02, 0, 20 + i, 20);
+    ProdPass(1000);
+    CHECK(StartsAt(hall1) == 1 && StartsAt(hall2) == 1 && StartsOf(0x02) == 2, "3 workers, target 6: both halls train one");
+    FinishTraining(0);
+    ProdPass(2000);
+    CHECK(StartsOf(0x02) == 3, "5 workers: only one more (%d)", StartsOf(0x02));
+    FinishTraining(0);
+    ProdPass(3000);
+    CHECK(StartsOf(0x02) == 3, "6 workers at tier 1 is enough");
+    Field<uint8_t>(hall1, kOffType) = 0x58;  // one hall became a keep: tier 2, target 12
+    ProdPass(4000);
+    CHECK(StartsOf(0x02) == 5, "a keep raises the target: both halls train again (%d)", StartsOf(0x02));
+    FinishTraining(0);
+    Field<uint8_t>(hall2, kOffType) = 0x5A;  // castle: 18
+    ProdPass(5000);
+    CHECK(StartsOf(0x02) == 7 && production::LastPlan().tier == 3, "castle: tier 3, target 18");
+
+    // The food gate in a real pass: supply 20, 15 used: one unit, not two.
+    ProdWorld();
+    AddProd(0x3C, 0, 5, 5);
+    AddProd(0x3C, 0, 10, 5);
+    At<uint16_t>(kRvaFoodSupply)[0] = 20;
+    At<uint16_t>(kRvaUnitsCounted)[0] = 15;
+    ProdPass(1000);
+    CHECK(g_prodStartCount == 1 && StartsOf(0x00) == 1, "food: exactly one footman from two barracks (%d)", g_prodStartCount);
+    At<uint16_t>(kRvaUnitsCounted)[0] = 16;
+    FinishTraining(0, false);
+    ProdPass(20000);
+    CHECK(g_prodStartCount == 1, "16 of 20 used: nothing, the last 4 food are the player's");
+
+    // The map profile: a dry map builds no ships at all, a wet one does, and the log says what it counted.
+    ProdWorld();
+    Unit* yard = AddProd(0x48, 0, 30, 30);
+    AddProd(0x4A, 0, 5, 5);
+    AddProd(0x3C, 0, 8, 5);
+    for (int i = 0; i < 18; ++i) AddProd(0x02, 0, i, 20);  // the workers are done
+    ProdPass(1000);
+    CHECK(production::LastPlan().navyShare == 0 && StartsAt(yard) == 0 && StartsOf(0x00) == 1,
+          "a dry map with no oil: no ships at all, while the barracks works");
+    FinishTraining(0);
+    ProdWaterMap(50, 2);
+    ProdPass(2000);
+    CHECK(fabs(production::LastPlan().navyShare - 0.72) < 1e-9, "50 %% water, 2 oil patches, tier 1: 72 %% ships (%.2f)",
+          production::LastPlan().navyShare);
+    CHECK(StartsAt(yard) == 1 && StartsOf(0x1E) == 1, "and the shipyard starts a destroyer (tier 1 ships are 80 %% destroyers)");
+    CHECK(LogContains(dir, "production: map is 50 % water with 2 oil source(s): ships get 72 / 60 / 54 % of the army by hall tier"),
+          "the map profile must be logged");
+
+    // Tanker: one, once an oil platform is his; never a second.
+    ProdWorld();
+    ProdWaterMap(50, 0);
+    Unit* yard2 = AddProd(0x48, 0, 30, 30);
+    AddProd(0x4A, 0, 5, 5);
+    for (int i = 0; i < 18; ++i) AddProd(0x02, 0, i, 20);
+    ProdPass(1000);
+    CHECK(StartsOf(0x1A) == 0, "no oil platform: no tanker");
+    FinishTraining(0);
+    AddProd(0x56, 0, 35, 35);
+    ProdPass(2000);
+    CHECK(StartsOf(0x1A) == 1, "an oil platform and no tanker: one tanker");
+    FinishTraining(0);
+    ProdPass(3000);
+    FinishTraining(0);
+    ProdPass(4000);
+    CHECK(StartsOf(0x1A) == 1 && StartsAt(yard2) >= 3, "never a second tanker; the shipyard goes back to warships");
+
+    // Submarines: only on top of a real bank, and never more than a fifth of the fleet.
+    ProdWorld();
+    ProdWaterMap(60, 4);
+    Unit* yard3 = AddProd(0x48, 0, 30, 30);
+    AddProd(0x58, 0, 5, 5);   // keep: tier 2
+    AddProd(0x4E, 0, 9, 5);   // foundry: battleships
+    AddProd(0x44, 0, 12, 5);  // inventor: submarines
+    for (int i = 0; i < 12; ++i) AddProd(0x02, 0, i, 20);
+    At<int32_t>(kRvaPlayerGold)[0] = 3200;  // exactly four submarines' worth of every resource one costs
+    At<int32_t>(kRvaPlayerLumber)[0] = 600;
+    At<int32_t>(kRvaPlayerOil)[0] = 3600;
+    ProdPass(1000);
+    CHECK(StartsOf(0x26) == 0, "a thin bank: no submarines");
+    At<int32_t>(kRvaPlayerGold)[0] = 100000;
+    At<int32_t>(kRvaPlayerLumber)[0] = 100000;
+    At<int32_t>(kRvaPlayerOil)[0] = 100000;
+    {
+        int subs = 0, ships = 0;
+        for (int round = 0; round < 20; ++round) {
+            FinishTraining(0);
+            ProdPass(2000 + round * 1000);
+        }
+        for (int i = 0; i < g_prodStartCount; ++i) {
+            const uint8_t t = g_prodStarts[i].type;
+            if (t == 0x26 || t == 0x27) ++subs;
+            if (t >= 0x1E && t <= 0x27) ++ships;
+        }
+        CHECK(subs > 0 && subs * 5 <= ships + 2, "rich: submarines appear but stay a fifth of the fleet (%d of %d)", subs, ships);
+        CHECK(StartsAt(yard3) > 5, "the shipyard kept working (%d)", StartsAt(yard3));
+    }
+
+    // Excluded units never come out, whatever the player owns; the inventor / alchemist is never used.
+    ProdWorld();
+    ProdWaterMap(40, 2);
+    Unit* inventor = AddProd(0x44, 0, 50, 50);
+    {
+        int x = 2;
+        for (int t : {0x3C, 0x48, 0x4E, 0x46, 0x50, 0x42, 0x52, 0x4C, 0x5A, 0x56}) AddProd(static_cast<uint8_t>(t), 0, x += 3, 5);
+    }
+    for (int i = 0; i < 18; ++i) AddProd(0x02, 0, i, 25);
+    for (int round = 0; round < 5; ++round) {
+        ProdPass(1000 + round * 1000);
+        FinishTraining(0);
+    }
+    {
+        bool excluded = false;
+        for (int i = 0; i < g_prodStartCount; ++i) {
+            const uint8_t t = g_prodStarts[i].type & ~1;
+            excluded = excluded || t == 0x0E || t == 0x10 || t == 0x1C || t == 0x28 || (t >= 0x14 && t <= 0x18) ||
+                       g_prodStarts[i].type > 0x2B;
+        }
+        CHECK(!excluded && StartsAt(inventor) == 0 && g_prodStartCount > 10,
+              "never transports, flying machines / zeppelins, dwarves or heroes (%d starts)", g_prodStartCount);
+        CHECK(StartsOf(0x06) > 0 && StartsOf(0x2A) > 0 && StartsOf(0x0A) > 0,
+              "tier 3 with every building: knights, gryphons and mages appear (%d %d %d)", StartsOf(0x06), StartsOf(0x2A), StartsOf(0x0A));
+    }
+
+    // ALOW: a unit the map forbids is never trained.
+    ProdWorld();
+    AddProd(0x3C, 0, 5, 5);
+    AddProd(0x4C, 0, 10, 5);  // lumber mill: archers would be possible
+    At<uint32_t>(kRvaUnitsAllowed)[0] = 0x07FFFFFF & ~0x10u;
+    for (int round = 0; round < 6; ++round) {
+        ProdPass(1000 + round * 1000);
+        FinishTraining(0);
+    }
+    CHECK(StartsOf(0x08) == 0 && StartsOf(0x12) == 0 && StartsOf(0x00) > 0, "archers forbidden by the map: never trained");
+    At<uint32_t>(kRvaUnitsAllowed)[0] = 0x07FFFFFF;
+    for (int round = 0; round < 6; ++round) {
+        ProdPass(10000 + round * 1000);
+        FinishTraining(0);
+    }
+    CHECK(StartsOf(0x08) > 0, "archers allowed again: they come");
+
+    // The computer's buildings are never touched, and a selected building is left to the player.
+    ProdWorld();
+    Unit* enemyBarracks = AddProd(0x3D, 1, 40, 40);
+    Unit* mine = AddProd(0x3C, 0, 5, 5);
+    *At<Unit*>(kRvaSelectedUnit) = mine;
+    ProdPass(1000);
+    CHECK(StartsAt(enemyBarracks) == 0 && StartsAt(mine) == 0, "a computer barracks or a selected barracks: nothing");
+    *At<Unit*>(kRvaSelectedUnit) = nullptr;
+    At<Unit*>(kRvaSelection)[3] = mine;
+    ProdPass(2000);
+    CHECK(StartsAt(mine) == 0, "a building in the selection list is left alone too");
+    At<Unit*>(kRvaSelection)[3] = nullptr;
+    ProdPass(3000);
+    CHECK(StartsAt(mine) == 1 && StartsAt(enemyBarracks) == 0, "unselected: it trains; the computer's still does not");
+
+    // Back-off: a refused start or a unit that could not be placed waits 10 s.
+    ProdWorld();
+    Unit* br = AddProd(0x3C, 0, 5, 5);
+    g_prodRefuse = true;
+    ProdPass(1000);
+    CHECK(g_prodAttempts == 1, "one attempt");
+    ProdPass(6000);
+    CHECK(g_prodAttempts == 1, "refused: no retry within 10 s");
+    ProdPass(11001);
+    CHECK(g_prodAttempts == 2, "retry after 10 s");
+    g_prodRefuse = false;
+    ProdPass(22000);
+    CHECK(StartsAt(br) == 1, "started");
+    FinishTraining(0, false);  // exit blocked: refunded, no unit
+    ProdPass(23000);
+    CHECK(StartsAt(br) == 1, "no unit came out: wait");
+    ProdPass(33001);
+    CHECK(StartsAt(br) == 2, "10 s later it tries again");
+    FinishTraining(0);
+    ProdPass(34000);
+    CHECK(StartsAt(br) == 3, "a unit that came out: no wait");
+
+    // The upgrade reserve from the real tables: purchasable only, done and in research do not count.
+    ProdWorld();
+    AddProd(0x3C, 0, 5, 5);
+    AddProd(0x52, 0, 10, 5);  // blacksmith: swords 0 / 1
+    At<uint16_t>(kRvaUpgradeGold)[0] = 800;
+    At<uint16_t>(kRvaUpgradeGold)[1] = 2400;
+    At<uint32_t>(kRvaUpgradesAllowed)[0] = 0x4 | 0x8;
+    ProdPass(1000);
+    CHECK(production::LastPlan().reserve.r[0] == 800, "swords 1 purchasable: reserve 800 (%d)", production::LastPlan().reserve.r[0]);
+    At<uint32_t>(kRvaUpgradesInResearch)[0] = 0x4;
+    ProdPass(2000);
+    CHECK(production::LastPlan().reserve.r[0] == 0, "in research: not in the reserve");
+    At<uint32_t>(kRvaUpgradesInResearch)[0] = 0;
+    At<uint8_t>(kRvaUpgradeLevels + 0x10)[0] = 1;
+    ProdPass(3000);
+    CHECK(production::LastPlan().reserve.r[0] == 2400, "swords 1 done: swords 2 is next (%d)", production::LastPlan().reserve.r[0]);
+    At<uint8_t>(kRvaUpgradeLevels + 0x10)[0] = 2;
+    ProdPass(4000);
+    CHECK(production::LastPlan().reserve.r[0] == 0, "both done: nothing");
+    AddProd(0x3E, 0, 15, 5);  // church: the paladin upgrade (33, 1000 gold), then healing (35)
+    At<uint16_t>(kRvaUpgradeGold)[33] = 1000;
+    At<uint16_t>(kRvaUpgradeGold)[35] = 1000;
+    At<uint32_t>(kRvaSpellsAllowed)[0] = 0x100000 | 0x2;
+    ProdPass(5000);
+    CHECK(production::LastPlan().reserve.r[0] == 1000, "church: the paladin upgrade, not yet healing (%d)", production::LastPlan().reserve.r[0]);
+    At<uint32_t>(kRvaSpellsResearched)[0] = 0x100000;
+    ProdPass(6000);
+    CHECK(production::LastPlan().reserve.r[0] == 1000, "paladins known: healing is what is next");
+    AddProd(0x40, 0, 20, 5);  // two scout towers with a blacksmith: two cannon towers
+    AddProd(0x40, 0, 25, 5);
+    AddProd(0x4A, 0, 30, 5);
+    At<uint32_t>(kRvaUnitsAllowed)[0] = 0xFFFFFFFF;  // the keep upgrade is allowed now, and a barracks is there
+    ProdPass(7000);
+    // healing 1000, two cannon towers 1000 each, the keep 2000 gold / 1000 lumber: dearest + a quarter of the rest.
+    CHECK(production::LastPlan().reserve.r[0] == 2750 && production::LastPlan().reserve.r[1] == 1150,
+          "the towers and the keep raise the reserve (%d gold, %d lumber)", production::LastPlan().reserve.r[0],
+          production::LastPlan().reserve.r[1]);
+    // The gate uses it: a footman needs four prices of spare bank on top of the reserve.
+    FinishTraining(0);
+    for (int i = 0; i < 18; ++i) AddProd(0x02, 0, i, 30);  // no worker business
+    At<int32_t>(kRvaPlayerGold)[0] = 2750 + 4 * 600 - 1;
+    At<int32_t>(kRvaPlayerLumber)[0] = At<int32_t>(kRvaPlayerOil)[0] = 5000;
+    const int footmen = StartsOf(0x00);
+    ProdPass(8000);
+    CHECK(StartsOf(0x00) == footmen && production::LastPlan().reserve.r[0] == 2750, "one gold short of reserve + four prices: nothing");
+    At<int32_t>(kRvaPlayerGold)[0] += 1;
+    ProdPass(9000);
+    CHECK(StartsOf(0x00) == footmen + 1, "exactly enough: a footman");
+    // The threshold follows the live cost table ([costs] / [unit.<name>] / a map's own UDTA raise it).
+    FinishTraining(0);
+    At<uint8_t>(kRvaGoldCostByType)[0x00] = 120;  // the footman now costs 1200
+    At<int32_t>(kRvaPlayerGold)[0] = 2750 + 4 * 1200 - 1;
+    ProdPass(10000);
+    CHECK(StartsOf(0x00) == footmen + 1, "the price doubled: the threshold doubles with it");
+    At<int32_t>(kRvaPlayerGold)[0] += 1;
+    ProdPass(11000);
+    CHECK(StartsOf(0x00) == footmen + 2, "and one more gold is enough again");
+
+    // Knights turn into paladins after the upgrade, archers into rangers.
+    ProdWorld();
+    AddProd(0x3C, 0, 5, 5);
+    AddProd(0x58, 0, 10, 5);  // keep: tier 2
+    {
+        int x = 20;
+        for (int t : {0x42, 0x52, 0x4C}) AddProd(static_cast<uint8_t>(t), 0, x += 3, 5);  // stables, blacksmith, lumber mill
+    }
+    for (int i = 0; i < 12; ++i) AddProd(0x02, 0, i, 30);
+    At<uint32_t>(kRvaSpellsResearched)[0] = 0x100000;  // paladins
+    At<uint8_t>(kRvaUpgradeLevels + 0x80)[0] = 1;      // rangers
+    for (int round = 0; round < 10; ++round) {
+        ProdPass(1000 + round * 1000);
+        FinishTraining(0);
+    }
+    CHECK(StartsOf(0x0C) > 0 && StartsOf(0x06) == 0 && StartsOf(0x12) > 0 && StartsOf(0x08) == 0,
+          "upgraded lines only: paladins %d (knights %d), rangers %d (archers %d)", StartsOf(0x0C), StartsOf(0x06), StartsOf(0x12),
+          StartsOf(0x08));
+
+    // The filler in a real pass: tier 3, a mountain of gold, no lumber, and only a barracks.
+    ProdWorld();
+    AddProd(0x3C, 0, 5, 5);
+    AddProd(0x5A, 0, 10, 5);  // castle: tier 3, where infantry has no share at all
+    for (int i = 0; i < 18; ++i) AddProd(0x02, 0, i, 30);
+    At<int32_t>(kRvaPlayerGold)[0] = 60000;
+    At<int32_t>(kRvaPlayerLumber)[0] = 100;
+    At<int32_t>(kRvaPlayerOil)[0] = 0;
+    for (int round = 0; round < 6; ++round) {
+        ProdPass(1000 + round * 1000);
+        FinishTraining(0);
+    }
+    CHECK(StartsOf(0x00) == 6, "gold-rich, lumber-poor tier 3: the filler keeps the barracks on footmen (%d)", StartsOf(0x00));
+    AddProd(0x4C, 0, 15, 5);  // a lumber mill, so archers are possible at all
+    At<int32_t>(kRvaPlayerLumber)[0] = 100000;
+    for (int round = 0; round < 4; ++round) {
+        ProdPass(10000 + round * 1000);
+        FinishTraining(0);
+    }
+    CHECK(StartsOf(0x08) > 0, "with lumber back the mix takes over again (%d archers)", StartsOf(0x08));
+
+    // Config: every key reads, typos and bad values are reported, nothing else changes.
+    WriteFileText(ini,
+                  "[auto_production]\nenabled = true\ntoggle_key = \"F11\"\nworkers_per_hall_tier = 5\nfood_free_min = 6\n"
+                  "food_free_percent = 15\nreserve_extra = 0.5\nupgrade_bias = 0\nfiller_min = 20\nnavy_weight = 0.5\nnavy_max = 40\n"
+                  "bogus = 1\n"
+                  "[auto_production.units]\nsiege = false\nsubmarines = false\nsappers = true\n"
+                  "[auto_production.bank_multiple]\nall = 2.5\nknights = 8\nflyers = 0\n"
+                  "[auto_production.land_tier2]\nknights = 50\ndestroyers = 10\nsiege = 101\n"
+                  "[auto_production.navy_tier1]\nsubmarines = 30\n");
+    CHECK(config::Init(dir), "auto_production config rejected");
+    {
+        const AutoProduction& c = config::g.production;
+        CHECK(c.enabled && c.toggleKey == VK_F11 && c.workersPerHallTier == 5 && c.foodFreeMin == 6 && c.foodFreePercent == 15 &&
+                  c.bankMultiple == 2.5 && c.reserveExtra == 0.5 && c.upgradeBias == 0 && c.fillerMin == 20 && c.navyWeight == 0.5 &&
+                  c.navyMax == 40,
+              "[auto_production] keys");
+        CHECK(!c.unitClass[kProdSiege] && !c.unitClass[kProdSubmarines] && c.unitClass[kProdInfantry], "[auto_production.units]");
+        CHECK(c.classBankMultiple[kProdKnights] == 8 && c.classBankMultiple[kProdFlyers] == 0 &&
+                  LogContains(dir, "[auto_production.bank_multiple] flyers must be a number"),
+              "[auto_production.bank_multiple]: per class, and 0 is refused");
+        CHECK(c.land[1][kProdKnights] == 50 && c.land[1][kProdSiege] == 5 && c.land[1][kProdDestroyers] == 0 &&
+                  c.navy[0][kProdSubmarines] == 30 && c.land[0][kProdInfantry] == 75,
+              "[auto_production.land_tier2] / [.navy_tier1]: 101 refused, a ship class is not a land key");
+        CHECK(LogContains(dir, "unknown key [auto_production] bogus") && LogContains(dir, "unknown key [auto_production.units] sappers") &&
+                  LogContains(dir, "unknown key [auto_production.land_tier2] destroyers"),
+              "auto_production typos must be logged");
+    }
+    DeleteFileW(ini);
+    CHECK(config::Init(dir), "default config did not come back");
+    CHECK(!config::g.production.enabled, "the shipped file keeps auto-production off");
+    EnableEverythingForTests();
+
+    ProdRestore();
+    ResetWorld();
 }
 
 int wmain(int argc, wchar_t** argv) {
@@ -2761,6 +3534,7 @@ int wmain(int argc, wchar_t** argv) {
     }
 
     SpellNumberTests(dir, ini);
+    ProductionTests(dir, ini);
 
     // TOML config: a custom file is honoured, typos and bad values are survivable, a syntax error keeps old settings.
     WriteFileText(ini,
