@@ -12,12 +12,14 @@ The Nexus texts live in `nexus/` as plain BBCode text files, ready to paste:
 
 Keep them in step with `docs/USER_README.txt`, `docs/CONFIG_TUTORIAL.md` and `CHANGELOG.md` whenever a setting changes.
 
-## Before publishing
+## State (2026-09-18)
 
-- The description links to https://github.com/Ensrick/war2r-gameplay-options. That repo is PRIVATE, so the link is a
-  404 for everyone else until the author decides to make it public. Visibility is the author's call.
-- The description cannot be edited through the Nexus API: paste `nexus/NEXUS_DESCRIPTION.txt` on the website.
-- Decided 2026-09-18: the shipped config keeps its examples as comments and only Heal, Slow, Bloodlust, Raise Dead and
-  worker auto-repair are on by default.
+- The GitHub repository is PUBLIC (the author's call, "so people can report issues"). License: the custom
+  source-available `LICENSE`, same conditions as the permissions set on the Nexus page. Do not call it open source.
+- `nexus/NEXUS_DESCRIPTION.txt` changed with 1.0.9 (GitHub / bug report paragraph): the description cannot be edited
+  through the Nexus API, so it has to be pasted again on the website.
+- On Nexus: 1.0.0 (the author's own upload). Nothing newer is uploaded; uploads wait for the author's go-ahead naming
+  the version. At upload time post one changelog entry per version that Nexus does not have yet
+  (`nexus/changelog_<ver>_api.txt`; the API is append-only).
+- Shipped config: examples as comments; only Heal, Slow, Bloodlust, Raise Dead and worker auto-repair are on.
 - Add the Buy Me a Coffee block (memory `reference_bmc_button.md`) if wanted on this page.
-- Uploads wait for the author's go-ahead after the Nexus page exists. No upload has been made.
