@@ -3,6 +3,14 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.0.0-dev.24 - 2026-09-18 (UNTESTED in game)
+
+- Player report: "uther seems to be missing" from `[heroes] units`. He was there as `uther_lightbringer`, the last
+  entry of a two-line list. The default list is now grouped by side with all 15 heroes, and unit names accept short
+  and in-game spellings everywhere (`uther`, `grom`, `grommash_hellscream`, `teron`, `korgath`, `kurdran_and_skyree`,
+  `gul_dan`, `cho_gall`, `zul_jin`, `gryphon`, `ogremage`, `deathknight`, `sappers`). Game display names checked in
+  `Data\Strings\enUS.json`.
+
 ## 1.0.0-dev.23 - 2026-09-18 (UNTESTED in game)
 
 - The author named the mod: everything mod-level is now `gameplay_options` (config `gameplay_options.toml`, log
