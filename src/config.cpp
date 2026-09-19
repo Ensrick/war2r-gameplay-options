@@ -9,6 +9,7 @@
 #include "../third_party/tomlplusplus/toml.hpp"
 
 #include "log.h"
+#include "spells.h"
 #include "units.h"
 
 namespace config {
@@ -19,6 +20,12 @@ const char* const kSpellKeys[kSpellCount] = {"heal",       "exorcism", "slow",  
 
 const char* const kStatKeys[kStatCount] = {"hit_points", "armor", "basic_damage", "piercing_damage", "range",
                                            "sight",      "gold",  "lumber",       "oil",             "build_time"};
+
+const char* const kSpellCostKeys[kSpellCostCount] = {
+    "holy_vision", "heal", "exorcism", "flame_shield", "fireball", "slow", "invisibility", "polymorph", "blizzard",
+    "eye_of_kilrogg", "bloodlust", "raise_dead", "death_coil", "whirlwind", "haste", "unholy_armor", "runes", "death_and_decay"};
+const char* const kSpellDamageKeys[kSpellDamageCount] = {"fireball",  "flame_shield", "blizzard", "death_and_decay",
+                                                         "whirlwind", "death_coil",   "runes",    "heal"};
 
 static wchar_t g_path[MAX_PATH];
 static FILETIME g_mtime;
@@ -163,6 +170,38 @@ static void ReadRange(const toml::table& root, Config& c) {
             const std::string k(key.str());
             if (k != "upgrade_bonus") logx::Write("config: unknown key [range] %s ignored", k.c_str());
         }
+}
+
+// [spell_cost] / [spell_damage]: all = multiplier, one whole number per spell, -1 = the game's own. 0 is refused (a
+// free heal or exorcism divides by zero in the game); above the engine limit the limit is used.
+static void ReadSpellNumbers(const toml::table& root, const char* section, const char* const* keys, int count,
+                             const int* max, double& all, int* values) {
+    if (!root[section]) return;
+    ReadFactor(root, section, "all", all);
+    for (int i = 0; i < count; ++i) {
+        const auto node = root[section][keys[i]];
+        if (!node) continue;
+        const auto v = node.value<int64_t>();
+        if (!v || *v == 0 || *v < -1) {
+            logx::Write("config: [%s] %s must be -1 (the game's value) or a whole number from 1 to %d, keeping %d", section, keys[i],
+                        max[i], values[i]);
+            continue;
+        }
+        values[i] = *v > max[i] ? max[i] : static_cast<int>(*v);
+        if (*v > max[i]) logx::Write("config: [%s] %s = %lld is more than the game can hold, using %d", section, keys[i], *v, max[i]);
+    }
+}
+
+static void ReadSpells(const toml::table& root, Config& c) {
+    int costMax[kSpellCostCount];
+    for (int& m : costMax) m = spells::kMaxCost;
+    ReadSpellNumbers(root, "spell_cost", kSpellCostKeys, kSpellCostCount, costMax, c.spellCostAll, c.spellCost);
+    ReadSpellNumbers(root, "spell_damage", kSpellDamageKeys, kSpellDamageCount, spells::kDamageMax, c.spellDamageAll, c.spellDamage);
+    if (const auto node = root["mana"]["regen"]) {
+        const auto v = node.value<double>();  // accepts 2 as well as 2.0
+        if (v && *v >= 0.1 && *v <= 40.0) c.manaRegen = *v;
+        else logx::Write("config: [mana] regen must be a number from 0.1 to 40, keeping %.2f", c.manaRegen);
+    }
 }
 
 // [unit.<name>] / [building.<name>] stat = value. -1 (or a missing key) keeps the game's own number; 0 is a real
@@ -325,6 +364,10 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"building", nullptr},
         {"workers", " auto_harvest harvest_idle_seconds harvest_radius auto_repair repair_idle_seconds repair_radius "},
         {"trees", " regrow regrow_min_minutes regrow_max_minutes building_distance unit_distance "},
+        {"spell_cost", " all holy_vision heal exorcism flame_shield fireball slow invisibility polymorph blizzard eye_of_kilrogg "
+                       "bloodlust raise_dead death_coil whirlwind haste unholy_armor runes death_and_decay "},
+        {"spell_damage", " all fireball flame_shield blizzard death_and_decay whirlwind death_coil runes heal "},
+        {"mana", " regen "},
     };
     for (const auto& [sectionKey, sectionNode] : root) {
         const std::string section(sectionKey.str());
@@ -391,6 +434,7 @@ static bool Load() {
     ReadMultipliers(root, "costs", false, c.costs);
     ReadMultipliers(root, "time", false, c.time);
     ReadRange(root, c);
+    ReadSpells(root, c);
     ReadStatTables(root, "unit", false, c);
     ReadStatTables(root, "building", true, c);
     ReadBool(root, "workers", "auto_harvest", c.workerAutoHarvest);

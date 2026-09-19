@@ -21,6 +21,20 @@ constexpr uint32_t kRvaHarvestHandler = 0xD85E0;     // order 23: target = gold 
 constexpr uint32_t kRvaReturnHandler = 0xD8960;      // order 24: null target = the game finds the depot itself
 constexpr uint32_t kRvaRepairHandler = 0xD8920;      // order 27: target = building
 constexpr uint32_t kRvaShowMessage = 0xD3160;    // void __cdecl (const char* text, int 8, int duration, int 0), the cheat-toggle banner
+// Spell numbers (docs/research/spells.md): every one is an instruction immediate, patched in place and byte-verified.
+constexpr uint32_t kRvaFireballDamageInsn = 0xAF189;    // `mov al, 0x28` (B0 28) in FUN_004af0e0, stored to missile+0x37
+constexpr uint32_t kRvaFireballMarker = 0xAE83B;        // 16 bytes in FUN_004ae7c0: missile damage == 40 selects the spell's 40-step trail
+constexpr uint32_t kRvaFlameShieldDamageInsn = 0xAF437; // `mov byte [eax+0x37], 4` in FUN_004af3a0 (one orbiting flame)
+constexpr uint32_t kRvaBlizzardDamageInsn = 0xAECAC;    // `mov byte [edi+0x37], 0xa` in FUN_004aec70 (one shard)
+constexpr uint32_t kRvaDeathAndDecayDamageInsn = 0xAF549; // `mov byte [esi+0x37], 0xa` in FUN_004af500 (one cloud)
+constexpr uint32_t kRvaWhirlwindDamageInsn = 0xAF62D;   // `mov byte [esi+0x37], 4` in FUN_004af5c0
+constexpr uint32_t kRvaDeathCoilBudgetInsns[5] = {0xE1DAA, 0xE1DC5, 0xE1DDB, 0xE1DE0, 0xE1DE7};  // the five 0x32 in FUN_004e1a90
+constexpr uint32_t kRvaRunesDamageInsn = 0xE2D89;       // `mov ecx, 0x32` in the rune tick FUN_004e2cd0: kill at hp <= this
+constexpr uint32_t kRvaRunesSubtractInsn = 0xE2D9E;     // `add eax, -0x32` right after it: hp -= 50
+constexpr uint32_t kRvaHealCapInsn = 0xE2289;           // `mov eax, 0x28` in FUN_004e2220: at most 40 HP per cast
+constexpr uint32_t kRvaManaRegenReloadInsn = 0xEF586;   // `mov byte [esi+0x74], 0x28` in FUN_004ef480, after +1 mana
+constexpr uint32_t kRvaManaRegenCreateInsn = 0xEDF17;   // same store for a new caster in CreateUnit FUN_004edb10
+constexpr uint32_t kRvaManaRegenConvertInsn = 0xED334;  // same store in the type change FUN_004ed2c0 (knight -> paladin ...)
 
 // --- data ---
 constexpr uint32_t kRvaLocalPlayer = 0x518CCD;        // uint8, compared against unit owner by the selection code
@@ -35,7 +49,7 @@ constexpr uint32_t kRvaController = 0x518CAC;         // uint8[16]: 0 = human, 1
 constexpr uint32_t kRvaAlliance = 0x519578;           // uint8[16*16], [caster*16 + target] != 0 means allied
 constexpr uint32_t kRvaTypeFlags = 0x5185F0;          // uint32[unit type]
 constexpr uint32_t kRvaSpellsResearched = 0x519250;   // uint32[16], PUD ALOW bit layout
-constexpr uint32_t kRvaManaCostByOrder = 0x4C5EB8;    // uint16[order id]
+constexpr uint32_t kRvaManaCostByOrder = 0x4C5EB8;    // uint16[order id], plain .data: not saved, never reloaded, 46 readers
 constexpr uint32_t kRvaExploredMap = 0x51AD60;       // uint8_t* [mapSize*mapSize] for the LOCAL player, 0x10 = never explored
 constexpr uint32_t kRvaVisibleMap = 0x51AD5C;        // uint8_t* same layout, 0x10 = currently fogged
 constexpr uint32_t kRvaRegionMap = 0x51AD7C;         // uint16* [mapSize*mapSize]: 0xFFFE tree, 0xFFFC tree being chopped, else region id

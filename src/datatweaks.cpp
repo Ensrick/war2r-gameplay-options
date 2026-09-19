@@ -7,6 +7,7 @@
 #include "config.h"
 #include "log.h"
 #include "mod.h"
+#include "spells.h"
 #include "trees.h"
 #include "tweaks.h"
 #include "units.h"
@@ -144,6 +145,7 @@ void OnNewMapTablesLoaded() {
     // The tick-time multiplayer flag is not valid yet during a map load; this byte is what it is copied from.
     const bool multiplayer = *At<uint8_t>(kRvaNetGameAtLoad) != 0;
     SyncRangeBonus(multiplayer);
+    spells::OnNewMap(multiplayer);
     if (multiplayer) {
         logx::Write("map load: multiplayer game, data tables left alone");
         return;

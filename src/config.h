@@ -22,6 +22,19 @@ enum UnitStat {
     kStatGold, kStatLumber, kStatOil, kStatBuildTime, kStatCount
 };
 
+// [spell_cost] keys, in the game's order-id order (0x26..0x38 without the unused slot 0x28).
+enum SpellCostKey {
+    kCostHolyVision, kCostHeal, kCostExorcism, kCostFlameShield, kCostFireball, kCostSlow, kCostInvisibility,
+    kCostPolymorph, kCostBlizzard, kCostEyeOfKilrogg, kCostBloodlust, kCostRaiseDead, kCostDeathCoil, kCostWhirlwind,
+    kCostHaste, kCostUnholyArmor, kCostRunes, kCostDeathAndDecay, kSpellCostCount
+};
+
+// [spell_damage] keys: every spell that deals damage, plus heal (its hit point cap per cast).
+enum SpellDamageKey {
+    kDamageFireball, kDamageFlameShield, kDamageBlizzard, kDamageDeathAndDecay, kDamageWhirlwind, kDamageDeathCoil,
+    kDamageRunes, kDamageHeal, kSpellDamageCount
+};
+
 // One multiplier tree, used three times: [health], [costs], [time].
 // Effective multiplier = all x race.all x (race.units | race.research umbrella) x group. Everything defaults to 1.0.
 struct RaceMultipliers {
@@ -115,11 +128,21 @@ struct Config {
     // [range]: what Longbow / Lighter Axes add to attack range
     int rangeUpgradeBonus = 1;
 
+    // [spell_cost] / [spell_damage] / [mana]: live, re-applied every step (neither the cost table nor the patched code
+    // is part of a savegame). -1 = the game's own number. Global: the computer's casters get the same numbers.
+    double spellCostAll = 1.0;          // x every mana cost, rounded up
+    int spellCost[kSpellCostCount];     // heal / exorcism: mana per hit point
+    double spellDamageAll = 1.0;        // x every damage number and the heal cap; heal / exorcism get a lower price
+    int spellDamage[kSpellDamageCount];
+    double manaRegen = 1.0;             // x the rate casters regain mana (the game: 1 point per 40 steps)
+
     // [unit.<name>] and [building.<name>]: base stats by type id, -1 = the game's own value. The multipliers apply on top.
     int32_t unitStat[256][kStatCount];
     Config() {
         for (auto& row : unitStat)
             for (int32_t& v : row) v = -1;
+        for (int& v : spellCost) v = -1;
+        for (int& v : spellDamage) v = -1;
     }
 
     // [heroes]
@@ -139,6 +162,8 @@ namespace config {
 extern Config g;
 extern const char* const kSpellKeys[kSpellCount];
 extern const char* const kStatKeys[kStatCount];
+extern const char* const kSpellCostKeys[kSpellCostCount];
+extern const char* const kSpellDamageKeys[kSpellDamageCount];
 
 // Loads <dir>\gameplay_options.toml, writing the default file first if it is missing.
 // Returns false when the file has a syntax error (the previous / default settings stay in force).

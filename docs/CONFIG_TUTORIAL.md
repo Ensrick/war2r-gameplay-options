@@ -424,6 +424,63 @@ upgrade_bonus = 2     # rangers and berserkers gain +2 range from their upgrade.
 
 One number for both upgrades: the game uses a single rule for the two. This one applies right away, no new map needed.
 
+### Spell costs, spell damage and mana
+
+```toml
+[spell_cost]
+all = 1.0           # x every mana cost, rounded UP to a whole number
+fireball = 50       # your own cost for one spell (game: 100), the multiplier goes on top
+heal = 3            # heal and exorcism cost mana PER HIT POINT (game: 5 and 4)
+
+[spell_damage]
+all = 2.0           # x every damage number below, and x the heal limit per cast
+runes = 80          # your own number for one spell (game: 50), the multiplier goes on top
+
+[mana]
+regen = 2.0         # casters regain mana twice as fast (the game: 1 point every 40 game steps)
+```
+
+Every key is optional; `-1` or a missing key means the game's own number. These three sections apply right away, in the
+running game too (no new map needed), and switch themselves off in multiplayer.
+
+**Costs.** One key per spell: `holy_vision` `heal` `exorcism` `flame_shield` `fireball` `slow` `invisibility`
+`polymorph` `blizzard` `eye_of_kilrogg` `bloodlust` `raise_dead` `death_coil` `whirlwind` `haste` `unholy_armor` `runes`
+`death_and_decay`. A cost is 1 to 255: mana never goes above 255, so a dearer spell could never be cast, and a free heal
+or exorcism would crash the game. Blizzard and Death and Decay charge their cost for every wave while you channel them;
+Raise Dead charges per skeleton.
+
+**Damage.** The number is what one hit does (the game then rolls between half and all of it for the area spells):
+
+| Key | The game | Most | What it is |
+|---|---|---|---|
+| fireball | 40 | 254 | each of the fireball's 5 blasts |
+| flame_shield | 4 | 254 | each pulse of each of the 5 flames |
+| blizzard | 10 | 254 | each falling shard (a wave drops 5 x 11) |
+| death_and_decay | 10 | 254 | each pulse (a wave makes 5 clouds of 10 pulses) |
+| whirlwind | 4 | 254 | each of its 400 pulses |
+| death_coil | 50 | 127 | the total, shared out over the enemies hit; the caster heals by what it deals |
+| runes | 50 | 128 | each rune; any unit that steps on one, yours included |
+| heal | 40 | 255 | the most hit points one Heal restores |
+
+Heal and exorcism have no damage number of their own: they cost mana per hit point, so `[spell_damage] all` makes them
+**cheaper per hit point** instead (their cost is divided by it, rounded up, never below 1), and it raises the heal limit
+per cast. Example: `[spell_cost] heal = 3` with `[spell_damage] all = 2` heals 1 hit point per 2 mana, up to 80 per cast.
+That also means the most it can do is x5 for heal and x4 for exorcism (1 mana per hit point).
+
+The values are clamped to what the game can hold and the log says so; the log also lists every changed cost and damage
+number when a map starts.
+
+**Mana.** `[mana] regen` from 0.1 to 40 speeds up (or slows down) how fast every caster refills. The limit of 255 mana
+per caster is built into the game and cannot be raised.
+
+Good to know:
+
+- **These numbers are global.** The computer's casters pay the same costs and deal the same damage as yours.
+- The computer only casts Blizzard and Death and Decay with three times their cost in mana, so with a cost above 85 it
+  stops casting them.
+- The spell descriptions in the game's tooltips are fixed text ("Deals 34 hit point damage", "1 hit point per 5 mana")
+  and do not change; the mana cost shown in the tooltip does.
+
 ### Change or remove the hotkey
 
 `Ctrl` plus this key toggles autocast in game.
@@ -486,4 +543,9 @@ Every cast is then written to `x86\gameplay_options.log` with the caster, the ta
 | costs.human / costs.orc | all, units, structures, research, the 8 unit groups, buildings, building_upgrades, the research groups | 1.0 each | Price multipliers, caps 2550 / 65535 |
 | time.human / time.orc | same keys as costs | 1.0 each | Training, construction, upgrade and research time, cap 255 |
 | range | upgrade_bonus | 1 | Range added by Longbow / Lighter Axes |
+| spell_cost | all | 1.0 | Multiplies every spell's mana cost, rounded up, 1 to 255 |
+| spell_cost | holy_vision ... death_and_decay (18 spells) | -1 each | Your own mana cost for one spell, -1 = the game's. Heal and exorcism: mana per hit point |
+| spell_damage | all | 1.0 | Multiplies every damage number and the heal limit; makes heal and exorcism cheaper per hit point |
+| spell_damage | fireball, flame_shield, blizzard, death_and_decay, whirlwind, death_coil, runes, heal | -1 each | Your own damage per hit (heal: hit points per cast), -1 = the game's; limits 254 / 127 (death_coil) / 128 (runes) / 255 (heal) |
+| mana | regen | 1.0 | How fast casters regain mana (0.1 to 40). The 255 mana limit stays |
 | unit.NAME / building.NAME | hit_points, armor, basic_damage, piercing_damage, range, sight, gold, lumber, oil, build_time | -1 each | Base stats of one unit or structure type, -1 = the game's value |
