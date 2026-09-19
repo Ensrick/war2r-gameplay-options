@@ -486,7 +486,9 @@ void UpdateMapProfile(const World& w) {
     if (!square) return;
     uint32_t signature = static_cast<uint32_t>(w.mapSize) * 2654435761u;
     signature ^= static_cast<uint32_t>(reinterpret_cast<uintptr_t>(square));
-    for (int i = 0; i < w.mapSize * w.mapSize; i += 257) signature = signature * 31u + square[i];
+    // Water only: the other flag bits move while the game runs (a felled or regrown tree, a new building), and a
+    // changed signature would recount the map and log the profile line again.
+    for (int i = 0; i < w.mapSize * w.mapSize; i += 257) signature = signature * 31u + (square[i] & kSqWater);
     if (g_map.valid && g_map.signature == signature) return;
 
     int water = 0;

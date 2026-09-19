@@ -3,6 +3,14 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.7.3 (2026-09-19)
+
+- Author: "make the tier auto-production weight based, so it doesn't have to add up to 100%, is that how it works?"
+  It already is (`Targets` divides each class weight by its group total), but the config called the numbers "percent".
+  Wording fixed in the generator and the tutorial; no behaviour change.
+- Fixed while looking: his log had the map-profile line twice per map. The fingerprint hashed every square-flag bit,
+  and tree regrowth sets the unpassable bit, so the profile recounted and logged again. It hashes the water bit only.
+
 ## 1.7.2 (2026-09-19, UNTESTED in game)
 
 - Author in game: "why isn't it auto-producing peasants?" then "Maybe it is working" (his log did show four peons a

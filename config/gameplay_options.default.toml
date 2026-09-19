@@ -534,9 +534,11 @@ submarines = true
 all = 4.0
 # knights = 8.0             # or per class, e.g. be twice as rich before each knight. Submarines always want twice.
 
-# Army mix per hall tier, in percent. Land and ships are split by the map first (see navy_weight above), then these
-# shares are spread over what you can actually train; a class you cannot build yet gives its share to the others.
-# Plenty of gold and little lumber makes the cheap classes grow by themselves.
+# Army mix per hall tier. These are WEIGHTS, not percentages: only their ratios matter, so 75 / 20 / 5 builds exactly
+# the same army as 15 / 4 / 1, and they need not add up to anything. Land and ships are split by the map first (see
+# navy_weight above), then each group's weights are shared out over what you can actually train; a class you cannot
+# build yet gives its weight to the others, a line with upgrades gets more, and plenty of gold with little lumber
+# makes the cheap classes grow by themselves.
 [auto_production.land_tier1]
 infantry = 75
 archers = 20

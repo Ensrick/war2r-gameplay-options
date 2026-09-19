@@ -1,0 +1,2 @@
+The auto-production mix numbers are weights, not percentages: only their ratios matter and they need not add up to 100. The config file and tutorial now say so; nothing changed in how it builds.
+Fixed: the "map is N % water" line was logged again whenever terrain changed (a regrown tree was enough).

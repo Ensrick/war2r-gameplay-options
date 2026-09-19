@@ -7,6 +7,13 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-19). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.7.3 - 2026-09-19
+
+- The auto-production mix numbers are weights, not percentages: only their ratios matter and a tier's numbers need
+  not add up to 100. Said so in the config file and the tutorial; nothing changed in how it builds.
+- Fixed: the "production: map is N % water" line was logged again whenever terrain changed (a regrown tree was
+  enough), because the map fingerprint followed every flag bit instead of the water alone.
+
 ## 1.7.2 - 2026-09-19
 
 - Fixed: auto-production never trained workers on a poor start. They had to clear the upgrade reserve plus four times

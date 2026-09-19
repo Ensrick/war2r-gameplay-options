@@ -603,6 +603,10 @@ gold, lumber and oil before a battleship. Raise the price of a unit anywhere (`[
 data) and the threshold rises with it. `all` is the master, a class name overrides it for that class, and submarines
 always want twice their number.
 
+**The mix numbers are weights.** Only the ratios count: `75 / 20 / 5` and `15 / 4 / 1` build the same army, and a
+tier's numbers need not add up to 100. Each class's weight is its number times its upgrade bonus times how affordable
+it is right now; land and ships are weighed separately, so raising a ship number never starves your land army.
+
 **Ships come from the map.** On the first pass of a map the mod counts the water tiles and the oil patches and
 platforms on it, and writes what it found to the log:
 
