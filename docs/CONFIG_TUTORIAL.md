@@ -171,6 +171,17 @@ Off by default. It covers every mine on the map, the computer's too.
 unlimited = true
 ```
 
+### Oil platforms that never run dry
+
+The same thing for oil, with its own switch. Off by default; it covers every platform on the map, the computer's too.
+A platform keeps the amount it had when you switched this on (never less than 5000), and an oil patch gets that
+amount back when its platform is destroyed.
+
+```toml
+[oil_platforms]
+unlimited = true
+```
+
 ### Health, prices, build times: the multipliers
 
 `[health]`, `[costs]` and `[time]` change the game's unit, structure and research data. They are read **when a new map
@@ -379,6 +390,7 @@ Every cast is then written to `x86\gameplay_options.log` with the caster, the ta
 | eye_of_kilrogg | max_active | 1 | Eyes out at the same time |
 | eye_of_kilrogg | auto_scout | false | Eyes fly to unexplored ground |
 | gold_mines | unlimited | false | Mines never run dry (all mines) |
+| oil_platforms | unlimited | false | Oil platforms never run dry (all platforms) |
 | workers | auto_repair / repair_idle_seconds / repair_radius | true / 1 / 10 | Idle workers repair your damaged buildings |
 | workers | auto_harvest / harvest_idle_seconds / harvest_radius | false / 10 / 5 | Idle workers go to the nearest mine or tree |
 | health / costs / time | all | 1.0 | Master multiplier of the section (in health: units only) |

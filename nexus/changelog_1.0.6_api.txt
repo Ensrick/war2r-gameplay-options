@@ -1,0 +1,1 @@
+New [oil_platforms] unlimited (off by default): oil platforms never run dry, the computer's too. Independent of [gold_mines] unlimited, which never covered oil.

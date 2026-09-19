@@ -85,8 +85,9 @@ struct Config {
     int eyeMaxActive = 1;
     bool eyeAutoScout = false;
 
-    // [gold_mines]
+    // [gold_mines] / [oil_platforms]
     bool goldMinesUnlimited = false;
+    bool oilPlatformsUnlimited = false;
 
     // [workers]
     bool workerAutoHarvest = false;

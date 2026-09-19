@@ -3,6 +3,17 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.0.6 (release build, staged 2026-09-18, NOT uploaded, UNTESTED in game)
+
+- Author: "Are oil platforms affected by unlimited gold mine? If not, we need an option for oil platforms too." They
+  were not: the refill only looked at type 0x5C. New `[oil_platforms] unlimited`, default false.
+- Evidence (docs/research/workers_and_gold.md + disassembly this session): platforms are the types with flag 0x800
+  (0x56 / 0x57); "oil left" is the same u16 at +0x82, decremented by the same ENTER action (`0x4C99C8`) when a tanker
+  enters. `0x4EDCB4`: a platform copies the amount from the oil patch under it when it is CREATED (patch hidden);
+  `0x4EE4E3`: a dying platform with oil left creates a new patch 0x5D with that amount. So topping up platforms alone
+  is enough, and patches are never drained on their own.
+- `tweaks.cpp`: one shared peak table for mines and platforms, each kind forgotten when its switch goes off.
+
 ## 1.0.5 (release build, staged 2026-09-18, NOT uploaded)
 
 - Author, on his tower tables: "Ok, it's not watch tower?" The game's strings say "Build Watch Tower" (orc) and "Build

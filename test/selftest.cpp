@@ -199,7 +199,7 @@ int wmain(int argc, wchar_t** argv) {
         for (int i = 0; i < kSpellCount; ++i) spellsOk = spellsOk && config::g.spell[i] == expectSpell[i];
         CHECK(config::g.enabled && spellsOk, "default spells must be heal, slow, bloodlust, raise_dead only");
         CHECK(!config::g.eyeCast && !config::g.eyeAutoScout && !config::g.workerAutoHarvest && config::g.workerAutoRepair &&
-                  config::g.heroRegenPerSecond == 0 && !config::g.goldMinesUnlimited && config::g.rangeUpgradeBonus == 1,
+                  config::g.heroRegenPerSecond == 0 && !config::g.goldMinesUnlimited && !config::g.oilPlatformsUnlimited && config::g.rangeUpgradeBonus == 1,
               "default options: everything off except worker auto-repair");
         bool noStats = true;
         for (const auto& row : config::g.unitStat)
@@ -495,6 +495,39 @@ int wmain(int argc, wchar_t** argv) {
     mod::OnTick();
     CHECK(Field<uint16_t>(richMine, kOffResources) == 399, "mine should return to the amount seen when the option came on (%u)", Field<uint16_t>(richMine, kOffResources));
     CHECK(Field<uint16_t>(poorMine, kOffResources) == 50, "a nearly empty mine should be lifted to the 5000 gold floor (%u)", Field<uint16_t>(poorMine, kOffResources));
+    config::g.goldMinesUnlimited = false;
+
+    // Unlimited oil platforms: the same "left" word, its own switch. Gold mines must not come along, and the other way.
+    ResetWorld();
+    defType(kTypeGoldMine, kTfBuilding | 0x400000, 25500);
+    defType(0x56, kTfBuilding | kTfOilPlatform, 650);
+    defType(0x57, kTfBuilding | kTfOilPlatform, 650);
+    Unit* oilMine = AddUnit(kTypeGoldMine, kNeutralPlayer, 50, 50, 25500, 0, 0);
+    Unit* humanRig = AddUnit(0x56, 0, 20, 20, 650, 0, 0);  // mine
+    Unit* orcRig = AddUnit(0x57, 1, 30, 20, 650, 0, 0);    // the computer's
+    Field<uint16_t>(oilMine, kOffResources) = 400;
+    Field<uint16_t>(humanRig, kOffResources) = 250;
+    Field<uint16_t>(orcRig, kOffResources) = 2;
+    mod::OnTick();
+    Field<uint16_t>(humanRig, kOffResources) = 249;  // a tanker took 100 oil
+    mod::OnTick();
+    CHECK(Field<uint16_t>(humanRig, kOffResources) == 249 && Field<uint16_t>(orcRig, kOffResources) == 2, "oil platforms refilled while the option is off");
+    config::g.oilPlatformsUnlimited = true;
+    mod::OnTick();
+    Field<uint16_t>(humanRig, kOffResources) = 248;
+    Field<uint16_t>(oilMine, kOffResources) = 399;
+    mod::OnTick();
+    CHECK(Field<uint16_t>(humanRig, kOffResources) == 249, "platform should return to the amount seen when the option came on (%u)", Field<uint16_t>(humanRig, kOffResources));
+    CHECK(Field<uint16_t>(orcRig, kOffResources) == 50, "a nearly dry platform (the computer's too) should be lifted to the 5000 oil floor (%u)", Field<uint16_t>(orcRig, kOffResources));
+    CHECK(Field<uint16_t>(oilMine, kOffResources) == 399, "[oil_platforms] must not refill gold mines (%u)", Field<uint16_t>(oilMine, kOffResources));
+    config::g.oilPlatformsUnlimited = false;
+    config::g.goldMinesUnlimited = true;
+    mod::OnTick();
+    Field<uint16_t>(humanRig, kOffResources) = 200;
+    Field<uint16_t>(oilMine, kOffResources) = 398;
+    mod::OnTick();
+    CHECK(Field<uint16_t>(humanRig, kOffResources) == 200 && Field<uint16_t>(oilMine, kOffResources) == 399,
+          "[gold_mines] must not refill oil platforms (platform %u mine %u)", Field<uint16_t>(humanRig, kOffResources), Field<uint16_t>(oilMine, kOffResources));
     config::g.goldMinesUnlimited = false;
 
     // Idle workers. Play time is fed in 100 ms steps; repair needs 1 s idle, harvest 10 s.
@@ -816,7 +849,7 @@ int wmain(int argc, wchar_t** argv) {
                           "[building.farm]\nhit_points = 40000\n"
                           "[unit.keep]\nhit_points = 9\n"
                           "[building.footman]\nhit_points = 9\n"
-                          "[health]\nstructures = 1.5\n[health.orc]\nbuildings = 2.0\nstructures = 3.0\n[costs]\nstructures = 0.5\nunits = 0.25\n");
+                          "[health]\nstructures = 1.5\n[health.orc]\nbuildings = 2.0\nstructures = 3.0\n[costs]\nstructures = 0.5\nunits = 0.25\n[oil_platforms]\nunlimited = true\n");
             CHECK(config::Init(dir), "building tables rejected");
             const uint8_t tower = 0x60;
             CHECK(config::g.unitStat[tower][kStatHitPoints] == 200 && config::g.unitStat[tower][kStatPiercingDamage] == 14 &&
@@ -829,6 +862,7 @@ int wmain(int argc, wchar_t** argv) {
             CHECK(config::g.health.race[kOrc].structure[kBuildings] == 2.0 && config::g.health.structures == 1.5 &&
                       config::g.health.race[kOrc].structures == 3.0 && config::g.costs.structures == 0.5 && config::g.costs.units == 0.25,
                   "structure masters did not load from the file");
+            CHECK(config::g.oilPlatformsUnlimited, "[oil_platforms] unlimited did not load from the file");
             datatweaks::OnNewMapTablesLoaded();
             // human guard tower: health 200 x [health] structures 1.5 = 300; gold 450 x [costs] structures 0.5 = 225 -> 23 tens
             CHECK(hpT[kGuardTower] == 300 && pierceT[kGuardTower] == 14 && rangeT[kGuardTower] == 7 && goldT[kGuardTower] == 23 && armorT[kGuardTower] == 20,

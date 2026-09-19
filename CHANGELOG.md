@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.6 - staged 2026-09-18, not uploaded yet
+
+- New `[oil_platforms] unlimited` (off by default): oil platforms never run dry, the computer's too. Independent of
+  `[gold_mines] unlimited`, which never covered oil.
+
 ## 1.0.5 - staged 2026-09-18, not uploaded yet
 
 - `[building.watch_tower]` and `[building.orc_watch_tower]` are accepted for the orc scout tower (the game calls it

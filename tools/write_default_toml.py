@@ -58,7 +58,7 @@ text += banner('WARCRAFT II: REMASTERED - GAMEPLAY OPTIONS',
                'settings and is reported in gameplay_options.log. Single-player only: the mod switches itself off in multiplayer.',
                '',
                'CONTENTS    1. GENERAL          2. AUTOCAST (spells, heal, polymorph, haste, eye of kilrogg)',
-               '            3. WORKERS          4. GOLD MINES          5. HEROES',
+               '            3. WORKERS          4. GOLD MINES AND OIL  5. HEROES',
                '            6. HEALTH           7. PRICES              8. BUILD AND RESEARCH TIME',
                '            9. RANGE UPGRADE   10. YOUR OWN NUMBERS FOR ONE UNIT OR ONE BUILDING')
 text += '''
@@ -146,10 +146,15 @@ auto_harvest = false
 harvest_idle_seconds = 10
 harvest_radius = 5
 
-''' + banner('4. GOLD MINES') + '''
+''' + banner('4. GOLD MINES AND OIL') + '''
 [gold_mines]
 # true = gold mines never run dry (every mine on the map, the computer's too). Starving a mine is a legitimate way to
 # win some campaign missions, but a computer that runs out of gold can stall a long game: your call.
+unlimited = false
+
+[oil_platforms]
+# true = oil platforms never run dry (every platform on the map, the computer's too). A platform keeps the amount it
+# had when you switched this on, never less than 5000.
 unlimited = false
 
 ''' + banner('5. HEROES') + '''

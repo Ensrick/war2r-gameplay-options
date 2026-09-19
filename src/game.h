@@ -98,6 +98,7 @@ constexpr uint8_t kTypeCorpse = 0x69;   // what the game AI's raise-dead filter 
 constexpr uint32_t kTfFlyer = 0x00000002;
 constexpr uint32_t kTfBuilding = 0x00000020;
 constexpr uint32_t kTfWorker = 0x00000100;
+constexpr uint32_t kTfOilPlatform = 0x00000800;  // types 0x56 / 0x57; "oil left" lives in kOffResources like a mine's gold
 constexpr uint32_t kTfUndead = 0x00008000;
 constexpr uint32_t kTfCaster = 0x00020000;
 constexpr uint32_t kTfAttacker = 0x00080000;

@@ -56,14 +56,14 @@ WORKERS
 
 OPTIONS (all off or neutral until you change them)
   - Hero regeneration (for example 1 HP per second).
-  - Unlimited gold mines.
+  - Unlimited gold mines, and separately unlimited oil platforms.
   - Multipliers for HEALTH, PRICES and BUILD / RESEARCH TIME, all 1.0 (unchanged) by default. Each has master
     values (all, units, structures, research), the same per race (human / orc) and values per group (workers, melee,
     ranged, siege, casters, air, naval, demolition, heroes; buildings, building upgrades; melee / ranged / siege /
     naval research, paladin or ogre-mage research, mage or death knight spells). They multiply into each other.
     "All structures" is the key named structures. Unit health dials never touch structures; structure health has
     its own keys (structures, buildings, building_upgrades).
-  - The config file is split into numbered, labeled parts (GENERAL, AUTOCAST, WORKERS, GOLD MINES, HEROES, HEALTH,
+  - The config file is split into numbered, labeled parts (GENERAL, AUTOCAST, WORKERS, GOLD MINES AND OIL, HEROES, HEALTH,
     PRICES, BUILD AND RESEARCH TIME, RANGE UPGRADE, YOUR OWN NUMBERS) with UNITS / STRUCTURES / RESEARCH sub-headers.
   - Your own base stats for any unit in a [unit.<name>] table, and for any structure in a [building.<name>] table:
     hit points, armor, basic and piercing damage, range, sight, gold, lumber, oil, build time. The file contains
