@@ -1,6 +1,6 @@
-# Warcraft II Remastered Autocast
+# Warcraft II Remastered - Gameplay Options
 # Edits are picked up while the game runs (within a few seconds). A syntax error keeps the previous settings
-# and is reported in autocast.log. Single-player only: everything here switches itself off in multiplayer.
+# and is reported in gameplay_options.log. Single-player only: everything here switches itself off in multiplayer.
 
 [general]
 enabled = true
@@ -8,7 +8,7 @@ enabled = true
 toggle_key = "F9"
 # Game steps between autocast passes. Lower = snappier; the computer AI itself uses 50.
 interval_ticks = 10
-# true = write every cast to autocast.log
+# true = write every cast to gameplay_options.log
 log_casts = false
 
 [autocast]

@@ -1,0 +1,31 @@
+[size=4][b]1.0.0 - Initial release[/b][/size]
+For Warcraft II: Remastered 1.0.2.2818, single-player.
+
+[b]Autocast[/b]
+[list]
+[*]Paladin: Heal (units missing 10+ hit points, most hurt first), Exorcism.
+[*]Mage: Polymorph with a configurable, prioritised target list (dragons, gryphon riders and daemons first), Slow.
+[*]Ogre-Mage: Bloodlust on units that are fighting; Eye of Kilrogg when idle at full mana, and the eye scouts unexplored ground by itself.
+[*]Death Knight: Raise Dead when enemies are near, Death Coil, Haste on flyers, Unholy Armor (off by default).
+[*]Move orders are never interrupted, casters never double up on a target, Ctrl+F9 toggles autocast in game.
+[*]Left manual on purpose: Fireball, Flame Shield, Invisibility, Blizzard, Death and Decay, Whirlwind, Runes.
+[/list]
+
+[b]Workers[/b]
+[list]
+[*]Idle workers repair damaged buildings nearby (1 second, 10 tiles), then return to the nearest gold mine or tree (10 seconds, 5 tiles). Loaded workers deliver first. Stand Ground is respected.
+[/list]
+
+[b]Options[/b]
+[list]
+[*]Unlimited gold mines, off by default.
+[*]Heroes regenerate 1 hit point per second.
+[*]Multipliers for health, prices and build / research time: master x race (human / orc) x group, all 1.0 by default. Health only touches units.
+[*]Per-unit base stats in [unit.name] tables: hit points, armor, basic and piercing damage, range, sight, gold, lumber, oil, build time. Ships with sight 8 for dragons and gryphon riders and a worked destroyer example.
+[*]Configurable range bonus for Longbow / Lighter Axes.
+[/list]
+
+[b]Config[/b]
+[list]
+[*]gameplay_options.toml, re-read while the game runs, with error reporting that never breaks a running game.
+[/list]

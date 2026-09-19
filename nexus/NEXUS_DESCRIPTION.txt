@@ -1,0 +1,153 @@
+[size=6][b]Gameplay Options for Warcraft II: Remastered[/b][/size]
+
+One small DLL and one text file, [b]gameplay_options.toml[/b], that put the single-player game under your control: casters that cast on their own the way the computer's do, workers that go back to work, and every unit number (health, prices, build times, damage, armor, range, sight) open to editing. Every feature has its own switch.
+
+[b]On by default:[/b] autocast, idle-worker automation, heroes regenerating 1 HP per second, sight 8 for dragons and gryphon riders, and a small worked example that changes both destroyers (section 5). [b]Off / neutral by default:[/b] unlimited gold mines, Unholy Armor autocast, and every multiplier (all 1.0).
+
+[b]Single-player only.[/b] The mod switches itself off in multiplayer games.
+
+[line]
+[size=5][b]Installation[/b][/size]
+[list=1]
+[*]Close the game.
+[*]Open the zip. It contains one folder, [b]x86[/b].
+[*]Extract it into your [b]Warcraft II Remastered[/b] folder, the one that already contains an [b]x86[/b] folder. Default location: [i]C:\Program Files (x86)\Warcraft II Remastered[/i]. Say yes if Windows asks to merge folders.
+[*]Check that these four files are now in [i]Warcraft II Remastered\x86[/i]: version.dll, gameplay_options.toml, gameplay_options_readme.txt, gameplay_options_tutorial.txt
+[*]Start the game from Battle.net as usual.
+[/list]
+[b]Is it working?[/b] Start a single-player game and press [b]Ctrl+F9[/b]. A line of text "Autocast OFF" / "Autocast ON" appears in game. A file [i]x86\gameplay_options.log[/i] is also written on every start.
+
+[b]Uninstall:[/b] delete version.dll and the gameplay_options files from the x86 folder. The mod does not change any game file.
+
+[line]
+[size=5][b]How to use gameplay_options.toml[/b][/size]
+Open [i]x86\gameplay_options.toml[/i] with Notepad. Every setting has a comment above it that says what it does.
+[list]
+[*][b]Save while you play.[/b] The mod re-reads the file every few seconds. "Gameplay Options: settings reloaded" appears in game. No restart.
+[*][b]Mistakes are safe.[/b] After a typo the mod keeps your previous settings, tells you in game, and writes the line number to gameplay_options.log. A misspelled setting name is reported in the log as "unknown key".
+[*][b]Delete to reset.[/b] Delete the file and a fresh one with the defaults is written the next time you start a game.
+[/list]
+
+[b]The format in one minute[/b]
+[code]# a line starting with # is a comment
+
+[spells]              # a section name in square brackets
+heal = true           # on / off settings are true or false
+
+[heal]
+min_missing_hp = 10   # numbers are written plain
+
+[general]
+toggle_key = "F9"     # text goes in double quotes
+
+[polymorph]
+targets = ["dragon", "daemon"]   # a list: square brackets, quotes, commas[/code]
+
+[size=4][b]1. Autocast[/b][/size]
+[list]
+[*][b]Paladin:[/b] Heal (only units missing 10+ hit points, most hurt first), Exorcism on enemy undead
+[*][b]Mage:[/b] Polymorph (you list the valid targets, in priority order), Slow
+[*][b]Ogre-Mage:[/b] Bloodlust on units that are fighting; Eye of Kilrogg when idle at full mana, and the eye flies to unexplored ground by itself
+[*][b]Death Knight:[/b] Raise Dead when enemies are near, Death Coil, Haste on your flyers, Unholy Armor (off by default)
+[/list]
+Your move orders are never interrupted, two casters never pick the same target, and an eye you move yourself is left to you. Fireball, Flame Shield, Invisibility, Blizzard, Death and Decay, Whirlwind and Runes stay manual on purpose.
+[code][spells]
+exorcism = false          # turn one spell off
+
+[heal]
+min_missing_hp = 25       # only heal real wounds
+
+[polymorph]
+# the complete rule: only listed units are sheeped, earlier in the list wins
+targets = ["dragon", "gryphon_rider", "daemon", "death_knight", "mage"]
+
+[haste]
+flyers_only = false       # haste every fighting unit, not just flyers
+
+[eye_of_kilrogg]
+cast = true
+max_active = 1
+auto_scout = true[/code]
+
+[size=4][b]2. Workers[/b][/size]
+An idle peasant or peon repairs a damaged building of yours nearby, and if it is still idle it walks to the nearest gold mine or tree. A worker carrying gold or lumber delivers it first. "Idle" means stopped with nothing queued; [b]Stand Ground[/b] is respected, so that is how you park a worker.
+[code][workers]
+auto_repair = true
+repair_idle_seconds = 1
+repair_radius = 10
+auto_harvest = true
+harvest_idle_seconds = 10
+harvest_radius = 5[/code]
+
+[size=4][b]3. Gold mines and heroes[/b][/size]
+[code][gold_mines]
+unlimited = true          # off by default. Covers every mine, the computer's too
+
+[heroes]
+regen_hp_per_second = 1   # 0 = off
+regen_for = "all"         # or "mine"[/code]
+
+[size=4][b]4. Multipliers: health, prices, build and research time[/b][/size]
+Three sections with the same layout: [b][health][/b], [b][costs][/b], [b][time][/b]. Everything is 1.0 (the game's own number) until you change it. 0.5 halves, 2.0 doubles. The values [b]multiply into each other from the top down[/b]:
+[code]master "all"   x   race "all"   x   units / research (umbrella)   x   the group[/code]
+[code][health]
+all = 2.0               # every unit in the game: double health
+
+[health.orc]
+all = 1.5               # orcs another 50% on top
+melee = 1.2             # grunts, ogres, ogre-magi 20% on top of that
+
+[health.human]
+heroes = 4.0
+
+[costs.human]
+units = 0.5             # every human unit half price
+naval_upgrades = 0.5    # ship cannon and ship armor research
+buildings = 1.5
+
+[costs.orc]
+research = 0.5          # all orc research half price
+
+[time]
+all = 0.5               # train, build and research twice as fast[/code]
+[b]Groups:[/b] workers, melee, ranged, siege, casters, air, naval, demolition, heroes (health only), buildings, building_upgrades (keep, castle, guard and cannon tower), melee_upgrades, ranged_upgrades, siege_upgrades, naval_upgrades, paladin_upgrades / ogre_mage_upgrades, mage_spells / death_knight_spells. Health only ever touches units, never structures.
+[b]Limits of the engine:[/b] 65535 hit points, 2550 for a unit or structure price (steps of 10), 65535 for a research price, 255 for a build or research time.
+
+[size=4][b]5. Your own numbers for a single unit[/b][/size]
+One [b][unit.name][/b] table per unit. [b]-1[/b], or leaving a line out, keeps the game's own number. 0 is a real value where it makes sense. These are base numbers: they go in first, and the multipliers above apply on top.
+[code][unit.elven_destroyer]
+hit_points = 105        # game: 100
+armor = 11              # game: 10
+basic_damage = 37       # game: 35
+piercing_damage = 2     # game: 0
+range = 5               # game: 4
+sight = 9               # game: 8   (9 is the engine's maximum)
+gold = 600              # game: 700
+lumber = 300            # game: 350
+oil = 500               # game: 700
+build_time = 80         # game: 90[/code]
+The file ships with this destroyer example switched on for both destroyers, so you can see every stat working, and with [b]dragons and gryphon riders at sight 8[/b] (the game's value is 6). Delete those tables from the bottom of the file to get the game's own units back. A blank template with every key is in the file too.
+[code][range]
+upgrade_bonus = 2       # range that Longbow / Lighter Axes add. The game's own bonus is 1[/code]
+
+[size=4][b]When do changes apply?[/b][/size]
+[list]
+[*][b]Right away:[/b] spells, targets, workers, gold mines, hero regeneration, the hotkey, the Longbow / Lighter Axes bonus.
+[*][b]When a new map starts[/b] (new mission, custom game, restart): health, prices, times and [unit.name] tables. A savegame keeps the numbers it was made with, so saves from before you installed the mod stay exactly as they were.
+[*]The computer plays by the same numbers you do.
+[/list]
+
+[line]
+[size=5][b]Good to know[/b][/size]
+[list]
+[*][b]Single-player only.[/b] What the mod does is local and would desync a network game, so it turns itself off there.
+[*]Made for game build [b]1.0.2.2818[/b]. After a Blizzard patch the mod does nothing (the game runs normally) until it is updated. gameplay_options.log then says "staying inert".
+[*]Battle.net "Scan and Repair" may remove version.dll. Just extract the zip again; your gameplay_options.toml is not touched.
+[*]Trouble? Look at x86\gameplay_options.log first and include it when you report a problem.
+[/list]
+
+[size=5][b]Source[/b][/size]
+Open source, including the reverse-engineering notes: GITHUB LINK HERE
+
+[size=5][b]Credits[/b][/size]
+The war2.ru community (Mistral and others) for two decades of Warcraft II reverse engineering, and toml++ by Mark Gillard for the config parser.

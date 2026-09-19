@@ -320,7 +320,7 @@ static bool Load() {
     toml::parse_result result = toml::parse_file(std::wstring_view(g_path));
     if (!result) {
         const auto& err = result.error();
-        logx::Write("config: autocast.toml line %u column %u: %s. Previous settings stay in force.",
+        logx::Write("config: gameplay_options.toml line %u column %u: %s. Previous settings stay in force.",
                     static_cast<unsigned>(err.source().begin.line), static_cast<unsigned>(err.source().begin.column),
                     std::string(err.description()).c_str());
         return false;
@@ -387,11 +387,11 @@ static bool ReadMtime(FILETIME* out) {
 }
 
 bool Init(const wchar_t* dllDir) {
-    swprintf_s(g_path, L"%s\\autocast.toml", dllDir);
+    swprintf_s(g_path, L"%s\\gameplay_options.toml", dllDir);
     if (GetFileAttributesW(g_path) == INVALID_FILE_ATTRIBUTES) {
         HANDLE f = CreateFileW(g_path, GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (f != INVALID_HANDLE_VALUE) {
-            // config/autocast.default.toml, embedded as a resource so the zip and the DLL can never disagree.
+            // config/gameplay_options.default.toml, embedded as a resource so the zip and the DLL can never disagree.
             HMODULE self = nullptr;
             GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
                                reinterpret_cast<LPCWSTR>(&Init), &self);

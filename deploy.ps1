@@ -1,4 +1,4 @@
-# Installs (or disables) the autocast proxy DLL in the Warcraft II Remastered x86 folder. Never launches the game.
+# Installs (or disables) the Gameplay Options proxy DLL in the Warcraft II Remastered x86 folder. Never launches the game.
 param(
     [string] $GameDir = 'C:\Program Files (x86)\Warcraft II Remastered\x86',
     [switch] $Disable   # renames the installed version.dll to version.dll.disabled instead of installing
@@ -11,7 +11,7 @@ $target = Join-Path $GameDir 'version.dll'
 if ($Disable) {
     if (Test-Path $target) {
         Move-Item $target "$target.disabled" -Force
-        'autocast disabled (version.dll -> version.dll.disabled)'
+        'Gameplay Options disabled (version.dll -> version.dll.disabled)'
     } else { 'nothing installed' }
     return
 }
@@ -35,14 +35,21 @@ try {
 $hash = (Get-FileHash $target -Algorithm SHA256).Hash
 if ($hash -ne (Get-FileHash $built -Algorithm SHA256).Hash) { throw 'deployed file does not match the build' }
 
-# Pre-TOML builds used autocast.ini; it is no longer read.
+# Builds before dev.23 called the mod "autocast". The settings file carries over under the new name; the old log
+# and the pre-TOML ini are simply no longer read.
+$legacyToml = Join-Path $GameDir 'autocast.toml'
+$config = Join-Path $GameDir 'gameplay_options.toml'
+if ((Test-Path $legacyToml) -and -not (Test-Path $config)) {
+    Move-Item $legacyToml $config
+    'autocast.toml renamed to gameplay_options.toml (your settings are kept)'
+}
 $legacyIni = Join-Path $GameDir 'autocast.ini'
 if (Test-Path $legacyIni) {
     Move-Item $legacyIni "$legacyIni.bak" -Force
-    'legacy autocast.ini renamed to autocast.ini.bak (settings now live in autocast.toml)'
+    'legacy autocast.ini renamed to autocast.ini.bak (settings now live in gameplay_options.toml)'
 }
 
 "installed $target"
 "sha256 $hash"
-"config  $(Join-Path $GameDir 'autocast.toml') (created on first game start if missing)"
-"log     $(Join-Path $GameDir 'autocast.log')"
+"config  $(Join-Path $GameDir 'gameplay_options.toml') (created on first game start if missing)"
+"log     $(Join-Path $GameDir 'gameplay_options.log')"

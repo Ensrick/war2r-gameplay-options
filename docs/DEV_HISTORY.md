@@ -3,6 +3,16 @@
 Builds made before the first public release. The public changelog (CHANGELOG.md) starts at 1.0.0.
 Every change gets its own build number; newest first.
 
+## 1.0.0-dev.23 - 2026-09-18 (UNTESTED in game)
+
+- The author named the mod: everything mod-level is now `gameplay_options` (config `gameplay_options.toml`, log
+  `gameplay_options.log`, readme / tutorial file names, banners "Gameplay Options: ...", zip
+  `War2R-Gameplay-Options-<version>.zip`, repo `war2r-gameplay-options`). "Autocast" now only names the spell-casting
+  feature (`[autocast]` section, `src/autocast.*`, the Ctrl+F9 "Autocast ON/OFF" banner).
+- `deploy.ps1` renames an existing `autocast.toml` to `gameplay_options.toml`, keeping the player's settings.
+- Nexus texts as plain BBCode files in `nexus/`: summary, description (installation + how to use the config file),
+  changelog.
+
 ## 1.0.0-dev.22 - 2026-09-18 (UNTESTED in game)
 
 - The `[vision]` bonus section is gone. Dragons and gryphon riders get their sight from ordinary

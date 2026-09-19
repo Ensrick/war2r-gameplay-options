@@ -1,7 +1,7 @@
-# war2r-autocast (working name)
+# Gameplay Options for Warcraft II: Remastered
 
 Autocast and gameplay tweaks for **Warcraft II: Remastered**, single-player. One `version.dll` next to the game exe,
-one `autocast.toml` for every setting.
+one `gameplay_options.toml` for every setting.
 
 - Player docs: [docs/USER_README.txt](docs/USER_README.txt) (ships in the zip), [docs/CONFIG_TUTORIAL.md](docs/CONFIG_TUTORIAL.md)
 - Nexus page draft: [docs/NEXUS_DESCRIPTION.md](docs/NEXUS_DESCRIPTION.md)
@@ -29,7 +29,7 @@ other than build 1.0.2.2818 (PE timestamp check, then per-hook byte checks).
 .\build\Release\selftest.exe "C:\Program Files (x86)\Warcraft II Remastered\x86\Warcraft II.exe"
 .\test\proxy_load_test.ps1
 .\deploy.ps1         # copies version.dll into <game>\x86\   (-Disable renames it away)
-.\package.ps1        # dist\War2R-Autocast-<version>.zip, drag-and-drop layout (x86\...)
+.\package.ps1        # dist\War2R-Gameplay-Options-<version>.zip, drag-and-drop layout (x86\...)
 ```
 
 `selftest` maps the real exe as an image (none of its code runs), checks every hook site and table entry the mod relies
@@ -55,5 +55,5 @@ src/autocast.cpp    spell targeting        src/eye.cpp        Eye of Kilrogg
 src/workers.cpp     idle workers           src/tweaks.cpp     hero regen, gold mines
 src/datatweaks.cpp  map-start table edits  src/config.cpp     TOML (toml++ vendored in third_party/)
 src/game.h          every address (RVA) with its meaning; evidence in docs/
-config/autocast.default.toml   the default config, embedded into the DLL as a resource and shipped in the zip
+config/gameplay_options.default.toml   the default config, embedded into the DLL as a resource and shipped in the zip
 ```

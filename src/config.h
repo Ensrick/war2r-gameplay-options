@@ -113,7 +113,7 @@ extern Config g;
 extern const char* const kSpellKeys[kSpellCount];
 extern const char* const kStatKeys[kStatCount];
 
-// Loads <dir>\autocast.toml, writing the default file first if it is missing.
+// Loads <dir>\gameplay_options.toml, writing the default file first if it is missing.
 // Returns false when the file has a syntax error (the previous / default settings stay in force).
 bool Init(const wchar_t* dllDir);
 // Re-reads the file when its timestamp changed. 0 = unchanged, 1 = reloaded, -1 = changed but has a syntax error.

@@ -69,14 +69,14 @@ void __cdecl OnTick() {
     EnsureConfigLoaded();
     if (!g_firstTickLogged) {
         g_firstTickLogged = true;
-        if (g_configBroken) ShowMessage("Autocast: autocast.toml has an error, see autocast.log");
+        if (g_configBroken) ShowMessage("Gameplay Options: gameplay_options.toml has an error, see gameplay_options.log");
         logx::Write("first game tick, mod live");
     }
     ++g_tick;
     if (g_tick % 64 == 0) {
         const int reloaded = config::ReloadIfChanged();
-        if (reloaded > 0) ShowMessage("Autocast: settings reloaded");
-        if (reloaded < 0) ShowMessage("Autocast: autocast.toml has an error, see autocast.log");
+        if (reloaded > 0) ShowMessage("Gameplay Options: settings reloaded");
+        if (reloaded < 0) ShowMessage("Gameplay Options: gameplay_options.toml has an error, see gameplay_options.log");
     }
     PollToggleKey();
     const unsigned elapsedMs = ElapsedMs();

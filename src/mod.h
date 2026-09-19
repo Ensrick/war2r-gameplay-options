@@ -4,7 +4,7 @@
 namespace mod {
 
 void SetModuleBase(uintptr_t exeBase, const wchar_t* dllDir);
-void EnsureConfigLoaded();  // first caller loads autocast.toml (the map-load hook runs before the first tick)
+void EnsureConfigLoaded();  // first caller loads gameplay_options.toml (the map-load hook runs before the first tick)
 void __cdecl OnTick();      // runs on the game thread once per simulation step (hooked AI tick)
 void RunAutocastPass();     // test entry: one autocast sweep right now, ignoring the interval
 

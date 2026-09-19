@@ -1,5 +1,5 @@
-WARCRAFT II: REMASTERED - AUTOCAST AND TWEAKS
-=============================================
+WARCRAFT II: REMASTERED - GAMEPLAY OPTIONS
+==========================================
 
 Your casters cast their spells on their own, the way the computer's do. Idle workers go back to work. Optional
 tweaks slow combat down and make the economy kinder. Everything can be switched off or tuned in one text file.
@@ -13,9 +13,9 @@ INSTALL
    Default: C:\Program Files (x86)\Warcraft II Remastered
    You should end up with:
        Warcraft II Remastered\x86\version.dll
-       Warcraft II Remastered\x86\autocast.toml
-       Warcraft II Remastered\x86\autocast_readme.txt
-       Warcraft II Remastered\x86\autocast_config_tutorial.txt
+       Warcraft II Remastered\x86\gameplay_options.toml
+       Warcraft II Remastered\x86\gameplay_options_readme.txt
+       Warcraft II Remastered\x86\gameplay_options_tutorial.txt
 3. Start the game from Battle.net as usual.
 
 In a single-player game press Ctrl+F9. A banner "Autocast OFF" / "Autocast ON" proves the mod is loaded.
@@ -23,7 +23,7 @@ In a single-player game press Ctrl+F9. A banner "Autocast OFF" / "Autocast ON" p
 
 UNINSTALL
 ---------
-Delete version.dll (and the autocast.* files) from the x86 folder. No game file is modified by this mod.
+Delete version.dll (and the gameplay_options.* files) from the x86 folder. No game file is modified by this mod.
 
 
 WHAT IT DOES
@@ -69,10 +69,10 @@ TWEAKS (each has its own switch or number)
 
 SETTINGS
 --------
-Open x86\autocast.toml in Notepad. Every setting has a comment above it, and autocast_config_tutorial.txt has
+Open x86\gameplay_options.toml in Notepad. Every setting has a comment above it, and gameplay_options_tutorial.txt has
 copy-paste recipes. Save the file while the game is running
 and the change applies within a few seconds (a banner confirms it). If you make a typo the mod keeps your previous
-settings and tells you the line number in x86\autocast.log.
+settings and tells you the line number in x86\gameplay_options.log.
 
 Want the mod to do nothing but autocast? Delete the [unit.*] tables at the bottom of the file, set
 regen_hp_per_second = 0, and switch the [workers] options to false. Every multiplier is already 1.0 out of the box.
@@ -84,6 +84,6 @@ GOOD TO KNOW
 ------------
 - Multiplayer: the mod switches itself off. What it does is local and would desync a network game.
 - Game updates: the mod only activates on the exact game build it was made for (1.0.2.2818). After a Blizzard
-  patch it does nothing (the game runs normally) until the mod is updated. autocast.log says "staying inert".
+  patch it does nothing (the game runs normally) until the mod is updated. gameplay_options.log says "staying inert".
 - Battle.net "Scan and Repair" may remove version.dll. Just extract the zip again.
-- Trouble? Look at x86\autocast.log first, and include it when you report a problem.
+- Trouble? Look at x86\gameplay_options.log first, and include it when you report a problem.

@@ -1,0 +1,1 @@
+Casters that cast on their own like the computer's (Heal, Exorcism, Slow, Polymorph, Bloodlust, Death Coil, Haste, Raise Dead, Eye of Kilrogg), idle workers that go back to work, and every unit number open to editing: health, prices, build times, damage, armor, range, sight. One DLL, one config file, single-player.

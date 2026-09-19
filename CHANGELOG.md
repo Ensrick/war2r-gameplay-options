@@ -28,6 +28,6 @@ Tweaks (all configurable)
 - Configurable range bonus for Longbow / Lighter Axes.
 
 Config
-- `autocast.toml`, hot reloaded, with error reporting that never breaks a running game.
+- `gameplay_options.toml`, hot reloaded, with error reporting that never breaks a running game.
 
 Pre-release build notes: `docs/DEV_HISTORY.md`.

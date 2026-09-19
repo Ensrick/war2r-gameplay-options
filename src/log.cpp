@@ -12,7 +12,7 @@ constexpr unsigned kMaxLines = 20000;  // a runaway cast loop must not fill the 
 
 void Open(const wchar_t* dllDir) {
     wchar_t path[MAX_PATH];
-    swprintf_s(path, L"%s\\autocast.log", dllDir);
+    swprintf_s(path, L"%s\\gameplay_options.log", dllDir);
     g_file = CreateFileW(path, GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 }
 

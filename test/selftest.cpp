@@ -114,10 +114,10 @@ int wmain(int argc, wchar_t** argv) {
 
     wchar_t dir[MAX_PATH];
     GetTempPathW(MAX_PATH, dir);
-    wcscat_s(dir, L"war2r_autocast_selftest");
+    wcscat_s(dir, L"war2r_gameplay_options_selftest");
     CreateDirectoryW(dir, nullptr);
     wchar_t ini[MAX_PATH];
-    swprintf_s(ini, L"%s\\autocast.toml", dir);
+    swprintf_s(ini, L"%s\\gameplay_options.toml", dir);
     DeleteFileW(ini);  // always start from the shipped defaults
     logx::Open(dir);
     mod::SetModuleBase(g_base, dir);
@@ -184,11 +184,11 @@ int wmain(int argc, wchar_t** argv) {
 
     mod::OnTick();  // first tick writes the embedded default config and loads it
     CHECK(config::g.enabled && config::g.spell[kSpellHeal] && !config::g.spell[kSpellUnholyArmor], "default config");
-    CHECK(GetFileAttributesW(ini) != INVALID_FILE_ATTRIBUTES, "default autocast.toml was not written");
+    CHECK(GetFileAttributesW(ini) != INVALID_FILE_ATTRIBUTES, "default gameplay_options.toml was not written");
     {
         WIN32_FILE_ATTRIBUTE_DATA fad{};
         GetFileAttributesExW(ini, GetFileExInfoStandard, &fad);
-        CHECK(fad.nFileSizeLow > 1000, "default autocast.toml is empty: the embedded resource was not found");
+        CHECK(fad.nFileSizeLow > 1000, "default gameplay_options.toml is empty: the embedded resource was not found");
     }
     CHECK(config::g.polymorphRank[kDragon] && config::g.polymorphRank[kDaemon] && !config::g.polymorphRank[kGrunt],
           "default polymorph list");

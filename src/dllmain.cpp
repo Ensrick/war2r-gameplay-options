@@ -69,7 +69,7 @@ BOOL APIENTRY DllMain(HMODULE self, DWORD reason, LPVOID) {
     if (wchar_t* slash = wcsrchr(dllDir, L'\\')) *slash = 0;
 
     logx::Open(dllDir);
-    logx::Write("war2r-autocast " AUTOCAST_VERSION " loaded into %ls", exeName);
+    logx::Write("gameplay_options " MOD_VERSION " loaded into %ls", exeName);
     const uintptr_t base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
     mod::SetModuleBase(base, dllDir);
     if (hook::Install(base)) logx::Write("tick hook installed at %p", reinterpret_cast<void*>(base + game::kRvaTickCallSite));

@@ -1,15 +1,15 @@
-# Config tutorial: autocast.toml
+# Config tutorial: gameplay_options.toml
 
-All settings live in one text file: `Warcraft II Remastered\x86\autocast.toml`. Open it with Notepad.
+All settings live in one text file: `Warcraft II Remastered\x86\gameplay_options.toml`. Open it with Notepad.
 
 ## The three rules
 
 1. **Save while playing.** The mod re-reads the file every couple of seconds. A banner in game says
-   "Autocast: settings reloaded". No restart needed.
+   "Gameplay Options: settings reloaded". No restart needed.
 2. **Mistakes are safe.** If the file has a typo the mod keeps your previous settings, shows
-   "autocast.toml has an error" in game, and writes the line number to `x86\autocast.log`. A misspelled setting name
+   "gameplay_options.toml has an error" in game, and writes the line number to `x86\gameplay_options.log`. A misspelled setting name
    is reported in the log as "unknown key" instead of being silently ignored.
-3. **Delete to reset.** Delete `autocast.toml` and the default file is written again the next time a game starts.
+3. **Delete to reset.** Delete `gameplay_options.toml` and the default file is written again the next time a game starts.
 
 ## How the file is written (TOML in one minute)
 
@@ -297,7 +297,7 @@ toggle_key = "F7"     # "F1" to "F12"
 log_casts = true
 ```
 
-Every cast is then written to `x86\autocast.log` with the caster, the target and the map position.
+Every cast is then written to `x86\gameplay_options.log` with the caster, the target and the map position.
 
 ## Every setting
 
@@ -306,7 +306,7 @@ Every cast is then written to `x86\autocast.log` with the caster, the target and
 | general | enabled | true | Master switch for autocasting (same as the hotkey) |
 | general | toggle_key | "F9" | Ctrl + key toggles autocast |
 | general | interval_ticks | 10 | Game steps between autocast passes. Lower reacts faster |
-| general | log_casts | false | Write every cast to autocast.log |
+| general | log_casts | false | Write every cast to gameplay_options.log |
 | autocast | search_radius | 8 | Tiles a caster searches for targets |
 | autocast | combat_radius | 6 | A unit counts as fighting when an enemy is this close to it |
 | autocast | own_units_only | true | Friendly spells skip allies' units |
