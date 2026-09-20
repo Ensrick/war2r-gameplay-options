@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include "aiwatch.h"
 #include "autocast.h"
 #include "config.h"
 #include "datatweaks.h"
@@ -119,6 +120,7 @@ void __cdecl OnTick() {
     workers::OnTick(w, elapsedMs);
     production::OnTick(w, elapsedMs);
     trees::OnTick(w, elapsedMs);
+    aiwatch::OnTick(w, elapsedMs);  // reads only: never drives the computer player
     autocast::AddPlayTime(elapsedMs);
     if (g_tick % static_cast<unsigned>(config::g.intervalTicks) == 0) {
         if (config::g.enabled) {

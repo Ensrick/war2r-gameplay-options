@@ -119,6 +119,7 @@ struct Config {
     int toggleKey = 0x78;         // VK_F9, pressed together with Ctrl
     int intervalTicks = 10;       // game steps between autocast passes
     bool logCasts = false;
+    bool logAi = false;           // read-only diagnostic for the computer players, see src/aiwatch.cpp
 
     // [autocast]
     int searchRadius = 8;         // tiles around the caster

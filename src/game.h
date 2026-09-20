@@ -119,6 +119,42 @@ constexpr uint32_t kRvaUpgradeLevels = 0x518BEC;     // uint8[16] per line: +0x0
 constexpr uint32_t kRvaSelectedUnit = 0x5342EC;      // Unit*: the unit whose buttons are shown (every button condition reads it)
 constexpr uint32_t kRvaSelection = 0x5342F0;         // Unit*[12]: the selection list whose HP / mana the panel caches (FUN_004e6db0)
 constexpr uint32_t kRvaGameFromSave = 0x51BFB0;      // uint16: 1 while the running game came from a savegame (mov [0x91BFB0],si at 0x4C4295)
+// --- computer-player AI script interpreter, READ-ONLY (docs/research/ai_stall.md) ---
+// FUN_004ca440 runs a 4-opcode script per computer player every simulation step. Nothing in src/aiwatch.cpp writes
+// any of these; the mod must never drive the AI, only report on it.
+constexpr uint32_t kRvaAiScriptId = 0x51D640;        // uint8[16]: the map's AI number per player (PUD handler FUN_004d23e0)
+constexpr uint32_t kRvaAiState = 0x51D650;           // per-player block, kAiStateStride apart (FUN_004ca390 sets it up)
+constexpr uint32_t kRvaAiScriptBlob = 0x51D950;      // const uint8*: Rez\ai.bin as loaded (FUN_004ca360), an absolute pointer
+constexpr uint32_t kRvaAiScriptBlobSize = 0x51D954;  // uint32, the loader's third argument, an out-param
+                                                     // [unverified: taken to be the byte size; range-checked before use]
+constexpr uint32_t kRvaAiBuildDone = 0x534358;       // uint8[8][kAiBuildListMax]: build-list entries already started
+                                                     // (FUN_004da300, and the tick pass at 0x4E8A21)
+constexpr uint32_t kRvaPeasantCount = 0x51B66C;      // uint16[16]: peasants + peons, what WAITFOR condition 3 reads
+constexpr uint32_t kRvaLandForce = 0x51B9EC;         // uint16[16]: live land attackers, condition 4 (FUN_004b5220, 0x4B5281)
+constexpr uint32_t kRvaSeaForce = 0x51BA0C;          // uint16[16]: condition 5 (0x4B52A1)
+constexpr uint32_t kRvaAirForce = 0x51BA2C;          // uint16[16]: condition 6 (0x4B52C1)
+constexpr uint32_t kRvaAiFootCount = 0x51B86C;       // uint16[16], compared against st[0x14] by the barracks AI FUN_004ad700
+constexpr uint32_t kRvaAiArcherCount = 0x51B88C;     // against st[0x15]
+constexpr uint32_t kRvaAiSiegeCount = 0x51B8AC;      // against st[0x16]
+constexpr uint32_t kRvaAiKnightCount = 0x51B8CC;     // against st[0x17]
+
+constexpr int kAiPlayerCount = 8;     // FUN_004ca440 loops players 0..7 only
+constexpr int kAiStateStride = 0x30;
+constexpr int kAiBuildListMax = 0x40;  // the walk in FUN_004da300 stops at this index
+// Offsets inside one AI state block.
+constexpr int kAiOffWait = 0x00;          // uint32, decremented once per step; 0 = run opcodes now
+constexpr int kAiOffPc = 0x04;            // const uint8*, points into the ai.bin blob
+constexpr int kAiOffLandWaveSize = 0x0D, kAiOffLandWaveCount = 0x0E;
+constexpr int kAiOffSeaWaveSize = 0x0F, kAiOffSeaWaveCount = 0x10;
+constexpr int kAiOffAirWaveSize = 0x11, kAiOffAirWaveCount = 0x12;
+constexpr int kAiOffPeasantTarget = 0x13;
+constexpr int kAiOffFootTarget = 0x14, kAiOffArcherTarget = 0x15;
+constexpr int kAiOffSiegeTarget = 0x16, kAiOffKnightTarget = 0x17;
+constexpr int kAiOffBuildListLen = 0x22;
+// Script opcodes (table 0x8C3DE8) and wait conditions (table 0x8C3DC8).
+constexpr uint8_t kAiOpSet = 0, kAiOpJump = 1, kAiOpSleep = 2, kAiOpWaitFor = 3;
+constexpr uint8_t kAiCondCount = 8;
+constexpr int kAiMaxInstructionSize = 5;  // SLEEP: the opcode byte plus a uint32
 constexpr uint32_t kRvaNetGameAtLoad = 0x522F5B;     // uint8, network flag that is already valid while a map loads
 constexpr uint32_t kRvaNetGame = 0x51C6F4;            // nonzero while the game loop runs DONETWORKTURN (multiplayer)
 

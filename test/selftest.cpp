@@ -18,6 +18,7 @@
 #include "../src/log.h"
 #include "../src/production.h"
 #include "../src/spells.h"
+#include "../src/aiwatch.h"
 #include "../src/trees.h"
 
 using namespace game;
@@ -412,6 +413,218 @@ static int LogCount(const wchar_t* dir, const char* text) {
     int hits = 0;
     for (const char* p = strstr(buf, text); p; p = strstr(p + 1, text)) ++hits;
     return hits;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// [general] log_ai: the read-only computer-player diagnostic (src/aiwatch.cpp, docs/research/ai_stall.md).
+// A fake ai.bin blob and fake AI state blocks are written into the mapped image's own globals, so the decoding, the
+// range check and the two timers are exercised without any of the game running.
+// ---------------------------------------------------------------------------------------------------------------
+
+static char g_aiLines[8][512];
+static int g_aiLineCount = 0;
+static int g_aiStalls = 0;
+
+static void AiSink(const char* line) {
+    if (g_aiLineCount < 8) strcpy_s(g_aiLines[g_aiLineCount], sizeof g_aiLines[0], line);
+    ++g_aiLineCount;
+    if (strstr(line, "has been on")) {
+        strcpy_s(g_aiLines[7], sizeof g_aiLines[0], line);  // the newest stall line, whatever the report count
+        ++g_aiStalls;
+    }
+}
+
+static uint8_t g_aiBlob[256];
+
+// Points player `p`'s script at blob offset `off` and fills the fields the line prints.
+static void AiScript(int p, uint32_t off, uint8_t peasantTarget, uint8_t landSize, uint8_t landCount) {
+    uint8_t* st = At<uint8_t>(kRvaAiState) + p * kAiStateStride;
+    memset(st, 0, kAiStateStride);
+    *reinterpret_cast<const uint8_t**>(st + kAiOffPc) = g_aiBlob + off;
+    st[kAiOffPeasantTarget] = peasantTarget;
+    st[kAiOffLandWaveSize] = landSize;
+    st[kAiOffLandWaveCount] = landCount;
+    st[kAiOffFootTarget] = 6;
+    st[kAiOffArcherTarget] = 3;
+    st[kAiOffSiegeTarget] = 0;
+    st[kAiOffKnightTarget] = 4;
+    st[kAiOffBuildListLen] = 13;
+}
+
+static void AiReset() {
+    g_aiLineCount = 0;
+    g_aiStalls = 0;
+    aiwatch::ResetForTests();
+}
+
+// One tick of `ms` milliseconds of play through the real entry point.
+static void AiTick(unsigned ms) {
+    World w;
+    if (!BuildWorld(w)) {
+        CHECK(false, "aiwatch test: BuildWorld failed");
+        return;
+    }
+    aiwatch::OnTick(w, ms);
+}
+
+static void AiWatchTests() {
+    const bool savedLogAi = config::g.logAi;
+    aiwatch::SetSinkForTests(&AiSink);
+
+    memset(g_aiBlob, 0, sizeof g_aiBlob);
+    g_aiBlob[0x10] = kAiOpWaitFor;  g_aiBlob[0x11] = 2;      // WAITFOR have_castle
+    g_aiBlob[0x20] = kAiOpWaitFor;  g_aiBlob[0x21] = 4;      // WAITFOR landForce >= count * size
+    g_aiBlob[0x30] = kAiOpSleep;    *reinterpret_cast<uint32_t*>(g_aiBlob + 0x31) = 8000;
+    g_aiBlob[0x40] = kAiOpSet;      g_aiBlob[0x41] = 0x0D; g_aiBlob[0x42] = 6;
+    g_aiBlob[0x50] = kAiOpJump;     *reinterpret_cast<uint16_t*>(g_aiBlob + 0x51) = 0x0020;
+    g_aiBlob[0x60] = kAiOpWaitFor;  g_aiBlob[0x61] = 99;     // condition the report does not know
+    g_aiBlob[0x70] = 77;                                     // opcode the report does not know
+
+    *At<const uint8_t*>(kRvaAiScriptBlob) = g_aiBlob;
+    *At<uint32_t>(kRvaAiScriptBlobSize) = sizeof g_aiBlob;
+    *At<uint16_t>(kRvaGameFromSave) = 0;
+    memset(At<uint8_t>(kRvaController), 0, kMaxPlayers);
+    memset(At<uint8_t>(kRvaAiBuildDone), 0, kAiPlayerCount * kAiBuildListMax);
+    memset(At<uint8_t>(kRvaAiScriptId), 0, kMaxPlayers);
+    At<uint8_t>(kRvaController)[3] = 1;  // player 3 is the computer
+    At<uint8_t>(kRvaAiScriptId)[3] = 41;
+    At<int32_t>(kRvaPlayerGold)[3] = 3750;
+    At<int32_t>(kRvaPlayerLumber)[3] = 1000;
+    At<int32_t>(kRvaPlayerOil)[3] = 4700;
+    At<uint16_t>(kRvaFoodSupply)[3] = 60;
+    At<uint16_t>(kRvaUnitsCounted)[3] = 24;
+    At<uint16_t>(kRvaFoodFreeUnits)[3] = 0;
+    At<uint16_t>(kRvaLandForce)[3] = 13;
+    At<uint16_t>(kRvaSeaForce)[3] = 0;
+    At<uint16_t>(kRvaAirForce)[3] = 0;
+    At<uint16_t>(kRvaAiFootCount)[3] = 6;
+    At<uint16_t>(kRvaAiArcherCount)[3] = 3;
+    At<uint16_t>(kRvaAiSiegeCount)[3] = 0;
+    At<uint16_t>(kRvaAiKnightCount)[3] = 4;
+    At<uint16_t>(kRvaPeasantCount)[3] = 8;
+    for (int i = 0; i < 9; ++i) At<uint8_t>(kRvaAiBuildDone)[3 * kAiBuildListMax + i] = 1;  // buildlist 9/13
+
+    ResetWorld();
+    AddUnit(kTypeMage, 0, 10, 10, 60, 255, kOrderStand);  // the human, so BuildWorld succeeds
+    AddUnit(kGrunt, 3, 20, 20, 60, 0, kOrderStand);       // the computer still owns a unit
+    AiScript(3, 0x10, 8, 5, 1);
+
+    // The expected line, verbatim.
+    const char* kExpected =
+        "ai: player 3 script 41 pc 0x0010 WAITFOR have_castle same pc for 1m | gold 3750 lum 1000 oil 4700 | "
+        "food 24/60 | force land 13 sea 0 air 0 | foot 6/6 arch 3/3 siege 0/0 knight 4/4 | workers 8/8 | "
+        "buildlist 9/13";
+
+    // 1. Nothing before a minute of play, exactly one line at the minute, with the expected text.
+    config::g.logAi = true;
+    AiReset();
+    for (int i = 0; i < 59; ++i) AiTick(1000);
+    CHECK(g_aiLineCount == 0, "log_ai must not write before a minute of play (%d line(s))", g_aiLineCount);
+    AiTick(1000);
+    CHECK(g_aiLineCount == 1, "log_ai must write one line per computer player per minute (%d)", g_aiLineCount);
+    CHECK(g_aiLineCount == 1 && strcmp(g_aiLines[0], kExpected) == 0, "log_ai line text\n  want: %s\n  got:  %s",
+          kExpected, g_aiLineCount ? g_aiLines[0] : "(none)");
+
+    // 2. log_ai = false writes nothing at all.
+    config::g.logAi = false;
+    AiReset();
+    for (int i = 0; i < 120; ++i) AiTick(1000);
+    CHECK(g_aiLineCount == 0, "log_ai = false must log nothing (%d line(s))", g_aiLineCount);
+    config::g.logAi = true;
+
+    // 3. A program counter outside the blob is refused: no line, and nothing is read through it.
+    AiReset();
+    uint8_t* st = At<uint8_t>(kRvaAiState) + 3 * kAiStateStride;
+    *reinterpret_cast<const uint8_t**>(st + kAiOffPc) = g_aiBlob - 1;
+    for (int i = 0; i < 120; ++i) AiTick(1000);
+    CHECK(g_aiLineCount == 0, "a pc below the blob must produce no line (%d)", g_aiLineCount);
+    AiReset();
+    // The last kAiMaxInstructionSize bytes cannot hold a whole instruction either.
+    *reinterpret_cast<const uint8_t**>(st + kAiOffPc) = g_aiBlob + sizeof g_aiBlob - 2;
+    for (int i = 0; i < 120; ++i) AiTick(1000);
+    CHECK(g_aiLineCount == 0, "a pc without room for an instruction must produce no line (%d)", g_aiLineCount);
+    AiReset();
+    *reinterpret_cast<const uint8_t**>(st + kAiOffPc) = nullptr;
+    for (int i = 0; i < 120; ++i) AiTick(1000);
+    CHECK(g_aiLineCount == 0, "a null pc must produce no line (%d)", g_aiLineCount);
+
+    // 4. A blob the game has not loaded, and an unbelievable size, are both refused.
+    AiScript(3, 0x10, 8, 5, 1);
+    AiReset();
+    *At<const uint8_t*>(kRvaAiScriptBlob) = nullptr;
+    for (int i = 0; i < 120; ++i) AiTick(1000);
+    CHECK(g_aiLineCount == 0, "no script blob must produce no line (%d)", g_aiLineCount);
+    *At<const uint8_t*>(kRvaAiScriptBlob) = g_aiBlob;
+    AiReset();
+    *At<uint32_t>(kRvaAiScriptBlobSize) = 0x7FFFFFFF;
+    for (int i = 0; i < 120; ++i) AiTick(1000);
+    CHECK(g_aiLineCount == 0, "an out-of-range blob size must produce no line (%d)", g_aiLineCount);
+    *At<uint32_t>(kRvaAiScriptBlobSize) = sizeof g_aiBlob;
+
+    // 5. The stall line: after five minutes on the same instruction, not before, and then every five minutes.
+    AiScript(3, 0x10, 8, 5, 1);
+    AiReset();
+    for (int i = 0; i < 299; ++i) AiTick(1000);
+    CHECK(g_aiStalls == 0, "no stall line before five minutes (%d)", g_aiStalls);
+    AiTick(1000);
+    CHECK(g_aiStalls == 1, "one stall line at five minutes (%d)", g_aiStalls);
+    CHECK(strcmp(g_aiLines[7], "ai: player 3 has been on WAITFOR have_castle for 5 min") == 0,
+          "stall line text: %s", g_aiLines[7]);
+    for (int i = 0; i < 299; ++i) AiTick(1000);  // five minutes minus one step later
+    CHECK(g_aiStalls == 1, "the stall line must not repeat before another five minutes (%d)", g_aiStalls);
+    AiTick(1000);
+    CHECK(g_aiStalls == 2, "the stall line repeats every five minutes (%d)", g_aiStalls);
+    CHECK(strcmp(g_aiLines[7], "ai: player 3 has been on WAITFOR have_castle for 10 min") == 0,
+          "second stall line text: %s", g_aiLines[7]);
+
+    // 6. Moving the program counter clears the stall timer.
+    AiReset();
+    for (int i = 0; i < 299; ++i) AiTick(1000);
+    AiScript(3, 0x20, 8, 5, 1);  // the script moved on
+    for (int i = 0; i < 299; ++i) AiTick(1000);
+    CHECK(g_aiStalls == 0, "a moving pc must not report a stall (%d)", g_aiStalls);
+
+    // 7. Every opcode and condition decodes, and unknown ones print their number instead of a guess.
+    struct { uint32_t off; uint8_t size, count; const char* want; } kOps[] = {
+        {0x20, 6, 2, "WAITFOR landForce >= 12"},
+        {0x30, 0, 0, "SLEEP 8000"},
+        {0x40, 0, 0, "SET st[0x0D] = 6"},
+        {0x50, 0, 0, "JUMP 0x0020"},
+        {0x60, 0, 0, "WAITFOR cond 99"},
+        {0x70, 0, 0, "op 77"},
+    };
+    for (const auto& k : kOps) {
+        AiScript(3, k.off, 8, k.size, k.count);
+        AiReset();
+        for (int i = 0; i < 60; ++i) AiTick(1000);
+        CHECK(g_aiLineCount == 1 && strstr(g_aiLines[0], k.want) != nullptr,
+              "decoding %s from offset 0x%02X: %s", k.want, k.off, g_aiLineCount ? g_aiLines[0] : "(no line)");
+    }
+
+    // 8. A computer player with no live unit left is not reported; a human player never is.
+    AiScript(3, 0x10, 8, 5, 1);
+    ResetWorld();
+    AddUnit(kTypeMage, 0, 10, 10, 60, 255, kOrderStand);
+    AiReset();
+    for (int i = 0; i < 60; ++i) AiTick(1000);
+    CHECK(g_aiLineCount == 0, "a computer with no unit left must not be reported (%d)", g_aiLineCount);
+    At<uint8_t>(kRvaController)[3] = 0;
+    ResetWorld();
+    AddUnit(kTypeMage, 0, 10, 10, 60, 255, kOrderStand);
+    AddUnit(kGrunt, 3, 20, 20, 60, 0, kOrderStand);
+    AiReset();
+    for (int i = 0; i < 60; ++i) AiTick(1000);
+    CHECK(g_aiLineCount == 0, "a human player must never be reported (%d)", g_aiLineCount);
+
+    // Leave the image as the other tests expect it.
+    At<uint8_t>(kRvaController)[3] = 0;
+    memset(At<uint8_t>(kRvaAiState) + 3 * kAiStateStride, 0, kAiStateStride);
+    *At<const uint8_t*>(kRvaAiScriptBlob) = nullptr;
+    *At<uint32_t>(kRvaAiScriptBlobSize) = 0;
+    aiwatch::SetSinkForTests(nullptr);
+    aiwatch::ResetForTests();
+    config::g.logAi = savedLogAi;
+    ResetWorld();
 }
 
 static void SpellNumberTests(const wchar_t* dir, const wchar_t* ini) {
@@ -4118,6 +4331,7 @@ int wmain(int argc, wchar_t** argv) {
         ResetWorld();
     }
 
+    AiWatchTests();
     SpellNumberTests(dir, ini);
     ProductionTests(dir, ini);
 

@@ -724,6 +724,31 @@ Every cast is then written to `x86\gameplay_options.log` with the caster, the ta
 knight that could not raise the dead also says why ("not researched", "mana below the cost", "no corpse within 15
 tiles", "all corpses ... are claimed", "switched off"), at most once every 30 seconds of play per death knight.
 
+### See what the computer player is doing
+
+```toml
+[general]
+log_ai = true
+```
+
+For working out why a computer player stopped attacking. Once a minute of play, every computer player that still has
+units writes one line to `x86\gameplay_options.log`:
+
+```
+ai: player 3 script 41 pc 0x3058 WAITFOR have_castle same pc for 12m | gold 3750 lum 1000 oil 4700 | food 24/60 |
+force land 13 sea 0 air 0 | foot 6/6 arch 3/3 siege 0/0 knight 4/4 | workers 8/8 | buildlist 9/13
+```
+
+The computer runs a small script per player. `WAITFOR` is the one instruction that can block: it re-checks its
+condition every step for ever, so a computer that is waiting for something it can no longer get never attacks again
+while still gathering and building. The line says which instruction it is on, how long it has been there, and the
+numbers that instruction is waiting for, so you can see what is missing (in the example: a castle it cannot start
+because a castle costs 1200 lumber and it has 1000). After five minutes on the same instruction there is also a
+`ai: player 3 has been on WAITFOR have_castle for 5 min` line, repeated every five minutes.
+
+This setting only reads: it never changes anything, for you or for the computer. Leave it off for normal play, it
+makes the log long.
+
 ## Every setting
 
 | Section | Setting | Default | Meaning |
@@ -732,6 +757,7 @@ tiles", "all corpses ... are claimed", "switched off"), at most once every 30 se
 | general | toggle_key | "F9" | Ctrl + key toggles autocast |
 | general | interval_ticks | 10 | Game steps between autocast passes. Lower reacts faster |
 | general | log_casts | false | Write every cast to gameplay_options.log |
+| general | log_ai | false | Write what each computer player's script is waiting for, once a minute (read-only diagnostic) |
 | autocast | search_radius | 8 | Tiles a caster searches for targets (Raise Dead always looks 15 tiles around, like the computer) |
 | autocast | combat_radius | 6 | A unit counts as fighting when an enemy is this close to it |
 | autocast | own_units_only | true | Friendly spells skip allies' units |
