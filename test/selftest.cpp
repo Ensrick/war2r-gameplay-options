@@ -2568,6 +2568,141 @@ int wmain(int argc, wchar_t** argv) {
             for (int i = 0; i < 40; ++i) mod::OnTick();
             CHECK(OrderOf(c) == kOrderStop, "%s: the watchdog did not run while autocast was off (order %u)", name, OrderOf(c));
             config::g.enabled = true;
+
+            // ---- Buildings: what the blast is worth, and no overkill ----
+            // One wave on a structure at the aim point: 5 x the live damage byte (src/autocast.cpp WaveDamage).
+            const uint32_t dmgRva = ac.order == kOrderBlizzard ? kRvaBlizzardDamageInsn : kRvaDeathAndDecayDamageInsn;
+            const int wave = 5 * At<uint8_t>(dmgRva)[3];
+            auto barracks = [&](int x, int y, int hp) {
+                Unit* b = AddUnit(kBarracks, 1, x, y, hp, 0, kOrderStand);
+                Field<uint16_t>(b, kOffStateFlags) = kStateComplete;
+                return b;
+            };
+            // Two buildings and two units beat four units, even when the four are nearer.
+            ResetWorld();
+            c = caster(ac.casterType, 20, 20);
+            for (int i = 0; i < 4; ++i) AddUnit(kGrunt, 1, 22 + i % 2, 19 + i / 2, 60, 0, kOrderAttack);  // nearer, value 4
+            barracks(27, 19, 800);
+            barracks(27, 21, 800);
+            AddUnit(kGrunt, 1, 28, 20, 60, 0, kOrderAttack);
+            AddUnit(kGrunt, 1, 28, 21, 60, 0, kOrderAttack);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == ac.order && ox(c) >= 27, "%s must prefer 2 buildings + 2 units over 4 nearer units (order %u at %d,%d)",
+                  name, OrderOf(c), ox(c), oy(c));
+            // area_building_value = 1 makes them worth the same, and then the nearer group wins.
+            config::g.areaBuildingValue = 1;
+            Field<uint8_t>(c, kOffOrder) = kOrderStand;
+            Field<uint8_t>(c, kOffNextOrder) = kOrderNone;
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == ac.order && ox(c) <= 23, "%s with area_building_value = 1 must take the nearer four units (at %d,%d)",
+                  name, ox(c), oy(c));
+            config::g.areaBuildingValue = 3;
+            // A lone building is a target; two units alone are not.
+            ResetWorld();
+            c = caster(ac.casterType, 20, 20);
+            barracks(27, 20, 800);
+            mod::RunAutocastPass();
+            CHECK(castAt(c, ac.order, 28, 21), "%s must aim at the centre tile of a 3x3 building (order %u at %d,%d)", name,
+                  OrderOf(c), ox(c), oy(c));
+            ResetWorld();
+            c = caster(ac.casterType, 20, 20);
+            AddUnit(kGrunt, 1, 27, 20, 60, 0, kOrderAttack);
+            AddUnit(kGrunt, 1, 27, 21, 60, 0, kOrderAttack);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == kOrderStand, "%s cast at two units with no building", name);
+            // A building and a unit together are a valid target.
+            AddUnit(kGrunt, 1, 27, 22, 60, 0, kOrderAttack);
+            ResetWorld();
+            c = caster(ac.casterType, 20, 20);
+            barracks(27, 20, 800);
+            AddUnit(kGrunt, 1, 28, 21, 60, 0, kOrderAttack);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == ac.order, "%s must cast at a building plus a unit", name);
+            // A 4x4 castle is aimed at the middle of its footprint, not at the corner tile it is filed under, and the
+            // friendly-fire check looks at that same tile: a footman past the far side of the footprint still blocks.
+            ResetWorld();
+            c = caster(ac.casterType, 20, 20);
+            AddUnit(kCastle, 1, 26, 19, 1600, 0, kOrderStand);  // tiles 26..29 x 19..22, centre tile 27,20
+            mod::RunAutocastPass();
+            CHECK(castAt(c, ac.order, 27, 20), "%s must aim at the centre tile of a 4x4 building (order %u at %d,%d)", name,
+                  OrderOf(c), ox(c), oy(c));
+            ResetWorld();
+            c = caster(ac.casterType, 20, 20);
+            AddUnit(kCastle, 1, 26, 19, 1600, 0, kOrderStand);
+            AddUnit(kFootman, 0, 31, 20, 60, 0, kOrderStand);  // 2 tiles past the far edge, 4 from the centre tile
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == kOrderStand, "%s cast at a 4x4 building with an own footman 4 tiles from the aim tile", name);
+            // A friendly in the blast still refuses, building or no building.
+            ResetWorld();
+            c = caster(ac.casterType, 20, 20);
+            barracks(27, 20, 800);
+            AddUnit(kFootman, 0, 28, 22, 60, 0, kOrderStand);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == kOrderStand, "%s cast at a building with an own footman in the area", name);
+            // No overkill at cast time: what one wave would flatten is not worth a channel.
+            ResetWorld();
+            c = caster(ac.casterType, 20, 20);
+            barracks(27, 20, wave);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == kOrderStand, "%s started a channel on a building one wave already covers (%d hp)", name, wave);
+            ResetWorld();
+            c = caster(ac.casterType, 20, 20);
+            barracks(27, 20, wave + 1);
+            mod::RunAutocastPass();
+            CHECK(castAt(c, ac.order, 28, 21), "%s refused a building one hit point above one wave", name);
+            ResetWorld();  // ... unless the units alone are reason enough
+            c = caster(ac.casterType, 20, 20);
+            barracks(27, 20, wave);
+            for (int i = 0; i < 3; ++i) AddUnit(kGrunt, 1, 26, 19 + i, 60, 0, kOrderAttack);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == ac.order, "%s: three units in the blast justify the cast whatever the building has left", name);
+            // The wave budget: the channel runs until the waves paid for cover the hit points it started on.
+            const int cost = At<uint16_t>(kRvaManaCostByOrder)[ac.order];
+            ResetWorld();
+            c = caster(ac.casterType, 20, 20);
+            Unit* target = barracks(27, 20, 4 * wave);
+            Field<uint8_t>(c, kOffMana) = 255;
+            mod::RunAutocastPass();
+            CHECK(castAt(c, ac.order, 28, 21), "%s wave budget setup (order %u)", name, OrderOf(c));
+            Field<uint8_t>(c, kOffMana) = static_cast<uint8_t>(255 - 3 * cost);  // three waves: 3 x wave < 4 x wave
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == ac.order, "%s stopped before the waves it paid for covered the building", name);
+            Field<uint8_t>(c, kOffMana) = static_cast<uint8_t>(255 - 4 * cost);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == kOrderStop,
+                  "%s: the watchdog did not stop the channel once the budget was spent (order %u, wave %d, cost %d, mana %u, hp %u)",
+                  name, OrderOf(c), wave, cost, Field<uint8_t>(c, kOffMana), Field<uint16_t>(target, kOffHp));
+            // The same channel keeps going while a crowd of units is still in the blast.
+            ResetWorld();
+            c = caster(ac.casterType, 20, 20);
+            target = barracks(27, 20, 4 * wave);
+            Field<uint8_t>(c, kOffMana) = 255;
+            mod::RunAutocastPass();
+            for (int i = 0; i < 3; ++i) AddUnit(kGrunt, 1, 26, 19 + i, 60, 0, kOrderAttack);
+            Field<uint8_t>(c, kOffMana) = static_cast<uint8_t>(255 - 8 * cost);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == ac.order, "%s: units in the blast must keep the channel alive past the budget", name);
+            // A building that lost its hit points elsewhere ends the channel too.
+            ResetWorld();
+            c = caster(ac.casterType, 20, 20);
+            target = barracks(27, 20, 4 * wave);
+            Field<uint8_t>(c, kOffMana) = 255;
+            mod::RunAutocastPass();
+            Field<uint16_t>(target, kOffHp) = static_cast<uint16_t>(wave - 1);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == kOrderStop, "%s kept channelling at a building the next wave would finish (order %u)", name, OrderOf(c));
+            // A channel cast at units only is never stopped by the budget.
+            c = areaWorld(20, 20);
+            Field<uint8_t>(c, kOffMana) = 255;
+            mod::RunAutocastPass();
+            CHECK(castAt(c, ac.order, 27, 20), "%s unit-channel setup", name);
+            Field<uint8_t>(c, kOffMana) = static_cast<uint8_t>(255 - 9 * cost);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == ac.order, "%s: a channel on units must not be stopped by the wave budget (order %u)", name, OrderOf(c));
+            Field<uint8_t>(slot(3), kOffStateFlags) = kStateDying;  // one of the three falls: the other two keep it alive
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == ac.order, "%s: a unit channel must live on while enemies are left in the blast (order %u)", name,
+                  OrderOf(c));
         }
 
         // Whirlwind: wanders at random (FUN_004aeb70), so nobody friendly within 6 tiles; one per death knight.

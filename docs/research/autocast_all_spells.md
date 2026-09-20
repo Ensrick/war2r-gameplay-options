@@ -289,6 +289,28 @@ mana -= cost; sound; FUN_004af500(unit, 10) x5; unit->invis = 0;
 - One wave = 5 fixed points in the 5x5 tiles around the order tile, 10 splash hits each, dmg 10. Same 3.3-tile reach.
 - 30 mana per wave; from 255 mana: up to 8 waves.
 
+### 2.6a What one wave takes off a structure (the mod's no-overkill number)
+
+The mod needs to know when another wave is waste. Per impact, `FUN_004afb50` deals `h + rand() % (h + 1)` with
+`h = (dmg + 1) / 2`, so a full hit averages **0.75 x dmg** and a quarter hit (22..42 px) **0.1875 x dmg**; armor is
+ignored for these missile types. What reaches one structure depends on where each chain or cloud lands:
+
+| | points per wave | impacts per point | offsets from the aim tile | full-damage share | mean per wave |
+|---|---|---|---|---|---|
+| Blizzard | 5 chains | 11 | `rand()%5 - 1.5` tiles = -48, -16, +16, +48, +80 px | only +/-16 px: 4 of 25 | ~6.6 x dmg (66 at dmg 10) |
+| Death and decay | 5 clouds | 10 | `rand()%5 - 2` tiles = -64, -32, 0, +32, +64 px | only 0: 1 of 25, plus 8 of 25 at quarter | ~4.5 x dmg (45 at dmg 10) |
+
+The shares above assume the wave is aimed at the structure's centre, so the mod **aims at the centre tile of a
+building's footprint**, not at the top-left tile the unit is filed under (`X + (w-1)/2, Y + (h-1)/2` from
+`0x8C1... kRvaUnitSizeByType`): a 4x4 keep ordered at its corner throws most of a wave past it. The value, the
+friendly-fire clearance and the watchdog all use that same aim tile.
+
+`src/autocast.cpp` uses **5 x the live damage byte** for both spells (50 at the game's 10, and `[spell_damage]`
+moves it). That single constant sits between the two on purpose, and the number only decides whether to spend one
+more 25 mana wave. It is an average: one wave can roll well above or below it. What is still `[unverified]` is how
+exactly a building's centre PIXEL relates to its footprint centre tile (the splash measures from the unit record's
+centre), so the full-damage shares are the geometry's order of magnitude, not an exact hit table.
+
 ### 2.7 Whirlwind (0x34)
 
 ```c
@@ -555,4 +577,6 @@ its `0x25` reach, and with `log_casts` a death knight that did not raise the dea
   runtime). The proposed rules test the owner explicitly as well.
 - The UI targeting validator for spells (`FUN_004e9420` path) was not examined; the mod bypasses it.
 - Whether a stop issued during a channel prevents the next wave or lets one more fall.
+- How a multi-tile building's centre PIXEL relates to the centre tile of its footprint (the mod now aims at that tile,
+  section 2.6a); it decides how many blizzard chains and death and decay clouds land full-damage on it.
 - A building placed on a live rune tile triggering it (inferred from the grid filing, not traced).

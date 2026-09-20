@@ -445,7 +445,7 @@ static void WarnUnknownKeys(const toml::table& root) {
     } kKnown[] = {
         {"general", " enabled toggle_key interval_ticks log_casts "},
         {"autocast", " search_radius combat_radius own_units_only cast_while_attacking channel_mana_reserve area_min_enemies "
-                     "fireball_min_enemies "},
+                     "area_building_value fireball_min_enemies "},
         {"spells", " heal exorcism slow polymorph bloodlust death_coil haste unholy_armor raise_dead holy_vision flame_shield "
                    "fireball invisibility blizzard death_and_decay whirlwind runes "},
         {"heal", " min_missing_hp below_percent "},
@@ -519,6 +519,7 @@ static bool Load() {
     ReadBool(root, "autocast", "cast_while_attacking", c.castWhileAttacking);
     ReadInt(root, "autocast", "channel_mana_reserve", 0, 255, c.channelManaReserve);
     ReadInt(root, "autocast", "area_min_enemies", 1, 50, c.areaMinEnemies);
+    ReadInt(root, "autocast", "area_building_value", 1, 20, c.areaBuildingValue);
     ReadInt(root, "autocast", "fireball_min_enemies", 1, 50, c.fireballMinEnemies);
     for (int i = 0; i < kSpellCount; ++i) ReadBool(root, "spells", kSpellKeys[i], c.spell[i]);
     ReadInt(root, "heal", "min_missing_hp", 1, 65535, c.healMinMissingHp);
