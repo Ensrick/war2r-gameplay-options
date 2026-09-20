@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "aiwatch.h"
 #include "config.h"
 #include "log.h"
 #include "mod.h"
@@ -153,6 +154,7 @@ void OnNewMapTablesLoaded() {
     }
     tweaks::OnNewMap();
     trees::OnNewMap();
+    aiwatch::OnNewMap();
     production::OnNewMap();  // the water / oil profile is counted again on the first pass of the new map
     const int statsSet = ApplyUnitStats();
     ScaleUnits();
