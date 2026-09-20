@@ -31,6 +31,10 @@ WHAT IT DOES
 OUT OF THE BOX only this is switched on:
   - Autocast for Heal, Slow, Bloodlust and Raise Dead.
   - Idle workers repair damaged buildings nearby.
+NEW IN 1.11: [priority]. You decide the order each caster tries its spells in, and with save_mana a caster saves up
+for the spell at the top of its list instead of spending on the cheap ones. Put "death_and_decay" or "blizzard" first
+to see them used.
+
 NEW IN 1.10: [general] log_ai. A read-only log of what each computer player is doing and waiting for, once a minute,
 for finding out why a computer stopped attacking. Off by default.
 

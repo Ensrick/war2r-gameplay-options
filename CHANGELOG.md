@@ -7,6 +7,18 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.11.0 - 2026-09-20
+
+- New `[priority]` section: the order each caster tries its spells in (`paladin`, `mage`, `ogre_mage`,
+  `death_knight`), as lists of spell names. The defaults are the order the mod has always used, so nothing changes
+  until you edit a list.
+- New `[priority] save_mana` (on): a caster that could cast a spell higher in its list, if only it had the mana, casts
+  nothing lower and saves up for it. This is what lets Death and Decay and Blizzard happen at all next to cheaper
+  spells: a channel needs mana for three waves, and a death knight used to spend every 50 mana on Death Coil first. A
+  spell with no target never holds anything back. Note for existing setups: with the default lists this also means a
+  mage with a Polymorph target in reach saves for Polymorph instead of casting Slow.
+- With `log_casts` on, the log says when a caster starts saving and for what.
+
 ## 1.10.1 - 2026-09-20
 
 - The log of the last two game sessions is kept: starting the game renames `gameplay_options.log` to

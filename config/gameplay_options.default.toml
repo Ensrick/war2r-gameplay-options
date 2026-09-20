@@ -82,6 +82,20 @@ area_building_value = 3
 # Fireball needs at least this many enemies along its path (1 = the computer's own rule).
 fireball_min_enemies = 2
 
+[priority]
+# The order each caster tries its spells in, by [spells] name. These lists are the defaults. A misspelled name, or one
+# that belongs to another caster, is written to the log and ignored; spells you leave out are added at the end, so
+# nothing is switched off by being forgotten. Heroes follow their caster. Eye of Kilrogg has its own rule in
+# [eye_of_kilrogg]. Example: put "death_and_decay" first and a death knight goes for buildings before Death Coil.
+paladin      = ["heal", "exorcism", "holy_vision"]
+mage         = ["polymorph", "slow", "fireball", "invisibility", "blizzard", "flame_shield"]
+ogre_mage    = ["bloodlust", "runes"]
+death_knight = ["raise_dead", "unholy_armor", "death_coil", "haste", "death_and_decay", "whirlwind"]
+# true = a caster that could cast a spell higher in its list, if only it had the mana, casts NOTHING lower and saves
+# up for it. Without this a death knight spends its mana on Death Coil for ever and never reaches what a Death and
+# Decay channel needs (three waves). A spell with no target never holds anything back.
+save_mana = true
+
 [heal]
 # Heal only units missing at least this many hit points.
 min_missing_hp = 10

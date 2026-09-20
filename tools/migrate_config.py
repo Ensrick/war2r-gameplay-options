@@ -7,6 +7,7 @@ Steps (each one only when the file still needs it):
   1.1.0  adds "amount = 1.0" to [gold_mines] and [oil_platforms]
   1.2.0  adds the [food] block after [oil_platforms]
   1.3.0  adds the [trees] block after [food]
+  1.11.0 adds the [priority] block (the game's own spell order, save_mana = true) after [autocast]
   1.10.0 adds [general] log_ai = false after log_casts
   1.9.0  adds [autocast] area_building_value after area_min_enemies and updates the comment above it
   1.8.0  adds [auto_production.no_enemy_navy_cap]
@@ -43,6 +44,7 @@ FOOD_BLOCK = ['[food]', '# true = every Town Hall / Great Hall, Keep / Stronghol
 TREES_BLOCK = ['[trees]', "# EXPERIMENTAL. true = felled forest grows back, so lumber never runs out for good (the computer's too). Every stump", '# waits its own time between regrow_min_minutes and regrow_max_minutes of play, so a felled patch fills back in bit', '# by bit. A tree never grows back close to a building, a wall or a ground unit, never where it would close a', '# passage, and only where a forest stood before. Flyers do not hold it up.', 'regrow = false', 'regrow_min_minutes = 10', 'regrow_max_minutes = 20', '# No regrowth within this many tiles of a building or wall / of a ground unit of any player.', 'building_distance = 3', 'unit_distance = 3']
 UNIT_REGEN_BLOCK = ['[unit_regen]', '# true = every unit regenerates hit points while you play: land units, flyers and ships, never a structure. A hurt', '# unit is then worth keeping instead of being a waste of food. Heroes follow [heroes] regen while that is on.', 'enabled = false', 'hp_per_second = 1', '# "all" = every unit on the map (the enemy\'s too), "mine" = only your own.', 'regen_for = "all"']
 SPELLS_NEW = ['# Area spells hurt YOUR units and buildings too. They are only cast with no friendly unit, building or wall in the', '# blast area, and a Blizzard / Death and Decay the mod started is stopped when a friendly walks in (see [autocast]).', 'fireball = false', 'blizzard = false', 'death_and_decay = false', 'whirlwind = false', 'flame_shield = false', 'runes = false', 'invisibility = false', '# Holy Vision: an idle paladin at full mana looks at the least explored part of the map. It may move the camera to', '# its target for your own paladins (not tested in game yet).', 'holy_vision = false']
+PRIORITY_1110 = ['[priority]', '# The order each caster tries its spells in, by [spells] name. These lists are the defaults. A misspelled name, or one', '# that belongs to another caster, is written to the log and ignored; spells you leave out are added at the end, so', '# nothing is switched off by being forgotten. Heroes follow their caster. Eye of Kilrogg has its own rule in', '# [eye_of_kilrogg]. Example: put "death_and_decay" first and a death knight goes for buildings before Death Coil.', 'paladin      = ["heal", "exorcism", "holy_vision"]', 'mage         = ["polymorph", "slow", "fireball", "invisibility", "blizzard", "flame_shield"]', 'ogre_mage    = ["bloodlust", "runes"]', 'death_knight = ["raise_dead", "unholy_armor", "death_coil", "haste", "death_and_decay", "whirlwind"]', '# true = a caster that could cast a spell higher in its list, if only it had the mana, casts NOTHING lower and saves', '# up for it. Without this a death knight spends its mana on Death Coil for ever and never reaches what a Death and', '# Decay channel needs (three waves). A spell with no target never holds anything back.', 'save_mana = true']
 LOG_AI_1100 = ['# true = once a minute, write what every computer player is doing to gameplay_options.log: where its script is, what', '# it is waiting for, its resources, food and army numbers, plus a line when it has not moved for 5 minutes. For', '# finding out why a computer stopped attacking. It only reads the game, it changes nothing.', 'log_ai = false']
 OLD_AREA_COMMENT = '# Blizzard, Death and Decay and Whirlwind need at least this many enemies close together.'
 AREA_190 = ['# Blizzard and Death and Decay are cast on the spot worth the most: one enemy building is enough, without a building', '# it takes at least this many enemy units close together. Whirlwind needs this many enemies of any kind.', 'area_min_enemies = 3', '# An enemy building in the blast counts as this many units when the spot is picked (a building cannot walk away).', '# A channel aimed at buildings stops once the waves already cast cover their hit points: no mana spent on rubble.', 'area_building_value = 3']
@@ -198,6 +200,22 @@ def spells_150(lines, tree, notes):
             lines[i] = RAISE_DEAD_COMMENT
     append_missing(lines, tree, 'spells', SPELLS_NEW, notes)
     append_missing(lines, tree, 'autocast', AUTOCAST_NEW, notes)
+
+
+def priority_1110(lines, tree, notes):
+    """A config written before 1.11.0: the [priority] block goes after [autocast]."""
+    if 'priority' in tree:
+        return
+    s = span(lines, '[autocast]')
+    if s is None:
+        lines += [''] + PRIORITY_1110
+        notes.append('added [priority] at the end (default spell order, save_mana = true)')
+        return
+    end = s[1]
+    while end > s[0] + 1 and not lines[end - 1].strip():
+        end -= 1
+    lines[end:end] = [''] + PRIORITY_1110
+    notes.append('added [priority] (default spell order, save_mana = true)')
 
 
 def log_ai_1100(lines, tree, notes):
@@ -382,6 +400,7 @@ def main():
     spells_150(lines, before, notes)
     area_building_value_190(lines, before, notes)
     log_ai_1100(lines, before, notes)
+    priority_1110(lines, before, notes)
     spell_power_160(lines, before, notes)
     auto_production_170(lines, before, notes)
     auto_production_172(lines, before, notes)
@@ -407,7 +426,7 @@ def main():
     allowed = {('oil_platforms', 'unlimited'), ('oil_platforms', 'amount'), ('gold_mines', 'amount'), ('food', 'hall_food'),
                ('food', 'hall_food_amount'), ('heroes', 'regen'), ('unit_regen', 'enabled'), ('unit_regen', 'hp_per_second'),
                ('unit_regen', 'regen_for')} | {('spells', l.split('=')[0].strip()) for l in SPELLS_NEW if not l.startswith('#')} | {
-               ('autocast', l.split('=')[0].strip()) for l in AUTOCAST_NEW if not l.startswith('#')} | {('autocast', 'area_building_value'), ('general', 'log_ai')} | {
+               ('autocast', l.split('=')[0].strip()) for l in AUTOCAST_NEW if not l.startswith('#')} | {('autocast', 'area_building_value'), ('general', 'log_ai')} | {('priority', k) for k in ('paladin', 'mage', 'ogre_mage', 'death_knight', 'save_mana')} | {
                (sec, l.split('=')[0].strip()) for sec in ('spell_damage', 'spell_cost', 'mana') for l in SPELL_POWER
                if l and not l.startswith(('#', '['))} | {
                k for k in AUTO_PRODUCTION_KEYS | {('auto_production', 'no_enemy_navy_cap', c) for c in
