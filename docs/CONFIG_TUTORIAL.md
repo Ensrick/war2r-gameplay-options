@@ -703,6 +703,46 @@ Good to know:
   itself), `reserve` (the upgrade reserve), `bank` (affordable, but not `bank_multiple` times over), `no platform`
   (the tanker), and `enough` with the mix deficit when there are simply enough of them already.
 
+### Which spell first, and saving mana for it
+
+Every caster tries its spells in an order. `[priority]` is that order, one list per caster, written with the same
+names as `[spells]`:
+
+```toml
+[priority]
+save_mana = true
+paladin      = ["heal", "exorcism", "holy_vision"]
+mage         = ["polymorph", "slow", "fireball", "invisibility", "blizzard", "flame_shield"]
+ogre_mage    = ["bloodlust", "runes"]
+death_knight = ["raise_dead", "unholy_armor", "death_coil", "haste", "death_and_decay", "whirlwind"]
+```
+
+Those are the defaults: leave the section out and nothing changes. Move a spell to the front and your casters reach
+for it first:
+
+```toml
+[priority]
+death_knight = ["death_and_decay", "raise_dead", "death_coil"]
+```
+
+**`save_mana` (on by default) is what makes that stick.** A death knight with 60 mana can pay for a Death Coil but
+not for a Death and Decay (a channel asks for three waves up front). Without `save_mana` it coils, is broke again,
+and the channel you put first never happens. With `save_mana` it checks the spells above the one it could afford: if
+one of them has a proper target right now and only the mana is missing, the knight casts **nothing** and keeps
+saving until it can. When that spell has no target, the ones below it go ahead as before. Set `save_mana = false`
+and the lists are only an order, never a reason to hold back.
+
+Good to know:
+
+- A spell switched off in `[spells]` is skipped wherever it sits in the list, and is never a reason to save.
+- A name that is misspelled or belongs to another caster is written to the log and ignored; the rest of the list
+  still works. Spells you leave out are appended at the end in the default order, so nothing is switched off by
+  being forgotten.
+- Heroes use their caster's list (Teron Gorefiend follows `death_knight`, Khadgar follows `mage`).
+- Eye of Kilrogg is not in the lists: it has its own rule in `[eye_of_kilrogg]`, with its own mana threshold.
+- With `[general] log_casts = true` a caster that is saving writes one line every 30 seconds:
+  `saving: death_knight at 46,33 mana 60 for death_and_decay (needs 90)`.
+
 ### Change or remove the hotkey
 
 `Ctrl` plus this key toggles autocast in game.
@@ -760,6 +800,8 @@ makes the log long.
 | general | toggle_key | "F9" | Ctrl + key toggles autocast |
 | general | interval_ticks | 10 | Game steps between autocast passes. Lower reacts faster |
 | general | log_casts | false | Write every cast to gameplay_options.log |
+| priority | save_mana | true | A caster keeps its mana for a spell higher in its list instead of casting a cheaper one |
+| priority | paladin, mage, ogre_mage, death_knight | today's order | The order each caster tries its spells in, by `[spells]` name |
 | general | log_ai | false | Write what each computer player's script is waiting for, once a minute (read-only diagnostic) |
 | autocast | search_radius | 8 | Tiles a caster searches for targets (Raise Dead always looks 15 tiles around, like the computer) |
 | autocast | combat_radius | 6 | A unit counts as fighting when an enemy is this close to it |

@@ -25,6 +25,23 @@ enum Spell {
     kSpellCount
 };
 
+// [priority]: the order a caster tries its spells in, one list per caster. Eye of Kilrogg is not in it: it has its
+// own rule in eye.cpp. The hero variants use their caster's list.
+enum CasterKind { kCasterPaladin, kCasterMage, kCasterOgreMage, kCasterDeathKnight, kCasterKindCount };
+
+struct Priority {
+    // Spell ids in the order they are tried, -1 after the last one. The defaults are the order the mod has always
+    // used, so a config without a [priority] section behaves as before.
+    int8_t list[kCasterKindCount][kSpellCount] = {
+        {kSpellHeal, kSpellExorcism, kSpellHolyVision, -1},
+        {kSpellPolymorph, kSpellSlow, kSpellFireball, kSpellInvisibility, kSpellBlizzard, kSpellFlameShield, -1},
+        {kSpellBloodlust, kSpellRunes, -1},
+        {kSpellRaiseDead, kSpellUnholyArmor, kSpellDeathCoil, kSpellHaste, kSpellDeathAndDecay, kSpellWhirlwind, -1}};
+    // true = a caster with a valid target for a spell higher in its list saves its mana for it instead of casting
+    // something cheaper. false = the list is only an order.
+    bool saveMana = true;
+};
+
 // Keys of a [unit.<name>] table, same order as config::kStatKeys.
 enum UnitStat {
     kStatHitPoints, kStatArmor, kStatBasicDamage, kStatPiercingDamage, kStatRange, kStatSight,
@@ -215,6 +232,7 @@ struct Config {
 
     // [auto_production] and its sub-tables: your idle production buildings train by themselves (never the computer's)
     AutoProduction production;
+    Priority priority;
 };
 
 namespace config {
@@ -225,6 +243,7 @@ extern const char* const kStatKeys[kStatCount];
 extern const char* const kSpellCostKeys[kSpellCostCount];
 extern const char* const kSpellDamageKeys[kSpellDamageCount];
 extern const char* const kProductionClassKeys[kProdClassCount];
+extern const char* const kCasterKindKeys[kCasterKindCount];
 
 // Loads <dir>\gameplay_options.toml, writing the default file first if it is missing.
 // Returns false when the file has a syntax error (the previous / default settings stay in force).

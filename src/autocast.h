@@ -16,4 +16,8 @@ void AddPlayTime(unsigned ms);
 unsigned RaiseDeadNoteCount();   // lines written so far (tests, diagnostics)
 const char* LastRaiseDeadNote();  // the reason of the last one
 
+// Tests: what the mod has done, so a pass that must do nothing can be proved to have done nothing.
+unsigned CastCount();     // spells cast since load
+unsigned ChannelCount();  // Blizzard / Death and Decay channels the watchdog is following
+
 }  // namespace autocast
