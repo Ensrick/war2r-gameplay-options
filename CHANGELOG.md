@@ -7,6 +7,12 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.10.1 - 2026-09-20
+
+- The log of the last two game sessions is kept: starting the game renames `gameplay_options.log` to
+  `gameplay_options.prev.log` (and that one to `gameplay_options.prev2.log`) instead of overwriting it, so the log of
+  a game that went wrong is still there after a restart.
+
 ## 1.10.0 - 2026-09-20
 
 - New `[general] log_ai` (off by default): a read-only diagnostic for the question "why did the computer stop

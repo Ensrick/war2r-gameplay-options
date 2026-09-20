@@ -13,7 +13,7 @@ Both open a short form with the questions below already in it. Drag the files st
 
 [b]What to attach[/b]
 [list]
-[*][b]x86\gameplay_options.log[/b] from the session where it happened. It sits next to the game exe, in your Warcraft II Remastered\x86 folder.
+[*][b]x86\gameplay_options.log[/b] from the session where it happened. It sits next to the game exe, in your Warcraft II Remastered\x86 folder. Started the game again since? Then it is [b]gameplay_options.prev.log[/b] (from version 1.10.1 on the last two sessions are kept).
 [*]Your [b]x86\gameplay_options.toml[/b], so I can see your settings.
 [*]If the game crashed: the newest folder in [b]x86\Errors\[/b] (Crash.txt and the .dmp file). That is the game's own crash report and it usually points straight at the cause.
 [/list]

@@ -1,0 +1,1 @@
+The log of the last two game sessions is kept: starting the game renames gameplay_options.log to gameplay_options.prev.log (and that one to gameplay_options.prev2.log) instead of overwriting it, so the log of a game that went wrong is still there after a restart.

@@ -12,7 +12,8 @@
 - Game build (the mod supports 1.0.2.2818):
 
 **Please attach these files** (drag them into this box; a `.txt` copy is fine)
-- `Warcraft II Remastered\x86\gameplay_options.log` from the session where it happened
+- `Warcraft II Remastered\x86\gameplay_options.log` from the session where it happened (started the game again since? Then it is
+  `gameplay_options.prev.log`: from 1.10.1 on the last two sessions are kept)
 - your `Warcraft II Remastered\x86\gameplay_options.toml`
 - if the game crashed: the newest folder in `Warcraft II Remastered\x86\Errors\` (`Crash.txt` and the `.dmp`)
 

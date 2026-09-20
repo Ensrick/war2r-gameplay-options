@@ -15,6 +15,13 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.10.1 (2026-09-20, NOT released)
+
+- Found while preparing the stall hunt: the log was truncated at every game start, so the evidence of a stalled game
+  is gone the moment he starts the game again (the 2026-09-20 research only had a log because the game had not been
+  restarted). Two generations are kept now. Only "Warcraft II.exe" opens the log (dllmain), so the helper exes that
+  also load the proxy never rotate it.
+
 ## 1.10.0 (2026-09-20, UNTESTED in game, NOT released)
 
 - Author: the computer "was attacking relentlessly, and then stopped at some point despite having all the resources

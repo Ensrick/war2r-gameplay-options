@@ -11,8 +11,20 @@ static unsigned g_lines = 0;
 constexpr unsigned kMaxLines = 20000;  // a runaway cast loop must not fill the disk
 
 void Open(const wchar_t* dllDir) {
-    wchar_t path[MAX_PATH];
+    // The last two sessions survive a restart as gameplay_options.prev.log and .prev2.log: a bug report usually needs
+    // the log of the game that went wrong, and the player has often started the game again before anyone asks for it.
+    // Plain renames, no CRT: this runs from DllMain. A failed rename (nothing to rename yet) is not an error.
+    wchar_t path[MAX_PATH], prev[MAX_PATH], prev2[MAX_PATH];
     swprintf_s(path, L"%s\\gameplay_options.log", dllDir);
+    swprintf_s(prev, L"%s\\gameplay_options.prev.log", dllDir);
+    swprintf_s(prev2, L"%s\\gameplay_options.prev2.log", dllDir);
+    if (g_file != INVALID_HANDLE_VALUE) {
+        CloseHandle(g_file);
+        g_file = INVALID_HANDLE_VALUE;
+    }
+    MoveFileExW(prev, prev2, MOVEFILE_REPLACE_EXISTING);
+    MoveFileExW(path, prev, MOVEFILE_REPLACE_EXISTING);
+    g_lines = 0;
     g_file = CreateFileW(path, GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 }
 

@@ -1977,7 +1977,30 @@ int wmain(int argc, wchar_t** argv) {
     wchar_t ini[MAX_PATH];
     swprintf_s(ini, L"%s\\gameplay_options.toml", dir);
     DeleteFileW(ini);  // always start from the shipped defaults
-    logx::Open(dir);
+
+    // 0. The log of the last two sessions survives a restart (.prev.log, .prev2.log) instead of being truncated.
+    {
+        wchar_t prev[MAX_PATH], prev2[MAX_PATH];
+        swprintf_s(prev, L"%s\\gameplay_options.prev.log", dir);
+        swprintf_s(prev2, L"%s\\gameplay_options.prev2.log", dir);
+        auto contains = [](const wchar_t* file, const char* text) {
+            char buf[512] = {};
+            const HANDLE h = CreateFileW(file, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, 0, nullptr);
+            if (h == INVALID_HANDLE_VALUE) return false;
+            DWORD got = 0;
+            ReadFile(h, buf, sizeof buf - 1, &got, nullptr);
+            CloseHandle(h);
+            return strstr(buf, text) != nullptr;
+        };
+        logx::Open(dir);
+        logx::Write("session one");
+        logx::Open(dir);
+        logx::Write("session two");
+        logx::Open(dir);
+        CHECK(contains(prev, "session two"), "the previous session's log must survive as gameplay_options.prev.log");
+        CHECK(contains(prev2, "session one"), "the session before that must survive as gameplay_options.prev2.log");
+        CHECK(!contains(prev, "session one"), "gameplay_options.prev.log must hold one session only");
+    }
     mod::SetModuleBase(g_base, dir);
 
     // 1. Hook install against the real bytes.
