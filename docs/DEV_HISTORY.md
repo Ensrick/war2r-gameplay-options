@@ -15,6 +15,22 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.9.0 (2026-09-20, UNTESTED in game)
+
+- Author: "Autocast for it should target enemy buildings AND try to target the greatest number ... only are cast when
+  there is either at least 1 building or more than 2 units", no friendly units in the blast, no overflow on
+  structures. He also put Blizzard and Death and Decay back to their old prices in his own config (25 / 30): at half
+  price with double damage they were too cheap.
+- Implemented by the agent in the auto-production worktree: ScanArea counts enemy units and buildings once each and sums
+  the buildings' hit points; value = buildings x area_building_value + units; gate = one building or area_min_enemies
+  units. The engine keeps no wave count, so the watchdog counts waves by the mana the caster has spent since the
+  channel began, against about 5 x the LIVE damage byte per wave (docs/research/autocast_all_spells.md 2.6a).
+- My review additions: aim at the centre tile of a building's footprint (the splash measures from the unit's centre,
+  so the top-left tile wastes most of a wave on a 3x3 or 4x4 building), and the no-overkill stop must never touch a
+  channel that was started for units.
+- QA pass before the release found stale readme lines (area spells "stay manual", 6 workers per hall tier) and one
+  log oddity filed as #23: a rescuable shipyard seems to count as a hostile navy until the player reaches it.
+
 ## 1.8.0 (2026-09-20, UNTESTED in game)
 
 - Author: "If the number of enemy shipyards is 0 (regardless of whether we can see them or not), then no auto ship

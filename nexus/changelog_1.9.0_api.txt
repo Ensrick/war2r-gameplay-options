@@ -1,0 +1,4 @@
+Smarter Blizzard and Death and Decay autocast: enemy buildings are targets now. The mod picks the spot worth the most, where a building counts as area_building_value units (new [autocast] key, 3 by default), and aims at the middle of a building rather than its corner.
+It casts on one enemy building or more, or on area_min_enemies enemy units (3) when no building is in the blast; two lone units are no longer worth a channel. Whirlwind keeps its old rule.
+No overkill: a channel aimed at buildings stops once the waves already cast cover the hit points those buildings had, and none is started on buildings a single wave would flatten. Friendly units, buildings and walls in the blast area still block the cast, as before.
+The readme no longer calls the area spells manual-only and lists the current worker targets (12 / 16 / 24).

@@ -1,3 +1,11 @@
+[size=4][b]1.9.0[/b][/size]
+[list]
+[*]Smarter Blizzard and Death and Decay autocast: enemy buildings are targets now. The mod picks the spot worth the most, where a building counts as area_building_value units (new [autocast] key, 3 by default), and aims at the middle of a building rather than its corner.
+[*]It casts on one enemy building or more, or on area_min_enemies enemy units (3) when no building is in the blast; two lone units are no longer worth a channel. Whirlwind keeps its old rule.
+[*]No overkill: a channel aimed at buildings stops once the waves already cast cover the hit points those buildings had, and none is started on buildings a single wave would flatten. Friendly units, buildings and walls in the blast area still block the cast, as before.
+[*]The readme no longer calls the area spells manual-only and lists the current worker targets (12 / 16 / 24).
+[/list]
+
 [size=4][b]1.8.0[/b][/size]
 [list]
 [*]New [auto_production.no_enemy_navy_cap]: while no hostile player owns a shipyard or a warship anywhere on the map (fog does not matter), auto-production holds at most 1 tanker, 5 destroyers, 2 juggernaughts and 2 submarines and builds no further ships; that share goes to your land army. The caps lift the moment an enemy shipyard or warship exists.

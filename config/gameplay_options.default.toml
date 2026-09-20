@@ -69,8 +69,12 @@ cast_while_attacking = true
 # Blizzard and Death and Decay keep casting wave after wave. The mod stops the ones it started when a friendly walks
 # in, when no enemy is left, or when the caster's mana drops below this (0 = let them run until the game stops them).
 channel_mana_reserve = 0
-# Blizzard, Death and Decay and Whirlwind need at least this many enemies close together.
+# Blizzard and Death and Decay are cast on the spot worth the most: one enemy building is enough, without a building
+# it takes at least this many enemy units close together. Whirlwind needs this many enemies of any kind.
 area_min_enemies = 3
+# An enemy building in the blast counts as this many units when the spot is picked (a building cannot walk away).
+# A channel aimed at buildings stops once the waves already cast cover their hit points: no mana spent on rubble.
+area_building_value = 3
 # Fireball needs at least this many enemies along its path (1 = the computer's own rule).
 fireball_min_enemies = 2
 

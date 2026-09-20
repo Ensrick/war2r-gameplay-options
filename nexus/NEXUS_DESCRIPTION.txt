@@ -64,7 +64,7 @@ Every spell has its own switch under [b][spells][/b]. On by default: Heal (only 
 [/list]
 Your move orders are never interrupted, two casters never pick the same target, and an eye you move yourself is left to you.
 
-[b]Area spells hurt your own units in this game[/b], so the eight area and utility spells are off by default and, when you do switch them on, they are only cast with no friendly unit, building or wall in the blast area. A Blizzard or Death and Decay the mod started is stopped as soon as a friendly walks in.
+[b]Area spells hurt your own units in this game[/b], so the eight area and utility spells are off by default and, when you do switch them on, they are only cast with no friendly unit, building or wall in the blast area. A Blizzard or Death and Decay the mod started is stopped as soon as a friendly walks in. Both go for enemy buildings first (one building is enough, otherwise three units close together), aim at the middle of the building, and stop once the waves already cast cover its hit points.
 [code][spells]
 exorcism = true           # switch more spells on
 polymorph = true
@@ -87,7 +87,8 @@ cast = true
 max_active = 3            # eyes out at once, all your ogre-magi together
 
 [autocast]
-area_min_enemies = 3      # enemies needed close together for Blizzard, Death and Decay, Whirlwind
+area_min_enemies = 3      # enemy units needed close together when no enemy building is in the blast
+area_building_value = 3   # Blizzard / Death and Decay: an enemy building counts as this many units
 fireball_min_enemies = 2  # enemies needed along a Fireball's path[/code]
 
 [size=4][b]2. Workers[/b][/size]

@@ -32,7 +32,7 @@ OUT OF THE BOX only this is switched on:
   - Autocast for Heal, Slow, Bloodlust and Raise Dead.
   - Idle workers repair damaged buildings nearby.
 NEW IN 1.7: AUTO-PRODUCTION. Switch [auto_production] enabled on (or press Ctrl+F10 in game) and every idle building
-of yours trains by itself: workers up to 6 per hall tier, and an army whose mix follows the map (how much water and
+of yours trains by itself: workers up to 12 / 16 / 24 by hall tier, and an army whose mix follows the map (how much water and
 oil it has), your hall tier, the upgrades you own and what you can afford. It always leaves you food, keeps money for
 your next upgrade, never touches the computer's buildings or a building you have selected, and never builds
 transports, zeppelins, sappers or a second tanker.
@@ -49,18 +49,22 @@ Everything else below is there for you to turn on in gameplay_options.toml. Noth
 you say so.
 
 AUTOCAST (Ctrl+F9 toggles it; [on] = on by default)
-  Paladin        Heal [on] (units missing 10+ HP, most hurt first), Exorcism (enemy undead)
-  Mage           Slow [on], Polymorph (targets and priority come from your list: dragons, gryphons, daemons first)
-  Ogre-Mage      Bloodlust [on] (only on units that are fighting), Eye of Kilrogg (idle ogre-mage at full mana)
-  Death Knight   Raise Dead [on] (when enemies are near), Death Coil, Haste (your flyers only), Unholy Armor
+  Paladin        Heal [on] (units missing 10+ HP, most hurt first), Exorcism (enemy undead), Holy Vision
+  Mage           Slow [on], Polymorph (targets and priority come from your list: dragons, gryphons, daemons first),
+                 Fireball, Blizzard, Flame Shield, Invisibility
+  Ogre-Mage      Bloodlust [on] (only on units that are fighting), Eye of Kilrogg (idle ogre-mage at full mana), Runes
+  Death Knight   Raise Dead [on] (any corpse in reach, like the computer), Death Coil, Haste (your flyers only),
+                 Unholy Armor, Death and Decay, Whirlwind
 
   - A caster is only taken over while it is idle, guarding, patrolling or attacking. Your move orders are never
     interrupted, and an invisible caster is left alone.
   - Two casters never pick the same target for the same spell.
-  - Spells must be researched, and mana costs are whatever the game says they are.
+  - Spells must be researched. Mana costs are the game's unless you change them in [spell_cost].
   - Eye of Kilrogg auto-scout: the eye flies to ground you have not explored. Move an eye yourself and the mod leaves
     that eye to you.
-  - Fireball, Flame Shield, Invisibility, Blizzard, Death and Decay, Whirlwind and Runes stay manual on purpose.
+  - Area spells hurt your own units in this game, so the mod only casts them with no friendly unit, building or
+    wall in the blast area. Blizzard and Death and Decay go for enemy buildings first (one is enough) or for three
+    enemy units close together, and stop once the buildings are paid for.
 
 WORKERS
   - Auto-repair [on]: an idle peasant / peon repairs a damaged building of yours within 10 tiles after 1 second.

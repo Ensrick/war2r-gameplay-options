@@ -7,6 +7,18 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.9.0 - 2026-09-20
+
+- Smarter Blizzard and Death and Decay autocast: enemy buildings are targets now. The mod picks the spot worth the
+  most, where a building counts as `area_building_value` units (new `[autocast]` key, 3 by default), and aims at the
+  middle of a building rather than its corner.
+- It casts on one enemy building or more, or on `area_min_enemies` enemy units (3) when no building is in the blast;
+  two lone units are no longer worth a channel. Whirlwind keeps its old rule.
+- No overkill: a channel aimed at buildings stops once the waves already cast cover the hit points those buildings
+  had, and none is started on buildings a single wave would flatten. Friendly units, buildings and walls in the blast
+  area still block the cast, as before.
+- The readme no longer calls the area spells manual-only and lists the current worker targets (12 / 16 / 24).
+
 ## 1.8.0 - 2026-09-20
 
 - New `[auto_production.no_enemy_navy_cap]`: while no hostile player owns a shipyard or a warship anywhere on the map
