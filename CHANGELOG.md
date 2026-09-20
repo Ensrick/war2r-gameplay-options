@@ -3,8 +3,8 @@
 Semantic versioning: patch = fixes and documentation, minor = new settings or features, major = a change that breaks
 existing `gameplay_options.toml` files. Every change gets its own version and entry here, newest first.
 
-**Released: 1.7.2** on [Nexus Mods](https://www.nexusmods.com/warcraft2/mods/8) and as a
-[GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-19). Nexus carries a changelog
+**Released: 1.8.0** on [Nexus Mods](https://www.nexusmods.com/warcraft2/mods/8) and as a
+[GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
 ## 1.8.0 - 2026-09-20

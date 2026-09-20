@@ -20,7 +20,7 @@ Keep them in step with `docs/USER_README.txt`, `docs/CONFIG_TUTORIAL.md` and `CH
   with MIT they should allow uploads elsewhere, modification, conversion and asset use, each "with credit".
 - `nexus/NEXUS_DESCRIPTION.txt` changed with 1.0.9 / 1.0.10 (GitHub, license and bug report paragraph): the description cannot be edited
   through the Nexus API, so it has to be pasted again on the website.
-- On Nexus: **1.7.2** (file id 16, MAIN, 2026-09-19 18:34; 1.4.1, 1.4.0 and the author's 1.0.0 are archived).
+- On Nexus: **1.8.0** (file id 17, MAIN, 2026-09-20 00:17; 1.7.2, 1.4.1, 1.4.0 and the author's 1.0.0 are archived).
   Changelog entries exist for 1.0.0 to 1.7.2. The endpoint is append-only: read
   `GET /v1/games/warcraft2/mods/8/changelogs.json` first and skip every version that already has one. The page's
   version field lags the upload by a while (it still showed 1.4.1 right after this one).
