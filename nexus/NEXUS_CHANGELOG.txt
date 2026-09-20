@@ -1,3 +1,8 @@
+[size=4][b]1.8.0[/b][/size]
+[list]
+[*]New [auto_production.no_enemy_navy_cap]: while no hostile player owns a shipyard or a warship anywhere on the map (fog does not matter), auto-production holds at most 1 tanker, 5 destroyers, 2 juggernaughts and 2 submarines and builds no further ships; that share goes to your land army. The caps lift the moment an enemy shipyard or warship exists.
+[/list]
+
 [size=4][b]1.7.3[/b][/size]
 [list]
 [*]The auto-production mix numbers are weights, not percentages: only their ratios matter and they need not add up to 100. The config file and tutorial now say so; nothing changed in how it builds.

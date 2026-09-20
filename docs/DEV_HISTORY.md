@@ -15,6 +15,18 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.8.0 (2026-09-20, UNTESTED in game)
+
+- Author: "If the number of enemy shipyards is 0 (regardless of whether we can see them or not), then no auto ship
+  production at all aside from 1 oil tanker, 5 troll destroyers and 2 juggernauts and 2 submarines."
+- Implemented by the agent: HostileNavy scans the unit array inside the existing pass (no fog / visibility check, he
+  said so explicitly), counting hostile shipyards 0x48 / 0x49 including under construction, plus warships
+  (destroyer 0x1E/0x1F, battleship 0x20/0x21, submarine 0x26/0x27). Enemy transports and tankers deliberately do not
+  count. The warship half was my addition (missions hand out fleets with no shipyard); the agent argued the same way.
+- Caps live in Plan::cap and are enforced in the mix, the filler, the tanker and the worker path; a capped class
+  leaves the mix so its share goes to the land army. Nothing is ever cancelled. Note the implied edge: with
+  destroyers and battleships capped out, submarines get 0 too, since they may never exceed a fifth of a fleet.
+
 ## 1.7.3 (2026-09-19)
 
 - Author: "make the tier auto-production weight based, so it doesn't have to add up to 100%, is that how it works?"

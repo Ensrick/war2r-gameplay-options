@@ -1,0 +1,1 @@
+New [auto_production.no_enemy_navy_cap]: while no hostile player owns a shipyard or a warship anywhere on the map (fog does not matter), auto-production holds at most 1 tanker, 5 destroyers, 2 juggernaughts and 2 submarines and builds no further ships; that share goes to your land army. The caps lift the moment an enemy shipyard or warship exists.

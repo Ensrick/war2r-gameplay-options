@@ -64,6 +64,9 @@ struct AutoProduction {
     double classBankMultiple[kProdClassCount] = {};  // [auto_production.bank_multiple] per class, 0 = use the one above
     bool workersIgnoreReserve = true;  // workers ARE the economy: the count target, the food and the price, nothing else
     bool tankersIgnoreReserve = true;  // the one tanker pays for itself in oil
+    // While no hostile player owns a shipyard or a warship, the mod holds at most this many of a class (-1 = no cap):
+    // one tanker, five destroyers, two battleships, two submarines. Everything else is uncapped.
+    int noEnemyNavyCap[kProdClassCount] = {-1, -1, -1, -1, -1, -1, -1, 1, 5, 2, 2};
     double reserveExtra = 0.25;       // bank kept for upgrades: the dearest one + this x all the others
     double upgradeBias = 0.25;        // each upgrade level of a class's line raises its share by this much
     int fillerMin = 10;               // nothing of the mix affordable here: build what the bank buys this many of

@@ -84,6 +84,8 @@ bool CanPay(const Plan& plan, int cls) {
     return true;
 }
 
+bool UnderCap(const Plan& plan, int cls) { return plan.cap[cls] < 0 || plan.count[cls] < plan.cap[cls]; }
+
 int ArmySize(const Plan& plan) {
     int n = 0;
     for (int c = 0; c < kProdClassCount; ++c)
@@ -97,7 +99,9 @@ void Targets(const Plan& plan, const AutoProduction& cfg, double target[kProdCla
     double groupTotal[2] = {0, 0};
     for (int c = 0; c < kProdClassCount; ++c) {
         const Group g = GroupOf(c);
-        if (g == kGroupNone || !plan.trainable[c]) continue;
+        // A class at its ceiling drops out and its share goes to the others; when every ship class is capped out,
+        // the navy group is empty and the whole army becomes land units.
+        if (g == kGroupNone || !plan.trainable[c] || !UnderCap(plan, c)) continue;
         const int share = g == kGroupNavy ? cfg.navy[tier - 1][c] : cfg.land[tier - 1][c];
         if (share <= 0) continue;
         double money = Buys(plan, c) / 5.0;
@@ -157,7 +161,7 @@ int PickFiller(const Plan& plan, const AutoProduction& cfg, unsigned candidates)
     int best = -1;
     double bestBuys = 0;
     for (int c = 0; c < kProdClassCount; ++c) {
-        if (!(candidates & (1u << c)) || !IsArmy(c) || !plan.trainable[c]) continue;
+        if (!(candidates & (1u << c)) || !IsArmy(c) || !plan.trainable[c] || !UnderCap(plan, c)) continue;
         // The map decides land against ships; only the mix inside a group is overridden here. No ships on a land map.
         if (GroupOf(c) == kGroupNavy ? plan.navyShare <= 0 : plan.navyShare >= 1) continue;
         if (!CanAfford(plan, cfg, c)) continue;
@@ -183,7 +187,7 @@ int WorkerTarget(const Plan& plan, const AutoProduction& cfg) {
 }
 
 bool WantWorker(const Plan& plan, const AutoProduction& cfg) {
-    return plan.trainable[kProdWorkers] && plan.count[kProdWorkers] < WorkerTarget(plan, cfg) &&
+    return plan.trainable[kProdWorkers] && plan.count[kProdWorkers] < WorkerTarget(plan, cfg) && UnderCap(plan, kProdWorkers) &&
            FoodAllows(plan, cfg) &&
            (cfg.workersIgnoreReserve ? CanPay(plan, kProdWorkers) : CanAfford(plan, cfg, kProdWorkers));
 }
@@ -191,7 +195,8 @@ bool WantWorker(const Plan& plan, const AutoProduction& cfg) {
 // One tanker, once an oil platform is his: enough to keep the oil coming without a fleet of them. It pays for itself,
 // so by default it waits for the price only.
 bool WantTanker(const Plan& plan, const AutoProduction& cfg, bool ownsOilPlatform) {
-    return ownsOilPlatform && plan.trainable[kProdTankers] && plan.count[kProdTankers] == 0 && FoodAllows(plan, cfg) &&
+    return ownsOilPlatform && plan.trainable[kProdTankers] && plan.count[kProdTankers] == 0 && UnderCap(plan, kProdTankers) &&
+           FoodAllows(plan, cfg) &&
            (cfg.tankersIgnoreReserve ? CanPay(plan, kProdTankers) : CanAfford(plan, cfg, kProdTankers));
 }
 
@@ -217,6 +222,7 @@ unsigned g_playMs = 0;
 unsigned g_sincePassMs = 0;
 unsigned g_starts = 0;
 unsigned g_nextDiagMs = 0;
+int g_navyCapState = -1;  // -1 not decided yet, 0 the caps are in force, 1 the enemy has a navy
 Plan g_lastPlan;
 
 // The map decides how much of the army is ships. Counted once per map: every tile and every oil source.
@@ -351,10 +357,10 @@ bool RequirementsMet(uint8_t type, const Owned& o) {
 // new map, a loaded savegame and anything that changes it while the mission runs.
 // Why a class is not being trained, for the log line. The order is the order the gates are applied in.
 enum Block {
-    kBlockNone, kBlockOff, kBlockNever, kBlockNoBuilding, kBlockMission, kBlockPrereq, kBlockNoPlatform, kBlockBusy,
+    kBlockNone, kBlockOff, kBlockNever, kBlockNoBuilding, kBlockMission, kBlockPrereq, kBlockNoPlatform, kBlockCap, kBlockBusy,
     kBlockWaiting, kBlockFood, kBlockGold, kBlockLumber, kBlockOil, kBlockReserve, kBlockBank, kBlockEnough
 };
-const char* const kBlockNames[] = {"ok",   "off",     "never",  "no building", "mission", "prereq",  "no platform", "busy",
+const char* const kBlockNames[] = {"ok",   "off",     "never",  "no building", "mission", "prereq",  "no platform", "cap", "busy",
                                    "waiting", "food", "gold",   "lumber",      "oil",     "reserve", "bank",        "enough"};
 
 // The building comes first, so a class the player has nothing to build in stays out of the log line entirely.
@@ -517,6 +523,35 @@ void UpdateMapProfile(const World& w) {
 const char* const kClassNames[kProdClassCount] = {"worker",    "infantry",   "archer",      "knight",    "caster", "flyer",
                                                   "siege",     "tanker",     "destroyer",   "battleship", "submarine"};
 
+// A hostile shipyard (complete or half built) or warship anywhere on the map. Fog does not come into it: this is the
+// unit array, not what the player can see, which is what the author asked for. Own and allied ships never count.
+bool HostileNavy(const World& w, Unit* u, uint8_t me) {
+    if (OwnerOf(u) == me || !IsEnemy(w, me, u)) return false;
+    const uint8_t t = TypeOf(u);
+    return t == 0x48 || t == 0x49                      // shipyard
+           || (t >= 0x1E && t <= 0x21)                 // destroyer, battleship / juggernaught
+           || t == 0x26 || t == 0x27;                  // submarine / turtle
+}
+
+// One line when the ship caps come into force and one when they lift, never a line per pass.
+void LogNavyCaps(const AutoProduction& cfg, bool enemyNavy) {
+    const int state = enemyNavy ? 1 : 0;
+    if (g_navyCapState == state) return;
+    g_navyCapState = state;
+    if (enemyNavy) {
+        logx::Write("production: an enemy shipyard or warship is on the map: the ship caps are off");
+        return;
+    }
+    char n[4][8];
+    const int cls[4] = {kProdTankers, kProdDestroyers, kProdBattleships, kProdSubmarines};
+    for (int i = 0; i < 4; ++i) {
+        if (cfg.noEnemyNavyCap[cls[i]] < 0) strcpy_s(n[i], "any");
+        else sprintf_s(n[i], "%d", cfg.noEnemyNavyCap[cls[i]]);
+    }
+    logx::Write("production: no enemy shipyard: ships capped at %s tanker / %s destroyers / %s battleships / %s submarines",
+                n[0], n[1], n[2], n[3]);
+}
+
 // The first gate that stops a class this pass, for the log line below.
 Block WhyNot(const Plan& plan, const AutoProduction& cfg, const Owned& o, int race, int cls, unsigned idleMask,
              unsigned usableMask, bool ownsPlatform) {
@@ -524,6 +559,7 @@ Block WhyNot(const Plan& plan, const AutoProduction& cfg, const Owned& o, int ra
     const Block b = TrainBlock(TypeFor(cls, race, o), o);
     if (b != kBlockNone) return b;
     if (cls == kProdTankers && !ownsPlatform) return kBlockNoPlatform;
+    if (!UnderCap(plan, cls)) return kBlockCap;  // the enemy has no navy and we hold enough of this class
     if (!(usableMask & (1u << cls))) return (idleMask & (1u << cls)) ? kBlockWaiting : kBlockBusy;
     if (!FoodAllows(plan, cfg)) return kBlockFood;
     for (int r = 0; r < kResourceCount; ++r)
@@ -591,6 +627,7 @@ bool Start(const World& w, Plan& plan, Unit* b, unsigned slot, int cls, uint8_t 
 void OnNewMap() {
     g_map.valid = false;
     g_nextDiagMs = 0;
+    g_navyCapState = -1;
 }
 
 void Pass(const World& w, unsigned nowMs) {
@@ -604,7 +641,7 @@ void Pass(const World& w, unsigned nowMs) {
 
     Plan plan;
     uint32_t maxSerial = 0, newestOwn[0x3A] = {};
-    bool ownsPlatform = false;
+    bool ownsPlatform = false, enemyNavy = false;
     int race = -1;
     struct Idle {
         Unit* unit;
@@ -619,7 +656,10 @@ void Pass(const World& w, unsigned nowMs) {
         if (g_slots[i].serial != serial) g_slots[i] = SlotState{serial, 0, false, 0, 0};
         if (!IsActive(u)) continue;
         if (serial > maxSerial) maxSerial = serial;
-        if (OwnerOf(u) != p) continue;
+        if (OwnerOf(u) != p) {
+            if (!enemyNavy && HostileNavy(w, u, p)) enemyNavy = true;
+            continue;
+        }
         const uint8_t type = TypeOf(u);
         if (!(w.typeFlags[type] & kTfBuilding)) {
             if (type < 0x3A && serial > newestOwn[type]) newestOwn[type] = serial;
@@ -660,11 +700,13 @@ void Pass(const World& w, unsigned nowMs) {
     plan.inTraining = At<uint16_t>(kRvaUnitsInTraining)[p];
     plan.tier = o.Pair(0x5A) ? 3 : (o.Pair(0x58) ? 2 : (o.Pair(0x4A) ? 1 : 0));
     plan.navyShare = NavyShare(g_map.waterPercent, g_map.oilSources, plan.tier, cfg.navyWeight, cfg.navyMax);
+    LogNavyCaps(cfg, enemyNavy);
     for (int c = 0; c < kProdClassCount; ++c) {
         const uint8_t type = TypeFor(c, race, o);
         plan.cost[c] = UnitPrice(type);
         plan.trainable[c] = cfg.unitClass[c] && CanTrain(type, o);
         plan.levels[c] = Levels(c, o, race);
+        plan.cap[c] = enemyNavy ? -1 : cfg.noEnemyNavyCap[c];
     }
     static Buy items[256];
     const int itemCount = Purchasable(w, o, items, 256);

@@ -558,6 +558,15 @@ flyers = 15
 siege = 5
 infantry = 0
 
+# While no hostile player owns a shipyard or a warship anywhere on the map (fog does not matter), the mod holds at
+# most this many of each class and builds no further ships; the share that would have gone to ships goes to your
+# land army. Ships you already have count. A class left out of this table has no ceiling.
+[auto_production.no_enemy_navy_cap]
+tankers = 1
+destroyers = 5
+battleships = 2
+submarines = 2
+
 [auto_production.navy_tier1]
 destroyers = 80
 battleships = 20

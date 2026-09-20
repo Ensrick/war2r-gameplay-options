@@ -7,6 +7,15 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-19). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.8.0 - 2026-09-20
+
+- New `[auto_production.no_enemy_navy_cap]`: while no hostile player owns a shipyard or a warship anywhere on the map
+  (fog does not matter, an unfinished shipyard counts), auto-production holds at most 1 tanker, 5 destroyers, 2
+  battleships / juggernaughts and 2 submarines, and builds no further ships. The share that would have gone to ships
+  goes to your land army instead. The caps lift the moment an enemy shipyard or warship exists.
+- The log says once when the caps come into force and once when they lift, and "cap" is a reason in the
+  "nothing was built" line.
+
 ## 1.7.3 - 2026-09-19
 
 - The auto-production mix numbers are weights, not percentages: only their ratios matter and a tier's numbers need

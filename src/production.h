@@ -45,7 +45,13 @@ struct Plan {
     bool trainable[kProdClassCount] = {};      // switched on, allowed by the map, requirements met, a building exists
     int levels[kProdClassCount] = {};          // upgrade levels of the class's line
     Price cost[kProdClassCount] = {};          // current price of the type the class trains for this player's race
+    // Hard ceiling per class, -1 = none. The engine fills it from [auto_production.no_enemy_navy_cap] while no
+    // hostile player owns a shipyard or a warship, and clears it the moment one does.
+    int cap[kProdClassCount] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 };
+
+// Below the class's ceiling (units in training included), or uncapped.
+bool UnderCap(const Plan&, int cls);
 
 // How many of the class the spare bank (bank minus upgrade reserve) pays for, by the tightest resource it costs.
 double Buys(const Plan&, int cls);
