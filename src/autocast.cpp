@@ -124,10 +124,17 @@ bool IsTarget(const World& w, uint8_t me, Unit* u) {
 }
 
 // Switch on, researched, mana for it.
+// A dry run answers "would this spell cast if the caster had the mana?": the mana test is skipped and NOTHING is
+// written - no order, no claim, no channel, no counter, no log line, no per-pass cache. [priority] save_mana uses it
+// to decide whether a caster should sit on its mana for a spell higher in its list.
+bool g_dryRun = false;
+
+bool ManaOk(Unit* caster, int manaNeeded) { return g_dryRun || Field<uint8_t>(caster, kOffMana) >= manaNeeded; }
+
 bool Ready(Unit* caster, Spell spell, int manaNeeded) {
     if (!config::g.spell[spell]) return false;
     if (!(At<uint32_t>(kRvaSpellsResearched)[OwnerOf(caster)] & kSpells[spell].researchBit)) return false;
-    return Field<uint8_t>(caster, kOffMana) >= manaNeeded;
+    return ManaOk(caster, manaNeeded);
 }
 
 void CollectFriendlyBuildings(const World& w) {
@@ -365,7 +372,7 @@ bool TryCast(const World& w, Unit* caster, Spell spell) {
     const SpellDef& def = kSpells[spell];
     const uint8_t me = Field<uint8_t>(caster, kOffOwner);
     if (!(At<uint32_t>(kRvaSpellsResearched)[me] & def.researchBit)) return false;
-    if (Field<uint8_t>(caster, kOffMana) < At<uint16_t>(kRvaManaCostByOrder)[def.order]) return false;
+    if (!ManaOk(caster, At<uint16_t>(kRvaManaCostByOrder)[def.order])) return false;
 
     Unit* best = nullptr;
     int bestScore = -1;
@@ -379,6 +386,7 @@ bool TryCast(const World& w, Unit* caster, Spell spell) {
         return false;
     });
     if (!best) return false;
+    if (g_dryRun) return true;
 
     IssueSpell(caster, def.order, 0, 0, best);
     if (OrderOf(caster) != def.order) return false;  // order was not interruptible
@@ -396,6 +404,7 @@ bool TryCast(const World& w, Unit* caster, Spell spell) {
 // cast ever depends on the off-map guard in game::IssueOrder.
 bool CastAtTile(const World& w, Unit* caster, Spell spell, int x, int y, int enemies) {
     if (!OnMap(w, x, y)) return false;
+    if (g_dryRun) return true;
     const uint8_t order = kSpells[spell].order;
     IssueSpell(caster, order, static_cast<int16_t>(x), static_cast<int16_t>(y), nullptr);
     if (OrderOf(caster) != order) return false;
@@ -441,7 +450,7 @@ unsigned g_raiseNoteCount = 0;
 char g_lastRaiseNote[160] = "";
 
 void NoteRaiseDead(const World& w, Unit* caster, const char* fmt, ...) {
-    if (!config::g.logCasts) return;
+    if (!config::g.logCasts || g_dryRun) return;
     const unsigned slot = static_cast<unsigned>((reinterpret_cast<uintptr_t>(caster) - reinterpret_cast<uintptr_t>(w.units)) / kUnitSize);
     if (slot >= kMaxNoteSlots) return;
     RaiseNote& n = g_raiseNotes[slot];
@@ -514,6 +523,7 @@ bool TryRaiseDead(const World& w, Unit* caster) {
     }
 
     const int16_t x = Field<int16_t>(best, kOffX), y = Field<int16_t>(best, kOffY);
+    if (g_dryRun) return true;
     IssueSpell(caster, def.order, x, y, nullptr);
     if (OrderOf(caster) != def.order) {
         NoteRaiseDead(w, caster, "the game kept order %u instead", OrderOf(caster));
@@ -655,7 +665,7 @@ bool TryAreaSpell(const World& w, Unit* caster, Spell spell) {
         return false;
     });
     if (!best || !CastAtTile(w, caster, spell, bestX, bestY, bestScore)) return false;
-    if (channel) RememberChannel(caster, order, bestX, bestY, bestBuildingHp);
+    if (channel && !g_dryRun) RememberChannel(caster, order, bestX, bestY, bestBuildingHp);
     return true;
 }
 
@@ -824,30 +834,86 @@ bool OrderAllowsAutocast(uint8_t order) {
 }
 
 // Per caster: the spells that existed first keep their priority; the newer ones follow in the game AI's own order.
+int KindOf(uint8_t type) {
+    switch (type) {
+    case kTypePaladin: case kTypePaladinHero: return kCasterPaladin;
+    case kTypeMage: case kTypeMageHero: return kCasterMage;
+    case kTypeOgreMage: case kTypeOgreMageHero: return kCasterOgreMage;
+    case kTypeDeathKnight: case kTypeDeathKnightHero: return kCasterDeathKnight;
+    default: return -1;  // Eye of Kilrogg has its own rule in eye.cpp and is in no priority list
+    }
+}
+
+bool TrySpell(const World& w, Unit* caster, int spell) {
+    switch (spell) {
+    case kSpellHolyVision: return TryHolyVision(w, caster);
+    case kSpellFireball: return TryFireball(w, caster);
+    case kSpellRunes: return TryRunes(w, caster);
+    case kSpellRaiseDead: return TryRaiseDead(w, caster);
+    case kSpellBlizzard: case kSpellDeathAndDecay: case kSpellWhirlwind:
+        return TryAreaSpell(w, caster, static_cast<Spell>(spell));
+    default: return TryCast(w, caster, static_cast<Spell>(spell));
+    }
+}
+
+// The mana a spell asks for before it even looks for a target. The two channels want three waves (the computer's own
+// rule) and never less than channel_mana_reserve plus one wave; everything else wants its price.
+int ManaNeed(int spell) {
+    const int cost = ManaCost(kSpells[spell].order);
+    if (spell != kSpellBlizzard && spell != kSpellDeathAndDecay) return cost;
+    const int three = 3 * cost, reserve = config::g.channelManaReserve + cost;
+    return three > reserve ? three : reserve;
+}
+
+// Would this spell cast if only the caster had the mana? Everything else is tested for real: research, the switch in
+// [spells], a target, the friendly-fire clearance, claims, the area gates, the overkill rule. Nothing is written.
+bool WouldCastWithMoreMana(const World& w, Unit* caster, int spell) {
+    if (!config::g.spell[spell]) return false;                          // off: there is nothing to save up for
+    if (Field<uint8_t>(caster, kOffMana) >= ManaNeed(spell)) return false;  // it had the mana and still did not cast
+    const bool sumsTried = g_sumsTried, sumsReady = g_sumsReady;        // holy vision's per-pass cache stays untouched
+    g_dryRun = true;
+    const bool would = TrySpell(w, caster, spell);
+    g_dryRun = false;
+    g_sumsTried = sumsTried;
+    g_sumsReady = sumsReady;
+    return would;
+}
+
+// One line per caster per 30 s of play while it is saving up, keyed by the unit's creation serial.
+struct SaveNote {
+    uint32_t serial;
+    uint32_t lastMs;
+    bool logged;
+};
+SaveNote g_saveNotes[kMaxNoteSlots];
+
+void NoteSaving(const World& w, Unit* caster, int kind, int spell) {
+    if (!config::g.logCasts) return;
+    const unsigned slot =
+        static_cast<unsigned>((reinterpret_cast<uintptr_t>(caster) - reinterpret_cast<uintptr_t>(w.units)) / kUnitSize);
+    if (slot >= kMaxNoteSlots) return;
+    SaveNote& n = g_saveNotes[slot];
+    const uint32_t serial = Field<uint32_t>(caster, kOffSerial);
+    if (n.logged && n.serial == serial && g_playMs - n.lastMs < kRaiseNoteEveryMs) return;
+    n = {serial, g_playMs, true};
+    logx::Write("saving: %s at %d,%d mana %u for %s (needs %d)", config::kCasterKindKeys[kind], X(caster), Y(caster),
+                Field<uint8_t>(caster, kOffMana), config::kSpellKeys[spell], ManaNeed(spell));
+}
+
+// [priority]: the caster walks its own list. With save_mana on, a spell it could cast except for the mana stops the
+// walk: the caster keeps its mana for it instead of spending it on something further down the list.
 void CasterThink(const World& w, Unit* caster) {
-    switch (Field<uint8_t>(caster, kOffType)) {
-    case kTypePaladin:
-    case kTypePaladinHero:
-        TryCast(w, caster, kSpellHeal) || TryCast(w, caster, kSpellExorcism) || TryHolyVision(w, caster);
-        break;
-    case kTypeOgreMage:
-    case kTypeOgreMageHero:
-        TryCast(w, caster, kSpellBloodlust) || TryRunes(w, caster);
-        break;
-    case kTypeMage:
-    case kTypeMageHero:
-        // Game AI (FUN_004cb480): polymorph, fireball, invisibility, blizzard, flame shield, slow.
-        TryCast(w, caster, kSpellPolymorph) || TryCast(w, caster, kSpellSlow) || TryFireball(w, caster) ||
-            TryCast(w, caster, kSpellInvisibility) || TryAreaSpell(w, caster, kSpellBlizzard) ||
-            TryCast(w, caster, kSpellFlameShield);
-        break;
-    case kTypeDeathKnight:
-    case kTypeDeathKnightHero:
-        // The game AI's own priority: raise dead, unholy armor, (death and decay,) death coil, (whirlwind,) haste.
-        TryRaiseDead(w, caster) || TryCast(w, caster, kSpellUnholyArmor) || TryCast(w, caster, kSpellDeathCoil) ||
-            TryCast(w, caster, kSpellHaste) || TryAreaSpell(w, caster, kSpellDeathAndDecay) ||
-            TryAreaSpell(w, caster, kSpellWhirlwind);
-        break;
+    const int kind = KindOf(Field<uint8_t>(caster, kOffType));
+    if (kind < 0) return;
+    const int8_t* list = config::g.priority.list[kind];
+    for (int i = 0; i < kSpellCount && list[i] >= 0; ++i) {
+        const int spell = list[i];
+        if (TrySpell(w, caster, spell)) return;
+        if (!config::g.priority.saveMana) continue;
+        if (WouldCastWithMoreMana(w, caster, spell)) {
+            NoteSaving(w, caster, kind, spell);
+            return;
+        }
     }
 }
 
@@ -884,6 +950,8 @@ void Pass(const game::World& w) { PassImpl(w); }
 
 void AddPlayTime(unsigned ms) { g_playMs += ms; }
 unsigned RaiseDeadNoteCount() { return g_raiseNoteCount; }
+unsigned CastCount() { return g_castCount; }
+unsigned ChannelCount() { return static_cast<unsigned>(g_channelCount); }
 const char* LastRaiseDeadNote() { return g_lastRaiseNote; }
 
 void GuardChannels(const game::World& w) {

@@ -373,6 +373,57 @@ static void ReadAutoProduction(const toml::table& root, Config& c) {
         }
 }
 
+const char* const kCasterKindKeys[kCasterKindCount] = {"paladin", "mage", "ogre_mage", "death_knight"};
+
+// [priority]: one list of spell names per caster, plus save_mana. A name that is misspelled or belongs to another
+// caster is logged and dropped; the caster's own spells that the list leaves out are appended in the default order,
+// so a spell added in a later version is never silently switched off. The first mention of a spell wins.
+static void ReadPriority(const toml::table& root, Config& c) {
+    ReadBool(root, "priority", "save_mana", c.priority.saveMana);
+    const Priority defaults;
+    for (int kind = 0; kind < kCasterKindCount; ++kind) {
+        const auto node = root["priority"][kCasterKindKeys[kind]];
+        if (!node) continue;
+        const auto* arr = node.as_array();
+        if (!arr) {
+            logx::Write("config: [priority] %s must be a list of spell names, keeping the default order", kCasterKindKeys[kind]);
+            continue;
+        }
+        int8_t* out = c.priority.list[kind];
+        int n = 0;
+        bool taken[kSpellCount] = {};
+        for (const auto& item : *arr) {
+            const auto name = item.value<std::string>();
+            if (!name) {
+                logx::Write("config: [priority] %s: every entry must be a spell name in quotes", kCasterKindKeys[kind]);
+                continue;
+            }
+            int spell = -1;
+            for (int i = 0; i < kSpellCount; ++i)
+                if (*name == kSpellKeys[i]) spell = i;
+            if (spell < 0) {
+                logx::Write("config: [priority] %s: unknown spell \"%s\" ignored", kCasterKindKeys[kind], name->c_str());
+                continue;
+            }
+            bool mine = false;
+            for (int i = 0; i < kSpellCount && defaults.list[kind][i] >= 0; ++i) mine = mine || defaults.list[kind][i] == spell;
+            if (!mine) {
+                logx::Write("config: [priority] %s: \"%s\" is not a %s spell, ignored", kCasterKindKeys[kind], name->c_str(),
+                            kCasterKindKeys[kind]);
+                continue;
+            }
+            if (taken[spell]) continue;  // named twice: the first place in the list is the one that counts
+            taken[spell] = true;
+            out[n++] = static_cast<int8_t>(spell);
+        }
+        for (int i = 0; i < kSpellCount && defaults.list[kind][i] >= 0; ++i) {
+            const int8_t spell = defaults.list[kind][i];
+            if (!taken[spell]) out[n++] = spell;
+        }
+        if (n < kSpellCount) out[n] = -1;
+    }
+}
+
 static void SetPolymorphTargets(Config& c, const char* const* names, size_t count) {
     memset(c.polymorphRank, 0, sizeof(c.polymorphRank));
     uint8_t rank = 1;
@@ -470,6 +521,7 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"spell_damage", " all fireball flame_shield blizzard death_and_decay whirlwind death_coil runes heal "},
         {"mana", " regen "},
         {"auto_production", nullptr},  // validates its own keys and sub-tables
+        {"priority", " save_mana paladin mage ogre_mage death_knight "},
     };
     for (const auto& [sectionKey, sectionNode] : root) {
         const std::string section(sectionKey.str());
@@ -570,6 +622,7 @@ static bool Load() {
     ReadInt(root, "unit_regen", "hp_per_second", 0, 1000, c.unitRegenPerSecond);
     ReadRegenFor(root, "unit_regen", c.unitRegenMineOnly);
     ReadHeroes(root, c);
+    ReadPriority(root, c);
     ReadAutoProduction(root, c);
     g = c;
 

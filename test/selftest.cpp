@@ -3270,6 +3270,147 @@ int wmain(int argc, wchar_t** argv) {
         CHECK(game::RefusedOrderCount() == refusedBefore, "the new spells produced %d order(s) outside the map",
               game::RefusedOrderCount() - refusedBefore);
 
+        // ---- [priority]: the order a caster tries its spells in, and saving mana for a better one ----
+        {
+            const Priority defaults;
+            const Priority saved = config::g.priority;
+            // The author's own prices: death coil 50 (the game asks 100), so a knight at 60 mana can coil but cannot
+            // pay for three waves of death and decay (30 each). The mod reads the live table, so this is his case.
+            uint16_t* manaCost = At<uint16_t>(kRvaManaCostByOrder);
+            const uint16_t savedCoilCost = manaCost[0x33];
+            manaCost[0x33] = 50;
+            auto enemyBuilding = [&](int x, int y, int hp) {
+                Unit* b = AddUnit(kBarracks, 1, x, y, hp, 0, kOrderStand);
+                Field<uint16_t>(b, kOffStateFlags) = kStateComplete;
+                return b;
+            };
+            // (a) the shipped lists are exactly the order CasterThink used before there was a [priority] section.
+            const int8_t wantPaladin[] = {kSpellHeal, kSpellExorcism, kSpellHolyVision, -1};
+            const int8_t wantMage[] = {kSpellPolymorph, kSpellSlow,     kSpellFireball,
+                                       kSpellInvisibility, kSpellBlizzard, kSpellFlameShield, -1};
+            const int8_t wantOgre[] = {kSpellBloodlust, kSpellRunes, -1};
+            const int8_t wantKnight[] = {kSpellRaiseDead,      kSpellUnholyArmor, kSpellDeathCoil,
+                                         kSpellHaste,          kSpellDeathAndDecay, kSpellWhirlwind, -1};
+            CHECK(memcmp(defaults.list[kCasterPaladin], wantPaladin, sizeof(wantPaladin)) == 0 &&
+                      memcmp(defaults.list[kCasterMage], wantMage, sizeof(wantMage)) == 0 &&
+                      memcmp(defaults.list[kCasterOgreMage], wantOgre, sizeof(wantOgre)) == 0 &&
+                      memcmp(defaults.list[kCasterDeathKnight], wantKnight, sizeof(wantKnight)) == 0 && defaults.saveMana,
+                  "the default [priority] lists must be the order the mod used before, and save_mana on");
+
+            // (b) death and decay first, 60 mana (a wave costs 30, three waves are asked for): a valid building target
+            // and a death coil target, and the knight casts NOTHING and keeps its mana.
+            for (int i = 0; i < kSpellCount; ++i) config::g.spell[i] = i == kSpellDeathAndDecay || i == kSpellDeathCoil;
+            config::g.priority = defaults;
+            int8_t* knight = config::g.priority.list[kCasterDeathKnight];
+            knight[0] = kSpellDeathAndDecay;
+            knight[1] = kSpellDeathCoil;
+            knight[2] = -1;
+            auto knightWorld = [&](int mana, bool building) {
+                ResetWorld();
+                Unit* c = caster(kTypeDeathKnight, 20, 20);
+                Field<uint8_t>(c, kOffMana) = static_cast<uint8_t>(mana);
+                if (building) enemyBuilding(27, 19, 800);        // 3x3, aimed at 28,20: a valid death and decay target
+                AddUnit(kGrunt, 1, 24, 24, 60, 0, kOrderAttack);  // a death coil target, out of the blast
+                return c;
+            };
+            const unsigned castsBefore = autocast::CastCount();
+            Unit* dkp = knightWorld(60, true);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(dkp) == kOrderStand && autocast::CastCount() == castsBefore && autocast::ChannelCount() == 0,
+                  "save_mana: the knight must save for death and decay, not coil (order %u, %u cast(s), %u channel(s))",
+                  OrderOf(dkp), autocast::CastCount() - castsBefore, autocast::ChannelCount());
+            CHECK(LogContains(dir, "saving: death_knight at 20,20 mana 60 for death_and_decay (needs 90)"),
+                  "the saving line must name the spell and what it needs");
+            const int savingLines = LogCount(dir, "saving: death_knight");
+            mod::RunAutocastPass();
+            mod::RunAutocastPass();
+            CHECK(LogCount(dir, "saving: death_knight") == savingLines && OrderOf(dkp) == kOrderStand,
+                  "the saving line is throttled to one per caster per 30 s of play");
+            // (c) three waves in the bank: it casts.
+            dkp = knightWorld(90, true);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(dkp) == kOrderDeathAndDecay && autocast::ChannelCount() == 1,
+                  "90 mana: death and decay must be cast (order %u)", OrderOf(dkp));
+            // (d) no target for it: the lower spell goes ahead, as today.
+            dkp = knightWorld(60, false);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(dkp) == 0x33 && TargetOf(dkp) != nullptr,
+                  "no death and decay target: death coil at 60 mana (order %u)", OrderOf(dkp));
+            // (e) save_mana = false: the list is only an order.
+            config::g.priority.saveMana = false;
+            dkp = knightWorld(60, true);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(dkp) == 0x33, "save_mana = false must let the cheaper spell through (order %u)", OrderOf(dkp));
+            config::g.priority.saveMana = true;
+
+            // (g) the same three steps for a mage with blizzard first.
+            for (int i = 0; i < kSpellCount; ++i) config::g.spell[i] = i == kSpellBlizzard || i == kSpellSlow;
+            config::g.priority = defaults;
+            int8_t* mageList = config::g.priority.list[kCasterMage];
+            mageList[0] = kSpellBlizzard;
+            mageList[1] = kSpellSlow;
+            mageList[2] = -1;
+            auto mageWorld = [&](int mana, bool building) {
+                ResetWorld();
+                Unit* c = caster(kTypeMage, 20, 20);
+                Field<uint8_t>(c, kOffMana) = static_cast<uint8_t>(mana);
+                if (building) enemyBuilding(27, 19, 800);
+                AddUnit(kGrunt, 1, 24, 24, 60, 0, kOrderAttack);  // a slow target out of the blast
+                return c;
+            };
+            Unit* mgp = mageWorld(50, true);  // a blizzard wave costs 25, three waves are 75
+            mod::RunAutocastPass();
+            CHECK(OrderOf(mgp) == kOrderStand && autocast::ChannelCount() == 0, "the mage must save for blizzard (order %u)",
+                  OrderOf(mgp));
+            mgp = mageWorld(75, true);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(mgp) == kOrderBlizzard, "75 mana: blizzard must be cast (order %u)", OrderOf(mgp));
+            mgp = mageWorld(50, false);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(mgp) == 0x2C, "no blizzard target: slow at 50 mana (order %u)", OrderOf(mgp));
+
+            // (h) the dry run leaves nothing behind: in the SAME pass the lower spell casts, and the next pass still
+            // casts the higher one at the same tile (no stale claim, no stale channel, no stale cache).
+            mgp = mageWorld(50, true);
+            AddUnit(kGrunt, 1, 21, 21, 60, 0, kOrderAttack);  // a slow target beside the mage, outside the blast area
+            mod::RunAutocastPass();
+            CHECK(OrderOf(mgp) == kOrderStand, "the blizzard target still wins the walk (order %u)", OrderOf(mgp));
+            Field<uint8_t>(mgp, kOffMana) = 75;
+            mod::RunAutocastPass();
+            CHECK(OrderOf(mgp) == kOrderBlizzard && autocast::ChannelCount() == 1,
+                  "after a dry run the same tile must still be castable (order %u, %u channel(s))", OrderOf(mgp),
+                  autocast::ChannelCount());
+
+            // (f) the reader: an unknown name, a name from another caster, a duplicate, and the spells left out.
+            WriteFileText(ini,
+                          "[priority]\nsave_mana = false\n"
+                          "death_knight = [\"death_and_decay\", \"bogus_spell\", \"heal\", \"death_and_decay\", \"death_coil\"]\n"
+                          "mage = [\"blizzard\"]\n");
+            CHECK(config::Init(dir), "[priority] config rejected");
+            {
+                const Priority& p = config::g.priority;
+                const int8_t wantDk[] = {kSpellDeathAndDecay, kSpellDeathCoil,   kSpellRaiseDead,
+                                         kSpellUnholyArmor,   kSpellHaste,       kSpellWhirlwind, -1};
+                const int8_t wantMg[] = {kSpellBlizzard,      kSpellPolymorph,   kSpellSlow,
+                                         kSpellFireball,      kSpellInvisibility, kSpellFlameShield, -1};
+                CHECK(!p.saveMana && memcmp(p.list[kCasterDeathKnight], wantDk, sizeof(wantDk)) == 0,
+                      "[priority] death_knight: named spells first, the rest appended in the default order");
+                CHECK(memcmp(p.list[kCasterMage], wantMg, sizeof(wantMg)) == 0, "[priority] mage: one name, the rest appended");
+                CHECK(memcmp(p.list[kCasterPaladin], defaults.list[kCasterPaladin], kSpellCount) == 0,
+                      "a caster the file does not mention keeps the default list");
+                CHECK(LogContains(dir, "[priority] death_knight: unknown spell \"bogus_spell\" ignored") &&
+                          LogContains(dir, "[priority] death_knight: \"heal\" is not a death_knight spell, ignored"),
+                      "a misspelled name and a name from another caster must each be logged once");
+            }
+            DeleteFileW(ini);
+            CHECK(config::Init(dir), "the default config did not come back");
+            manaCost[0x33] = savedCoilCost;
+            EnableEverythingForTests();  // config::Init put the shipped defaults back over the test settings
+            config::g.priority = saved;
+            memcpy(config::g.spell, savedSpells, sizeof(savedSpells));
+            config::g.logCasts = true;
+        }
+
         memset(exploredMap, 0, sizeof(exploredMap));
         memcpy(sizes, savedSizes, sizeof(savedSizes));
         memcpy(rangeT, savedRanges, sizeof(savedRanges));
