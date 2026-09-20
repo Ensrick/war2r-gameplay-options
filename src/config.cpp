@@ -329,7 +329,7 @@ static void ReadAutoProduction(const toml::table& root, Config& c) {
     warnUnknown(nullptr, " enabled toggle_key workers_tier1 workers_tier2 workers_tier3 food_free_min food_free_percent "
                          "bank_multiple reserve_extra "
                          "upgrade_bias filler_min navy_weight navy_max workers_ignore_reserve tankers_ignore_reserve units "
-                         "land_tier1 land_tier2 land_tier3 navy_tier1 navy_tier2 navy_tier3 ");
+                         "no_enemy_navy_cap land_tier1 land_tier2 land_tier3 navy_tier1 navy_tier2 navy_tier3 ");
     const char* const kAllClasses = " workers infantry archers knights casters flyers siege tankers destroyers battleships submarines ";
     const char* const kLandClasses = " infantry archers knights casters flyers siege ";
     const char* const kNavyClasses = " destroyers battleships submarines ";
@@ -337,6 +337,7 @@ static void ReadAutoProduction(const toml::table& root, Config& c) {
     sprintf_s(withAll, " all%s", kAllClasses);
     warnUnknown("units", kAllClasses);
     warnUnknown("bank_multiple", withAll);
+    warnUnknown("no_enemy_navy_cap", kAllClasses);
     for (int cls = 0; cls < kProdClassCount; ++cls) {
         const char* key = kProductionClassKeys[cls];
         if (const auto node = sec["units"][key]) {
@@ -347,6 +348,11 @@ static void ReadAutoProduction(const toml::table& root, Config& c) {
             const auto v = node.value<double>();
             if (v && *v >= 0.1 && *v <= 1000.0) p.classBankMultiple[cls] = *v;
             else logx::Write("config: [%s.bank_multiple] %s must be a number from 0.1 to 1000", kSec, key);
+        }
+        if (const auto node = sec["no_enemy_navy_cap"][key]) {
+            const auto v = node.value<int64_t>();
+            if (v && *v >= 0 && *v <= 200) p.noEnemyNavyCap[cls] = static_cast<int>(*v);
+            else logx::Write("config: [%s.no_enemy_navy_cap] %s must be a whole number from 0 to 200", kSec, key);
         }
     }
     for (int tier = 0; tier < kProdTiers; ++tier)

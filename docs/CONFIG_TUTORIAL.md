@@ -649,6 +649,24 @@ Four things bend them:
 A building whose classes are all well past their share (more than 2 units and more than 25 % over) waits instead, so
 the money goes to whatever is behind.
 
+**When the enemy has no navy, neither do you.** While no hostile player owns a shipyard or a warship anywhere on the
+map, the mod holds at most **1 oil tanker, 5 destroyers, 2 battleships / juggernaughts and 2 submarines** and builds
+no further ships, however much water there is; the share that would have gone to ships goes to your land army
+instead. Ships you already have and ships in training count, and nothing is ever cancelled. The moment a hostile
+shipyard appears anywhere — even half built, even in the fog, and a stray enemy warship counts too — the caps lift
+and the normal map-driven navy takes over. Change the ceilings with:
+
+```toml
+[auto_production.no_enemy_navy_cap]
+tankers = 1
+destroyers = 5
+battleships = 2
+submarines = 2
+```
+
+A class you leave out of that table has no ceiling at all (0 to 200 each; 0 means "never build it while the enemy has
+no navy").
+
 **Submarines / turtles** are a luxury: they need twice the bank margin of anything else and never take more than a
 fifth of your ships, whatever `navy_tierN` says. They are also blind to what they cannot see: the mod does not build
 spotters for them, so keep a flying machine or a zeppelin of your own around if you care about enemy submarines.
@@ -752,6 +770,7 @@ tiles", "all corpses ... are claimed", "switched off"), at most once every 30 se
 | auto_production | tankers_ignore_reserve | true | The same for the single oil tanker |
 | auto_production.units | workers, infantry, archers, knights, casters, flyers, siege, tankers, destroyers, battleships, submarines | true each | Switch a class off |
 | auto_production.bank_multiple | all, then the same class names | 4.0 | Spare bank needed, as a multiple of the unit's own price (submarines always want twice) |
+| auto_production.no_enemy_navy_cap | tankers, destroyers, battleships, submarines | 1 / 5 / 2 / 2 | Most of a class the mod holds while no hostile player owns a shipyard or a warship (0 to 200; a class left out is uncapped) |
 | auto_production.land_tier1 / 2 / 3 | infantry, archers, knights, casters, flyers, siege | see the recipe | Land shares in percent, per hall tier |
 | auto_production.navy_tier1 / 2 / 3 | destroyers, battleships, submarines | see the recipe | Ship shares in percent, per hall tier |
 | spell_cost | all | 1.0 | Multiplies every spell's mana cost, rounded up, 1 to 255 |

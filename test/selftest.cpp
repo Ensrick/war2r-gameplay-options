@@ -698,7 +698,7 @@ static ProdSnapshot g_prodSnaps[] = {
     {kRvaUnitsAllowed, 0x180, {}},      {kRvaUpgradeLevels, 0xC0, {}},   {kRvaFoodSupply, 32, {}},
     {kRvaUnitsCounted, 32, {}},         {kRvaFoodFreeUnits, 32, {}},     {kRvaUnitsInTraining, 32, {}},
     {kRvaPlayerGold, 64, {}},           {kRvaPlayerLumber, 64, {}},      {kRvaPlayerOil, 64, {}},
-    {kRvaSelectedUnit, 4 + 12 * 4, {}}, {kRvaSquareFlags, 4, {}},
+    {kRvaSelectedUnit, 4 + 12 * 4, {}}, {kRvaSquareFlags, 4, {}},   {kRvaAlliance, 16 * 16, {}},
 };
 static void ProdSave() {
     for (auto& s : g_prodSnaps) memcpy(s.bytes, At<uint8_t>(s.rva), s.size < sizeof(s.bytes) ? s.size : sizeof(s.bytes));
@@ -741,6 +741,8 @@ static void ProdWorld() {
         At<int32_t>(kRvaPlayerGold)[p] = At<int32_t>(kRvaPlayerLumber)[p] = At<int32_t>(kRvaPlayerOil)[p] = 100000;
     }
     memset(At<uint8_t>(kRvaSelectedUnit), 0, 4 + 12 * 4);
+    memset(At<uint8_t>(kRvaAlliance), 0, 16 * 16);  // everyone hostile to everyone but himself
+    for (int i = 0; i < 16; ++i) At<uint8_t>(kRvaAlliance)[i * 16 + i] = 1;
     memset(g_prodSquare, 0, sizeof(g_prodSquare));  // all land
     *At<uint16_t*>(kRvaSquareFlags) = g_prodSquare;
     production::OnNewMap();
@@ -756,6 +758,9 @@ static void ProdWaterMap(int percent, int oilPatches) {
     for (int i = 0; i < oilPatches; ++i) AddProd(kTypeOilPatch, kNeutralPlayer, 40 + i, 60);
     production::OnNewMap();
 }
+
+// An enemy shipyard somewhere on the map: that alone lifts the "the enemy has no navy" ship caps.
+static Unit* AddEnemyShipyard(uint8_t owner = 1) { return AddProd(0x49, owner, 60, 60); }
 
 static bool ProdPass(unsigned nowMs) {
     World w;
@@ -1002,6 +1007,35 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
         CHECK(p.count[kProdSubmarines] * 5 <= ArmySize(p) + 2 && p.count[kProdSubmarines] > 30,
               "submarines capped at a fifth of the fleet (%d of %d)", p.count[kProdSubmarines], ArmySize(p));
     }
+    // The no-enemy-navy ceilings: a class at its cap drops out of the mix, and with every ship capped the land army
+    // takes the whole share instead of it being lost.
+    {
+        Plan p = CorePlan(2);
+        p.navyShare = 0.7;
+        for (int c = 0; c < kProdClassCount; ++c) p.cap[c] = defaults.noEnemyNavyCap[c];
+        CHECK(UnderCap(p, kProdDestroyers) && UnderCap(p, kProdInfantry), "nothing owned yet: everything is under its cap");
+        p.count[kProdDestroyers] = 5;
+        CHECK(!UnderCap(p, kProdDestroyers) && UnderCap(p, kProdBattleships), "5 destroyers are at their ceiling, battleships are not");
+        double target[kProdClassCount];
+        Targets(p, defaults, target);
+        CHECK(target[kProdDestroyers] == 0 && target[kProdBattleships] > 0,
+              "a capped class is out of the mix, the rest of the group keeps its share");
+        p.count[kProdBattleships] = 2;
+        Targets(p, defaults, target);
+        CHECK(target[kProdSubmarines] == 0,
+              "submarines may never be more than a fifth of the fleet, so they are not a fleet of their own either");
+        p.count[kProdSubmarines] = 2;
+        Targets(p, defaults, target);
+        double land = 0, navy = 0;
+        for (int c = 0; c < kProdClassCount; ++c) (GroupOf(c) == kGroupNavy ? navy : land) += target[c];
+        CHECK(navy == 0 && fabs(land - (ArmySize(p) + 1)) < 1e-9,
+              "every ship capped out: the whole army is land units, nothing is lost (land %.2f navy %.2f)", land, navy);
+        bool saving = false;
+        CHECK(PickArmyClass(p, defaults, GroupMask(kGroupNavy), &saving) == -1 &&
+                  PickFiller(p, defaults, GroupMask(kGroupNavy)) == -1,
+              "neither the mix nor the filler may go past a cap");
+        CHECK(PickArmyClass(p, defaults, kBarracksMask, &saving) >= 0, "while the barracks still has work");
+    }
     // Land and navy together: the map's share decides how much of the army is ships.
     {
         Plan p = CorePlan(2);
@@ -1218,6 +1252,7 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
     AddProd(0x48, 0, 30, 30);
     for (int i = 0; i < 12; ++i) AddProd(0x02, 0, i, 20);
     for (int i = 0; i < 12; ++i) AddProd(0x1E, 0, i, 35);  // 12 destroyers on a map that wants 30 % ships
+    AddEnemyShipyard();
     ProdWaterMap(25, 0);
     ProdPass(200000);
     CHECK(StartsAt(busyBarracks) == 1 && g_prodStartCount == 1, "the barracks trains, the shipyard saves");
@@ -1278,6 +1313,7 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
     // Submarines: only on top of a real bank, and never more than a fifth of the fleet.
     ProdWorld();
     ProdWaterMap(60, 4);
+    AddEnemyShipyard();  // the enemy has a navy: no ship caps here
     Unit* yard3 = AddProd(0x48, 0, 30, 30);
     AddProd(0x58, 0, 5, 5);   // keep: tier 2
     AddProd(0x4E, 0, 9, 5);   // foundry: battleships
@@ -1306,9 +1342,105 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
         CHECK(StartsAt(yard3) > 5, "the shipyard kept working (%d)", StartsAt(yard3));
     }
 
+    // No enemy shipyard and no enemy warship anywhere on the map: a token fleet and nothing more.
+    ProdWorld();
+    ProdWaterMap(70, 0);
+    Unit* capYard = AddProd(0x48, 0, 30, 30);
+    AddProd(0x58, 0, 5, 5);   // keep: tier 2, so battleships and submarines are in the mix
+    AddProd(0x4E, 0, 9, 5);   // foundry
+    AddProd(0x44, 0, 12, 5);  // inventor
+    AddProd(0x56, 0, 35, 35);  // his own oil platform: one tanker is allowed
+    for (int i = 0; i < 16; ++i) AddProd(0x02, 0, i, 20);
+    for (int round = 0; round < 24; ++round) {
+        ProdPass(1000 + round * 1000);
+        FinishTraining(0);
+    }
+    CHECK(StartsOf(0x1E) == 5 && StartsOf(0x20) == 2 && StartsOf(0x26) == 2 && StartsOf(0x1A) == 1 && StartsAt(capYard) == 10,
+          "no enemy navy: 5 destroyers, 2 battleships, 2 submarines, 1 tanker (%d/%d/%d/%d)", StartsOf(0x1E), StartsOf(0x20),
+          StartsOf(0x26), StartsOf(0x1A));
+    CHECK(LogContains(dir, "production: no enemy shipyard: ships capped at 1 tanker / 5 destroyers / 2 battleships / 2 submarines"),
+          "the caps must be logged once");
+    const int capLines = LogCount(dir, "production: no enemy shipyard:");
+    ProdPass(30000);
+    CHECK(LogCount(dir, "production: no enemy shipyard:") == capLines, "and not once per pass");
+    // A half built enemy shipyard is enough to lift them.
+    Unit* halfBuilt = AddEnemyShipyard();
+    Field<uint16_t>(halfBuilt, kOffStateFlags) = 0;  // still under construction
+    for (int round = 0; round < 3; ++round) {
+        ProdPass(31000 + round * 1000);
+        FinishTraining(0);
+    }
+    CHECK(StartsOf(0x1E) + StartsOf(0x20) + StartsOf(0x26) > 9 && LogContains(dir, "an enemy shipyard or warship is on the map"),
+          "an enemy shipyard under construction lifts the caps (%d ships)", StartsOf(0x1E) + StartsOf(0x20) + StartsOf(0x26));
+
+    // A hostile warship with no shipyard at all lifts them too (a mission that hands the enemy a fleet).
+    ProdWorld();
+    ProdWaterMap(70, 0);
+    AddProd(0x48, 0, 30, 30);
+    AddProd(0x58, 0, 5, 5);
+    for (int i = 0; i < 16; ++i) AddProd(0x02, 0, i, 20);
+    AddProd(0x1F, 1, 50, 50);  // one enemy troll destroyer, no shipyard
+    for (int round = 0; round < 10; ++round) {
+        ProdPass(1000 + round * 1000);
+        FinishTraining(0);
+    }
+    CHECK(StartsOf(0x1E) > 5, "an enemy warship lifts the caps as well (%d destroyers)", StartsOf(0x1E));
+
+    // An ALLIED shipyard is not an enemy navy.
+    ProdWorld();
+    ProdWaterMap(70, 0);
+    AddProd(0x48, 0, 30, 30);
+    AddProd(0x58, 0, 5, 5);
+    for (int i = 0; i < 16; ++i) AddProd(0x02, 0, i, 20);
+    AddEnemyShipyard(2);
+    At<uint8_t>(kRvaAlliance)[0 * 16 + 2] = 1;  // player 2 is an ally, his shipyard proves nothing
+    At<uint8_t>(kRvaAlliance)[2 * 16 + 0] = 1;
+    for (int round = 0; round < 12; ++round) {
+        ProdPass(1000 + round * 1000);
+        FinishTraining(0);
+    }
+    CHECK(StartsOf(0x1E) == 5, "an allied shipyard does not lift the caps (%d destroyers)", StartsOf(0x1E));
+
+    // Ships in training count: the fifth destroyer is under way, so there is no sixth.
+    ProdWorld();
+    ProdWaterMap(70, 0);
+    Unit* trainYard = AddProd(0x48, 0, 30, 30);
+    AddProd(0x4A, 0, 5, 5);
+    for (int i = 0; i < 12; ++i) AddProd(0x02, 0, i, 20);
+    for (int i = 0; i < 4; ++i) AddProd(0x1E, 0, i, 35);
+    ProdPass(1000);
+    CHECK(StartsAt(trainYard) == 1 && StartsOf(0x1E) == 1, "4 destroyers owned: the fifth is started");
+    ProdPass(2000);  // it is still in training
+    CHECK(StartsOf(0x1E) == 1, "and no sixth while the fifth is in training");
+    FinishTraining(0);
+    ProdPass(3000);
+    CHECK(StartsOf(0x1E) == 1, "nor when it is finished");
+
+    // Already over the cap (a mission that starts you with a fleet): no ships, but the land army goes on.
+    ProdWorld();
+    ProdWaterMap(70, 0);
+    Unit* overYard = AddProd(0x48, 0, 30, 30);
+    Unit* landBarracks = AddProd(0x3C, 0, 10, 5);
+    AddProd(0x4A, 0, 5, 5);
+    for (int i = 0; i < 12; ++i) AddProd(0x02, 0, i, 20);
+    for (int i = 0; i < 8; ++i) AddProd(0x1E, 0, i, 35);  // eight destroyers already
+    for (int round = 0; round < 4; ++round) {
+        ProdPass(1000 + round * 1000);
+        FinishTraining(0);
+    }
+    CHECK(StartsAt(overYard) == 0 && StartsOf(0x00) == 4 && StartsAt(landBarracks) == 4,
+          "over the cap: no ships at all, and the barracks keeps working every pass (%d ships, %d footmen)",
+          StartsAt(overYard), StartsOf(0x00));
+    config::g.logCasts = true;
+    ProdPass(100000);   // the barracks starts a footman here, so this pass did produce something
+    ProdPass(101000);   // with it still busy, nothing can be produced at all: the diagnostic fires
+    CHECK(LogContains(dir, "destroyers=cap"), "the diagnostic must name the cap as the reason");
+    config::g.logCasts = false;
+
     // Excluded units never come out, whatever the player owns; the inventor / alchemist is never used.
     ProdWorld();
     ProdWaterMap(40, 2);
+    AddEnemyShipyard();
     Unit* inventor = AddProd(0x44, 0, 50, 50);
     {
         int x = 2;
@@ -1554,6 +1686,7 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
                   "bogus = 1\n"
                   "[auto_production.units]\nsiege = false\nsubmarines = false\nsappers = true\n"
                   "[auto_production.bank_multiple]\nall = 2.5\nknights = 8\nflyers = 0\n"
+                  "[auto_production.no_enemy_navy_cap]\ndestroyers = 8\nbattleships = 201\nknights = 3\ngalleys = 2\n"
                   "[auto_production.land_tier2]\nknights = 50\ndestroyers = 10\nsiege = 101\n"
                   "[auto_production.navy_tier1]\nsubmarines = 30\n");
     CHECK(config::Init(dir), "auto_production config rejected");
@@ -1575,6 +1708,12 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
         CHECK(LogContains(dir, "unknown key [auto_production] bogus") && LogContains(dir, "unknown key [auto_production.units] sappers") &&
                   LogContains(dir, "unknown key [auto_production.land_tier2] destroyers"),
               "auto_production typos must be logged");
+        CHECK(c.noEnemyNavyCap[kProdDestroyers] == 8 && c.noEnemyNavyCap[kProdBattleships] == 2 &&
+                  c.noEnemyNavyCap[kProdKnights] == 3 && c.noEnemyNavyCap[kProdTankers] == 1 &&
+                  c.noEnemyNavyCap[kProdInfantry] == -1 &&
+                  LogContains(dir, "[auto_production.no_enemy_navy_cap] battleships must be a whole number from 0 to 200") &&
+                  LogContains(dir, "unknown key [auto_production.no_enemy_navy_cap] galleys"),
+              "[auto_production.no_enemy_navy_cap]: read, 201 refused, a class left out stays uncapped");
     }
     DeleteFileW(ini);
     CHECK(config::Init(dir), "default config did not come back");
