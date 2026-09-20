@@ -80,6 +80,8 @@ struct Channel {
     uint32_t serial;
     uint8_t order;
     int16_t x, y;
+    int buildingHp;    // hit points of the enemy buildings in the blast when it started, 0 = this one is about units
+    uint8_t manaAtStart;  // waves delivered so far = (this - mana now) / cost: the engine counts nothing for us
 };
 constexpr int kMaxChannels = 32;
 Channel g_channels[kMaxChannels];
@@ -173,6 +175,66 @@ int CountEnemies(const World& w, uint8_t me, int x, int y, int radius, bool grou
         return false;
     });
     return n;
+}
+
+// What a Blizzard / Death and Decay / Whirlwind blast around x, y would find: enemy units, enemy buildings (once
+// each, whatever their footprint) and the hit points those buildings have left.
+struct AreaTargets {
+    int units;
+    int buildings;
+    int buildingHp;
+};
+
+AreaTargets ScanArea(const World& w, uint8_t me, int x, int y, int radius) {
+    AreaTargets a{};
+    Unit* seen[64];
+    int n = 0;
+    ScanTileRaw(w, x, y, radius, [&](Unit* u) {
+        if (!IsTarget(w, me, u)) return false;
+        for (int i = 0; i < n; ++i)
+            if (seen[i] == u) return false;
+        if (n < 64) seen[n++] = u;
+        if (w.typeFlags[TypeOf(u)] & kTfBuilding) {
+            ++a.buildings;
+            a.buildingHp += Field<uint16_t>(u, kOffHp);
+        } else {
+            ++a.units;
+        }
+        return false;
+    });
+    return a;
+}
+
+// A building is worth area_building_value units: it cannot walk out of the blast, which is the whole point.
+int AreaValue(const AreaTargets& a) { return a.buildings * config::g.areaBuildingValue + a.units; }
+
+// Worth a channel: one enemy building is enough, otherwise it takes area_min_enemies units. A building plus a unit
+// is a valid target. Whirlwind keeps the old rule (it wanders off at random, so a lone building is a waste of 100
+// mana): anything in the blast counts as one.
+bool AreaGateMet(const AreaTargets& a, bool channel) {
+    if (channel) return a.buildings > 0 || a.units >= config::g.areaMinEnemies;
+    return a.units + a.buildings >= config::g.areaMinEnemies;
+}
+
+// What one wave takes off a structure at the tile the mod aims at, from docs/research/spells.md section 3:
+//
+//   Blizzard    5 chains x 11 impacts, each chain at "order tile + rand 0..4 tiles - 1.5"
+//   D and D     5 clouds x 10 pulses, each cloud at "order tile +/- 2 tiles"
+//   per impact  full damage within ~22 px of the unit's centre, a quarter within ~42 px, then h + rand % (h + 1)
+//               with h = (dmg + 1) / 2, so a full hit averages ~0.75 x the damage byte
+//
+// Working that through: about a sixth of the blizzard chains land within full-damage range of a structure at the aim
+// point (11 impacts x 0.75 x dmg each), and the death and decay clouds contribute a smaller full share plus a ring of
+// quarter hits. That gives roughly 6.6 x dmg per blizzard wave and 4.5 x dmg per death and decay wave; the mod uses
+// 5 x the LIVE damage byte for both, which the [spell_damage] section can double. The spread between the two spells
+// rests on where a building's centre pixel sits relative to the tile the mod aims at, which is [unverified], and the
+// number only ever decides whether to spend one more 25 mana wave, so one constant is honest enough. It is an
+// average: a single wave can roll well above or below it.
+constexpr int kWavesPerDamagePoint = 5;
+
+int WaveDamage(uint8_t order) {
+    const uint32_t rva = order == kOrderBlizzard ? kRvaBlizzardDamageInsn : kRvaDeathAndDecayDamageInsn;
+    return kWavesPerDamagePoint * At<uint8_t>(rva)[3];  // the imm8 of `mov byte [reg+0x37], dmg`, live
 }
 
 bool EnemyNear(const World& w, Unit* unit, uint8_t me, int radius) {
@@ -530,8 +592,14 @@ bool WhirlwindInFlight(Unit* caster) {
     return false;
 }
 
-void RememberChannel(Unit* caster, uint8_t order, int x, int y) {
-    const Channel c = {caster, Field<uint32_t>(caster, kOffSerial), order, static_cast<int16_t>(x), static_cast<int16_t>(y)};
+void RememberChannel(Unit* caster, uint8_t order, int x, int y, int buildingHp) {
+    const Channel c = {caster,
+                       Field<uint32_t>(caster, kOffSerial),
+                       order,
+                       static_cast<int16_t>(x),
+                       static_cast<int16_t>(y),
+                       buildingHp,
+                       Field<uint8_t>(caster, kOffMana)};
     for (int i = 0; i < g_channelCount; ++i)
         if (g_channels[i].caster == caster) {
             g_channels[i] = c;
@@ -540,7 +608,8 @@ void RememberChannel(Unit* caster, uint8_t order, int x, int y) {
     if (g_channelCount < kMaxChannels) g_channels[g_channelCount++] = c;
 }
 
-// Blizzard, Death and Decay (channelled) and Whirlwind, at the tile of an enemy in the biggest group within reach.
+// Blizzard, Death and Decay (channelled) and Whirlwind, at the tile of the enemy whose blast is worth the most:
+// buildings count area_building_value each, units one each, and the nearest tile wins a tie.
 bool TryAreaSpell(const World& w, Unit* caster, Spell spell) {
     const uint8_t order = kSpells[spell].order;
     const bool channel = spell != kSpellWhirlwind;
@@ -557,22 +626,36 @@ bool TryAreaSpell(const World& w, Unit* caster, Spell spell) {
     const int clearance = channel ? kChannelClearance : kWhirlwindClearance;
     const int walls = channel ? kChannelWalls : kWhirlwindClearance;
     const uint8_t me = OwnerOf(caster);
+    const int wave = channel ? WaveDamage(order) : 0;
+    const Size* sizes = At<Size>(kRvaUnitSizeByType);
     Unit* best = nullptr;
-    int bestScore = 0, bestDistance = 1 << 30;
+    int bestScore = 0, bestDistance = 1 << 30, bestBuildingHp = 0, bestX = 0, bestY = 0;
     ScanGrid(w, caster, Reach(order), [&](Unit* t) {
         if (!IsTarget(w, me, t)) return false;
-        const int x = X(t), y = Y(t), d = Distance(caster, t);
+        // A building is filed by its top-left tile, but the splash measures from its CENTRE (section 2.6a of
+        // docs/research/autocast_all_spells.md): aiming a 4x4 keep at its corner throws most of the wave past it.
+        // Everything below - the value, the friendly-fire check and the watchdog - works on the tile that is ordered.
+        const Size s = (w.typeFlags[TypeOf(t)] & kTfBuilding) ? sizes[TypeOf(t)] : Size{1, 1};
+        const int x = X(t) + (s.w ? s.w - 1 : 0) / 2, y = Y(t) + (s.h ? s.h - 1 : 0) / 2, d = Distance(caster, t);
         if (!OnMap(w, x, y)) return false;
-        const int n = CountEnemies(w, me, x, y, kAreaCount, false);
-        if (n < config::g.areaMinEnemies || n < bestScore || (n == bestScore && d >= bestDistance)) return false;
+        const AreaTargets a = ScanArea(w, me, x, y, kAreaCount);
+        if (!AreaGateMet(a, channel)) return false;
+        const int value = AreaValue(a);
+        if (value < bestScore || (value == bestScore && d >= bestDistance)) return false;
+        // No overkill: what one wave would already flatten is not worth a channel, unless the units in the blast
+        // are reason enough on their own. Units are never in this sum, they walk out of it.
+        if (channel && a.buildings > 0 && a.buildingHp <= wave && a.units < config::g.areaMinEnemies) return false;
         if (AreaSpellNear(x, y, clearance) || FriendlyInDanger(w, x, y, clearance, caster, walls)) return false;
         best = t;
-        bestScore = n;
+        bestScore = value;
         bestDistance = d;
+        bestBuildingHp = a.buildingHp;
+        bestX = x;
+        bestY = y;
         return false;
     });
-    if (!best || !CastAtTile(w, caster, spell, X(best), Y(best), bestScore)) return false;
-    if (channel) RememberChannel(caster, order, X(best), Y(best));
+    if (!best || !CastAtTile(w, caster, spell, bestX, bestY, bestScore)) return false;
+    if (channel) RememberChannel(caster, order, bestX, bestY, bestBuildingHp);
     return true;
 }
 
@@ -677,6 +760,20 @@ const char* StopReason(const World& w, const Channel& c) {
     if (CountEnemies(w, w.localPlayer, c.x, c.y, kChannelReach, false) == 0) return "no enemy left in reach";
     if (config::g.channelManaReserve > 0 && Field<uint8_t>(c.caster, kOffMana) < config::g.channelManaReserve)
         return "mana below channel_mana_reserve";
+    // No overkill on buildings. A channel started for buildings runs until the waves it has paid for cover the hit
+    // points those buildings had, or until what is left in the blast would die to the damage already falling on it.
+    // A channel started for UNITS (buildingHp 0) is never stopped here: units walk in and out, there is nothing to
+    // count. Waves are counted by mana, because the engine keeps no count of its own.
+    if (c.buildingHp > 0) {
+        const AreaTargets a = ScanArea(w, w.localPlayer, c.x, c.y, kAreaCount);
+        if (a.units < config::g.areaMinEnemies) {
+            const int wave = WaveDamage(c.order), cost = ManaCost(c.order);
+            const int spent = c.manaAtStart - Field<uint8_t>(c.caster, kOffMana);
+            const int waves = cost > 0 ? spent / cost : 0;
+            if (a.buildings == 0 || a.buildingHp <= wave || waves * wave >= c.buildingHp)
+                return "the buildings in the area are covered by the waves already cast";
+        }
+    }
     return nullptr;
 }
 
@@ -756,10 +853,11 @@ void CasterThink(const World& w, Unit* caster) {
 
 void PassImpl(const World& w) {
     CollectFriendlyBuildings(w);
-    GuardChannelsImpl(w);
     g_sumsTried = false;
 
-    // Casts already under way, so two casters never pick the same target for the same spell.
+    // Casts already under way, so two casters never pick the same target for the same spell. This is taken BEFORE the
+    // watchdog stops anything: a channel it ends keeps its tile claimed for the rest of the pass, so the caster it
+    // just freed does not aim the same spell at the same tile again a few lines below.
     g_claimCount = 0;
     for (unsigned i = 0; i < w.unitCount && g_claimCount < kMaxClaims; ++i) {
         Unit* u = UnitAt(w, i);
@@ -768,6 +866,7 @@ void PassImpl(const World& w) {
         g_claims[g_claimCount++] = {order, Field<Unit*>(u, kOffOrderTarget), Field<int16_t>(u, kOffOrderX),
                                     Field<int16_t>(u, kOffOrderY)};
     }
+    GuardChannelsImpl(w);
 
     for (unsigned i = 0; i < w.unitCount; ++i) {
         Unit* u = UnitAt(w, i);

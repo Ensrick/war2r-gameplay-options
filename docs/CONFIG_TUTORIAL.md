@@ -64,7 +64,7 @@ diagonals included):
 | Spell | Cast at | Nothing friendly within |
 |---|---|---|
 | fireball | an enemy, when its burning line (the target tile and about 7 tiles behind it, away from the mage) hits at least `fireball_min_enemies` enemies | 2 tiles of that line (walls: 1) |
-| blizzard, death_and_decay | the biggest enemy group, at least `area_min_enemies` enemies within 2 tiles, and only with mana for 3 waves | 4 tiles (walls: 3) |
+| blizzard, death_and_decay | the most valuable spot within 2 tiles (buildings count `area_building_value` each, units 1), with at least one enemy building or `area_min_enemies` enemy units in it, and only with mana for 3 waves | 4 tiles (walls: 3) |
 | whirlwind | the same kind of group; one whirlwind per death knight at a time | 6 tiles, because it wanders |
 | runes | 2 or more enemy ground units, not within 2 tiles of runes already on the ground | 6 tiles, **the ogre-mage included**: a rune hurts whoever steps on it, whoever owns it |
 | flame_shield | one of your melee units in a fight with 2 or more enemies close | 3 tiles, **the mage included**; only the shielded unit is safe |
@@ -72,10 +72,22 @@ diagonals included):
 The mage or death knight that casts a Fireball, Blizzard, Death and Decay or Whirlwind is never hurt by it, so it may
 stand close. A caster looks for a target within `search_radius` and never further than the spell's own range.
 
+**Buildings are the better target.** A building cannot walk out of a blizzard, so each enemy building in the blast
+counts `area_building_value` (3 by default) against one for each enemy unit, and the spot worth the most wins: two
+buildings and two units beat four units. One building is reason enough to cast; without a building it takes
+`area_min_enemies` units, so a building and a unit are a valid target while two lone units are not. A building is
+aimed at the middle of its footprint, so a 4x4 castle takes the wave on its centre and not on one corner.
+
+**No overkill on buildings.** One wave takes roughly 5 x the spell's damage number off a structure it is aimed at
+(about 50 hit points with the game's 10, more if you raised it in `[spell_damage]`), so the mod does not start a
+channel on buildings a single wave would already flatten, and it stops one as soon as the waves it has paid for cover
+the hit points those buildings had. Units are left out of that sum: they move.
+
 What the mod cannot foresee: one of your units walking into the area later. Blizzard and Death and Decay keep going,
 wave after wave, until the caster runs out of mana. So the mod watches every Blizzard and Death and Decay it started and
-stops it as soon as a friendly unit or building comes within 4 tiles, when no enemy is left within 3 tiles, or when the
-caster's mana drops below `channel_mana_reserve`. This keeps working while autocasting is switched off with the hotkey.
+stops it as soon as a friendly unit or building comes within 4 tiles, when no enemy is left within 3 tiles, when the
+buildings it was aimed at are covered by the waves already cast, or when the caster's mana drops below
+`channel_mana_reserve`. This keeps working while autocasting is switched off with the hotkey.
 A Blizzard you cast yourself is never touched. A Flame Shield stays on its unit for a while, a Whirlwind wanders and
 runes stay on the ground for 2048 game steps: keep your own units clear of them.
 
@@ -85,7 +97,8 @@ blizzard = true
 death_and_decay = true
 
 [autocast]
-area_min_enemies = 4          # only into real crowds (default 3)
+area_min_enemies = 4          # units needed when there is no building in the blast (default 3)
+area_building_value = 5       # an enemy building is worth this many units when the spot is picked (default 3)
 fireball_min_enemies = 1      # fireball a single enemy too, as the computer does (default 2)
 channel_mana_reserve = 50     # stop a Blizzard / Death and Decay while 50 mana are left (default 0 = until empty)
 ```
@@ -723,7 +736,8 @@ tiles", "all corpses ... are claimed", "switched off"), at most once every 30 se
 | autocast | combat_radius | 6 | A unit counts as fighting when an enemy is this close to it |
 | autocast | own_units_only | true | Friendly spells skip allies' units |
 | autocast | cast_while_attacking | true | Casters may interrupt their own attack to cast |
-| autocast | area_min_enemies | 3 | Enemies within 2 tiles of the target before Blizzard, Death and Decay or Whirlwind is cast (1 to 50) |
+| autocast | area_min_enemies | 3 | Enemy units within 2 tiles of the target before Blizzard, Death and Decay or Whirlwind is cast, when no enemy building is in the blast (1 to 50) |
+| autocast | area_building_value | 3 | What an enemy building in the blast is worth in units when the spot is picked (1 to 20) |
 | autocast | fireball_min_enemies | 2 | Enemies the Fireball's burning line must hit; 1 = the computer's own rule (1 to 50) |
 | autocast | channel_mana_reserve | 0 | A Blizzard / Death and Decay the mod started stops below this mana; 0 = until empty (0 to 255) |
 | spells | heal, slow, bloodlust, raise_dead | true | One switch per spell |
