@@ -746,6 +746,9 @@ numbers that instruction is waiting for, so you can see what is missing (in the 
 because a castle costs 1200 lumber and it has 1000). After five minutes on the same instruction there is also a
 `ai: player 3 has been on WAITFOR have_castle for 5 min` line, repeated every five minutes.
 
+A script also sleeps on purpose between its steps. The line then reads `sleeping 9000 steps, then WAITFOR ...`, and
+sleeping never counts as being stuck: the five minutes only run while the script is awake and waiting.
+
 This setting only reads: it never changes anything, for you or for the computer. Leave it off for normal play, it
 makes the log long.
 

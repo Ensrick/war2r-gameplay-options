@@ -584,6 +584,25 @@ static void AiWatchTests() {
     for (int i = 0; i < 299; ++i) AiTick(1000);
     CHECK(g_aiStalls == 0, "a moving pc must not report a stall (%d)", g_aiStalls);
 
+    // 6a. A SLEEP counting down is not a stall: the wait word is above the 1 a failed WAITFOR leaves, the program
+    // counter already points at the next instruction, and the stall clock only starts once the script is awake.
+    {
+        AiScript(3, 0x10, 8, 5, 1);
+        uint32_t steps = 9000;
+        memcpy(At<uint8_t>(kRvaAiState) + 3 * kAiStateStride + kAiOffWait, &steps, sizeof steps);
+        AiReset();
+        for (int i = 0; i < 400; ++i) AiTick(1000);
+        CHECK(g_aiStalls == 0, "a sleeping script must not be reported as stalled (%d)", g_aiStalls);
+        CHECK(g_aiLineCount >= 1 && strstr(g_aiLines[0], "sleeping 9000 steps, then WAITFOR have_castle same pc for 0m"),
+              "status line of a sleeping script: %s", g_aiLineCount ? g_aiLines[0] : "(no line)");
+        steps = 1;  // the sleep ran out, the WAITFOR now fails every step
+        memcpy(At<uint8_t>(kRvaAiState) + 3 * kAiStateStride + kAiOffWait, &steps, sizeof steps);
+        for (int i = 0; i < 299; ++i) AiTick(1000);
+        CHECK(g_aiStalls == 0, "the stall clock starts when the sleep ends, not before (%d)", g_aiStalls);
+        AiTick(1000);
+        CHECK(g_aiStalls == 1, "five minutes awake on the same WAITFOR is a stall (%d)", g_aiStalls);
+    }
+
     // 7. Every opcode and condition decodes, and unknown ones print their number instead of a guess.
     struct { uint32_t off; uint8_t size, count; const char* want; } kOps[] = {
         {0x20, 6, 2, "WAITFOR landForce >= 12"},

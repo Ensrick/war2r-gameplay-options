@@ -70,6 +70,10 @@ toggle_key = "F9"
 interval_ticks = 10
 # true = write every cast and worker order to gameplay_options.log
 log_casts = false
+# true = once a minute, write what every computer player is doing to gameplay_options.log: where its script is, what
+# it is waiting for, its resources, food and army numbers, plus a line when it has not moved for 5 minutes. For
+# finding out why a computer stopped attacking. It only reads the game, it changes nothing.
+log_ai = false
 
 ''' + banner('2. AUTOCAST', 'Your casters cast on their own. Move orders are never interrupted; two casters never pick the same target.') + '''
 [spells]

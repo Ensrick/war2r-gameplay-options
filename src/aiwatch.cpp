@@ -48,6 +48,16 @@ void Forget() {
 
 const uint8_t* AiState(int player) { return At<uint8_t>(kRvaAiState) + player * kAiStateStride; }
 
+// The wait word: steps left before the interpreter runs this player's script again (FUN_004ca440).
+uint32_t WaitWord(const uint8_t* st) {
+    uint32_t wait;
+    memcpy(&wait, st + kAiOffWait, sizeof wait);
+    return wait;
+}
+
+// More than the 1 a failed WAITFOR leaves behind means a SLEEP is counting down.
+bool Sleeping(const uint8_t* st) { return WaitWord(st) > 1; }
+
 // The loaded ai.bin, or null when there is no game, no script data, or the size out-param is not believable.
 const uint8_t* Blob(uint32_t& size) {
     const uint8_t* blob = *At<const uint8_t*>(kRvaAiScriptBlob);
@@ -141,8 +151,12 @@ int BuildListIndex(int player) {
 
 void FormatLine(const World& w, int player, const uint8_t* blob, uint32_t off, unsigned sameMs, char* out, size_t cap) {
     const uint8_t* st = AiState(player);
-    char op[64];
-    DescribeOp(blob, off, st, op, sizeof op);
+    char next[64], op[96];
+    DescribeOp(blob, off, st, next, sizeof next);
+    if (Sleeping(st))
+        _snprintf_s(op, sizeof op, _TRUNCATE, "sleeping %u steps, then %s", WaitWord(st), next);
+    else
+        strcpy_s(op, next);
 
     const uint16_t* supply = At<uint16_t>(kRvaFoodSupply);
     const uint16_t* counted = At<uint16_t>(kRvaUnitsCounted);
@@ -206,18 +220,24 @@ void OnTick(const World& w, unsigned elapsedMs) {
             t = Track{};  // not a computer, or a state block we cannot trust: keep no history for it
             continue;
         }
-        if (!t.valid || t.pc != off) {
+        // A SLEEP counts its wait word down from n while the program counter already points at the NEXT instruction;
+        // a WAITFOR that fails only ever leaves 1 there (0x4CA2D0). Sleeping is the script working as written, so it
+        // never adds to the stall clock.
+        const bool sleeping = Sleeping(AiState(p));
+        if (!t.valid || t.pc != off || sleeping) {
             t.valid = true;
             t.pc = off;
-            t.sameMs = elapsedMs;  // the script was already on this instruction for the step just played
+            t.sameMs = sleeping ? 0 : elapsedMs;  // awake: it was already on this instruction for the step just played
             t.nextStallMs = kStallMs;
         } else {
             t.sameMs += elapsedMs;
         }
 
+        const bool stalled = t.sameMs >= t.nextStallMs;
+        if (!stalled && !report) continue;
         if (!OwnsLiveUnit(w, static_cast<uint8_t>(p))) continue;  // a dead player has nothing to diagnose
 
-        if (t.sameMs >= t.nextStallMs) {
+        if (stalled) {
             t.nextStallMs += kStallMs;
             char op[64];
             DescribeOp(blob, off, AiState(p), op, sizeof op);

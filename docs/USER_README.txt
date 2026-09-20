@@ -31,6 +31,9 @@ WHAT IT DOES
 OUT OF THE BOX only this is switched on:
   - Autocast for Heal, Slow, Bloodlust and Raise Dead.
   - Idle workers repair damaged buildings nearby.
+NEW IN 1.10: [general] log_ai. A read-only log of what each computer player is doing and waiting for, once a minute,
+for finding out why a computer stopped attacking. Off by default.
+
 NEW IN 1.7: AUTO-PRODUCTION. Switch [auto_production] enabled on (or press Ctrl+F10 in game) and every idle building
 of yours trains by itself: workers up to 12 / 16 / 24 by hall tier, and an army whose mix follows the map (how much water and
 oil it has), your hall tier, the upgrades you own and what you can afford. It always leaves you food, keeps money for

@@ -15,6 +15,21 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.10.0 (2026-09-20, UNTESTED in game, NOT released)
+
+- Author: the computer "was attacking relentlessly, and then stopped at some point despite having all the resources
+  needed", on two Beyond the Dark Portal orc missions in a row. He asked for research, and wants AI TWEAKS to be a
+  separate mod; this build only observes.
+- Research agent (static RE plus decoding his savegames): the computer is a 4-opcode script interpreter and WAITFOR
+  never times out. Its first verdict, "every savegame load doubles the army counters", did not survive the check I
+  asked for: in a mid-mission save that had been through a load, every land counter matched the live unit count
+  exactly. The load path stays [unverified] in docs/research/ai_stall.md. No save of a stalled state exists.
+- So the deliverable is the instrument: `[general] log_ai`. Read-only by construction (no write to game memory in
+  src/aiwatch.cpp, the program counter is range-checked against the script blob before any read, the build-list
+  pointer is never followed). My review addition: a SLEEP counting down is not a stall (the wait word is above the 1
+  a failed WAITFOR leaves), so sleeping never feeds the stall clock and the line says "sleeping N steps, then ...".
+- Issue #24 tracks the stall itself.
+
 ## 1.9.0 (2026-09-20, UNTESTED in game)
 
 - Author: "Autocast for it should target enemy buildings AND try to target the greatest number ... only are cast when
