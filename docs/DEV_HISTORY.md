@@ -15,6 +15,20 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.13.0 (2026-09-20, UNTESTED in game, NOT released)
+
+- Author, in game: "I did see a death and decay use on 3 enemy battleships, but I've never seen it on land, and I've
+  never seen it on a building." Log: five casts in two hours, and the one land cast (18:27:20) was stopped 0.9 s later
+  by the watchdog, "a friendly unit or building is in the area". The no-friendly-fire rule is his own; the fault was
+  the AIM: only the target's own tile was ever tried, with 4 tiles of clearance around it.
+- The agent read the scatter from the code (death and decay +/- 2 tiles, blizzard -3..+2 because its pattern sits
+  half a tile past the aim) and walks the aim over that span when the straight aim fails on the friendly test only.
+  Budget 64 aim tiles per caster per pass. Aim tiles out of the spell's range from where the caster stands are
+  refused (a clearance check made before a walk is stale on arrival); what the engine does with an out-of-range spell
+  order stays [unverified]. 16 mutations over both autocast commits, 16 caught.
+- Trap recorded by the agent: after a header-only change MSBuild kept stale objects in a worktree under Temp (175
+  phantom failures from a struct layout mismatch). Touch every .cpp before building there.
+
 ## 1.12.0 (2026-09-20, UNTESTED in game, NOT released)
 
 - Author, in game: "I'm getting a lot of Troll Destroyers, likely because I have an abundance of gold or something."

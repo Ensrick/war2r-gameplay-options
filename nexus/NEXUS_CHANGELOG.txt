@@ -1,3 +1,11 @@
+[size=4][b]1.13.0[/b][/size]
+[list]
+[*]Blizzard and Death and Decay autocast now work next to your own army. Until now the mod only tried the target's own tile and gave up when anything of yours stood within 4 tiles of it, which on land is nearly always (your troops stand next to what they attack). It now moves the aim a tile or two off the target, away from your units, and casts where nothing of yours can be hit: the waves scatter over a 5 x 5 block around the aim, so the target is still hit. A clean straight aim is still preferred.
+[*]New [autocast] area_friendly_clearance (4): the distance in tiles that must hold nothing of yours. 4 keeps everything of yours out of reach, 3 allows a rare glancing hit, 0 ignores your own units like the computer does. The watchdog that stops a running channel uses the same number.
+[*]The aim must be within the spell's range of where the caster stands: the mod no longer issues a Blizzard or Death and Decay the caster would have to walk to.
+[*]With log_casts on, the log says why a Blizzard or Death and Decay was not cast: no enemy in reach, the spot is not worth it, one of your units is in the way (which one, where), another area spell is already there, one wave would finish the buildings, or mana.
+[/list]
+
 [size=4][b]1.12.0[/b][/size]
 [list]
 [*]Fixed in auto-production: a cheap unit could starve a dearer one of a scarce resource for ever. With little oil, a shipyard bought a destroyer every time the oil allowed one, so the oil never reached what a battleship needs and the fleet ended up all destroyers, whatever the mix said. A building whose most-wanted class is short of money only now keeps that resource and saves up. Classes that do not cost the blocked resource are still trained (grunts keep coming while knights wait for lumber; land units never wait for oil).

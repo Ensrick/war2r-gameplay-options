@@ -89,6 +89,7 @@ max_active = 3            # eyes out at once, all your ogre-magi together
 [autocast]
 area_min_enemies = 3      # enemy units needed close together when no enemy building is in the blast
 area_building_value = 3   # Blizzard / Death and Decay: an enemy building counts as this many units
+area_friendly_clearance = 4  # tiles around the aim that must hold nothing of yours (0 = ignore, like the computer)
 
 [priority]                # the order each caster tries its spells in
 death_knight = ["death_and_decay", "raise_dead", "death_coil", "haste", "unholy_armor", "whirlwind"]

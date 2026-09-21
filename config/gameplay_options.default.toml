@@ -79,6 +79,12 @@ area_min_enemies = 3
 # An enemy building in the blast counts as this many units when the spot is picked (a building cannot walk away).
 # A channel aimed at buildings stops once the waves already cast cover their hit points: no mana spent on rubble.
 area_building_value = 3
+# Tiles around the aim point of a Blizzard or Death and Decay that must hold nothing of yours. The waves reach about
+# 106 px past the aim (64 px of scatter plus 42 px of splash), so 4 tiles (128 px) keeps your own units and buildings
+# out of reach; 3 allows a rare glancing hit on the edge; 0 ignores them, the way the computer plays it. Before it
+# gives a cast up, the mod moves the aim a tile or two off the target, away from your units: the waves scatter widely
+# enough to keep hitting it. The watchdog that stops a running channel uses the same number.
+area_friendly_clearance = 4
 # Fireball needs at least this many enemies along its path (1 = the computer's own rule).
 fireball_min_enemies = 2
 
