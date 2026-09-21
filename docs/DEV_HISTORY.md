@@ -15,6 +15,20 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.11.0 (2026-09-20, UNTESTED in game, NOT released)
+
+- Author, in game on 1.10.1: "We need priority orders for autocast ... One thing that is not working at all is death
+  and decay". His log agreed: 82 death_coil, 145 raise_dead, 18 haste and 2 death_and_decay in two hours, both at
+  buildings where Death Coil has no target. CasterThink had a fixed order with Death and Decay after Death Coil and
+  Haste, and a channel needs three waves of mana (90 at his price) while Death Coil fires at 50.
+- A list alone would not have fixed it (put D&D first and the knight still spends at 50 on the next spell down), so
+  the agent built `save_mana` with a dry-run mode: every Try path can be asked "would you cast if mana were no
+  object" without leaving a trace. The audit closed the side effects: orders, claims, the cast counter and log line,
+  RememberChannel, the raise_dead diagnostic, holy vision's per-pass cache. 11 mutations, 11 caught.
+- His installed config gets death_and_decay and blizzard first (my call, he asked for the priority and can reorder).
+- Second blocker found in the same log, NOT in this version: the 4-tile friendly clearance kills nearly every land
+  cast because his army stands next to what it attacks (#25). Aim search + area_friendly_clearance are in progress.
+
 ## 1.10.1 (2026-09-20, NOT released)
 
 - Found while preparing the stall hunt: the log was truncated at every game start, so the evidence of a stalled game

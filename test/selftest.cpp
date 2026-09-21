@@ -1058,6 +1058,19 @@ static void CheckMix(int tier, production::Group group, double navyShare, const 
     CHECK(ok, "%s: got/wanted per class %s(army %d)", what, got, production::ArmySize(p));
 }
 
+// The author's live case (1.10.1): a tier-3 army on a map that wants 23 % ships, destroyers sitting at their share,
+// battleships far behind, and a bank that is enormous in gold and lumber but thin in oil. 2950 oil is the level the
+// mod bought a destroyer at: (2950 - 120 reserve) / 700 = 4.04 prices, while a battleship wants 4 x 1000 + 120.
+static production::Plan ShipyardCase(int oil) {
+    production::Plan p = CorePlan(3);
+    p.navyShare = 0.23;
+    p.bank = {{590000, 41000, oil}};
+    p.reserve = {{2600, 1020, 120}};
+    const int alive[kProdClassCount] = {0, 20, 20, 40, 15, 6, 4, 0, 10, 2, 0};
+    for (int c = 0; c < kProdClassCount; ++c) p.count[c] = alive[c];
+    return p;
+}
+
 static bool g_fakeCtrl = false, g_fakeF10 = false;
 static bool FakeKeys(int vk) { return (vk == VK_CONTROL && g_fakeCtrl) || (vk == VK_F10 && g_fakeF10); }
 
@@ -1321,6 +1334,104 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
         p.count[kProdDestroyers] = 5;
         CHECK(PickArmyClass(p, defaults, GroupMask(kGroupNavy), &saving) == kProdDestroyers, "5 destroyers is within tolerance");
     }
+    // Saving up (1.10.1, the author's fleet of destroyers): the cheap class must not eat the resource the class
+    // furthest behind its share is waiting for, or that class is starved for ever.
+    {
+        const unsigned kYard = GroupMask(kGroupNavy);
+        Plan p = ShipyardCase(2950);
+        double target[kProdClassCount];
+        Targets(p, defaults, target);
+        bool over = false;
+        CHECK(target[kProdBattleships] - p.count[kProdBattleships] > target[kProdDestroyers] - p.count[kProdDestroyers] &&
+                  CanAfford(p, defaults, kProdDestroyers) && !CanAfford(p, defaults, kProdBattleships) &&
+                  PickArmyClass(p, defaults, kYard, &over) == kProdDestroyers && !over,
+              "the case: battleships furthest behind (%+.1f against %+.1f) and the mix alone buys a destroyer anyway",
+              target[kProdBattleships] - p.count[kProdBattleships], target[kProdDestroyers] - p.count[kProdDestroyers]);
+        SaveUp state;
+        const Decision d = Decide(p, defaults, kYard, state, 0);
+        CHECK(d.cls == -1 && d.saveResource == kOil && d.saveClass == kProdBattleships && d.have == 2950 && d.need == 4120,
+              "(a) the shipyard keeps its oil instead (cls %d, resource %d, have %d, need %d)", d.cls, d.saveResource,
+              d.have, d.need);
+        Plan rich = ShipyardCase(4200);
+        SaveUp richState;
+        const Decision b = Decide(rich, defaults, kYard, richState, 0);
+        CHECK(b.cls == kProdBattleships && b.saveResource == -1, "(b) 4200 oil: the battleship itself is built (cls %d)", b.cls);
+        AutoProduction never;
+        never.saveUpSeconds = 0;
+        SaveUp offState;
+        CHECK(Decide(p, never, kYard, offState, 0).cls == kProdDestroyers && offState.resource == -1,
+              "(e) save_up_seconds = 0 is the old behaviour: the destroyer");
+    }
+    // No deadlock: a blocked resource that goes nowhere releases one unit per save_up_seconds, one that is still
+    // growing is waited for however long it takes.
+    {
+        const unsigned kYard = GroupMask(kGroupNavy);
+        Plan p = ShipyardCase(2950);  // held flat on purpose: the decision core only spends when the caller commits
+        SaveUp state;
+        int released = 0;
+        unsigned at[2] = {0, 0};
+        bool clean = true;
+        for (unsigned t = 0; t <= 180000; t += 1000) {
+            const Decision d = Decide(p, defaults, kYard, state, t);
+            if (d.cls < 0) {
+                clean = clean && d.saveResource == kOil && d.saveClass == kProdBattleships;
+                continue;
+            }
+            clean = clean && d.cls == kProdDestroyers;
+            if (released < 2) at[released] = t;
+            ++released;
+        }
+        CHECK(released == 2 && at[0] == 60000 && at[1] == 121000 && clean,
+              "(c) flat oil: one destroyer per save_up_seconds, saving in between (%d releases, at %u and %u)", released,
+              at[0], at[1]);
+        Plan growing = ShipyardCase(2950);
+        SaveUp growState;
+        bool built = false;
+        for (unsigned t = 0; t <= 600000; t += 1000) {
+            built = built || Decide(growing, defaults, kYard, growState, t).cls >= 0;
+            ++growing.bank.r[kOil];  // the tanker is working, and it is still far from a battleship's 4120
+        }
+        CHECK(!built && growing.bank.r[kOil] < 4120, "(d) while the oil grows nothing is built, however long it takes (%d oil)",
+              growing.bank.r[kOil]);
+    }
+    // A class that does not cost the blocked resource is built as before, and only MONEY ever makes a building save:
+    // food, a ceiling and a missing building are other gates and none of this rule's business.
+    {
+        Plan p = CorePlan(2);
+        p.bank = {{200000, 300, 0}};  // gold to burn, almost no lumber
+        double target[kProdClassCount];
+        Targets(p, defaults, target);
+        CHECK(!CanAfford(p, defaults, kProdKnights) && target[kProdKnights] > target[kProdArchers] &&
+                  BlockingResource(p, defaults, kProdKnights) == kLumber,
+              "the case: knights are the biggest share and the lumber for them is not there");
+        SaveUp gruntState;
+        const Decision grunt = Decide(p, defaults, 1u << kProdInfantry | 1u << kProdKnights, gruntState, 0);
+        CHECK(grunt.cls == kProdInfantry && grunt.saveResource == -1 && gruntState.resource == -1,
+              "(f) grunts cost no lumber, so they keep coming (cls %d)", grunt.cls);
+        SaveUp archerState;
+        const Decision archer = Decide(p, defaults, 1u << kProdArchers | 1u << kProdKnights, archerState, 0);
+        CHECK(archer.cls == -1 && archer.saveResource == kLumber && archer.saveClass == kProdKnights,
+              "(f) archers do, so they wait with the knights (cls %d, resource %d)", archer.cls, archer.saveResource);
+
+        const unsigned kYard = GroupMask(kGroupNavy);
+        Plan yard = ShipyardCase(2950);
+        yard.trainable[kProdSubmarines] = false;  // no inventor / alchemist
+        Plan prereq = yard;
+        prereq.trainable[kProdBattleships] = false;  // no foundry
+        SaveUp prereqState;
+        CHECK(Decide(prereq, defaults, kYard, prereqState, 0).cls == kProdDestroyers && prereqState.resource == -1,
+              "(g) a missing foundry is not a reason to save up");
+        Plan capped = yard;
+        capped.cap[kProdBattleships] = 2;  // no enemy navy: two is the ceiling, and two is what he has
+        SaveUp cappedState;
+        CHECK(Decide(capped, defaults, kYard, cappedState, 0).cls == kProdDestroyers && cappedState.resource == -1,
+              "(g) nor is a class that is already at its ceiling");
+        Plan starving = yard;
+        starving.used = 199;
+        SaveUp foodState;
+        const Decision d = Decide(starving, defaults, kYard, foodState, 0);
+        CHECK(d.cls == -1 && d.saveResource == -1 && foodState.resource == -1, "(g) nor is the food rule");
+    }
     // upgrade_bias: a line with 4 upgrade levels takes a bigger share; bias 0 ignores upgrades.
     {
         Plan p = CorePlan(1);
@@ -1492,6 +1603,36 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
     CHECK(g_prodStartCount == 1 && LogContains(dir, "destroyers=enough(-") && LogContains(dir, "infantry=busy"),
           "a pass where the mix says enough must log the deficit, not a money reason");
     config::g.logCasts = false;
+
+    // Saving up in a real pass: a shipyard with a destroyer's worth of oil and a battleship further behind its share
+    // waits, says so in the log, and gives up after save_up_seconds. A new map starts that clock again.
+    auto savingYard = [&] {  // tier 2, half water, no land production building, oil for a destroyer but not a battleship
+        ProdWorld();
+        AddEnemyShipyard();        // an enemy navy: no ship ceilings in the way
+        AddProd(0x48, 0, 30, 30);  // shipyard
+        AddProd(0x58, 0, 5, 5);    // keep: tier 2, where battleships are the bigger share
+        AddProd(0x4E, 0, 9, 5);    // foundry: battleships are trainable
+        ProdWaterMap(50, 0);
+        config::g.production.workersTier[1] = 0;  // no peasants in the way
+        At<int32_t>(kRvaPlayerOil)[0] = 3000;     // four destroyers (700) but not four battleships (1000)
+    };
+    savingYard();
+    config::g.logCasts = true;
+    ProdPass(1000);
+    CHECK(g_prodStartCount == 0 && LogContains(dir, "production: saving oil for battleship (have 3000, need 4000)"),
+          "the shipyard keeps the oil for the battleship, and the log says so (%d starts)", g_prodStartCount);
+    CHECK(LogContains(dir, "destroyers=saving") && LogContains(dir, "battleships=bank"),
+          "and the diagnostic line names the class that was held back");
+    config::g.logCasts = false;
+    ProdPass(61000);
+    CHECK(StartsOf(0x1E) == 1, "oil that goes nowhere for save_up_seconds releases one destroyer (%d)", StartsOf(0x1E));
+    savingYard();
+    ProdPass(1000);
+    production::OnNewMap();
+    ProdPass(61000);
+    CHECK(g_prodStartCount == 0, "(h) a new map forgets what every building was saving for (%d starts)", g_prodStartCount);
+    ProdPass(121000);
+    CHECK(StartsOf(0x1E) == 1, "and the clock runs again from the new map (%d)", StartsOf(0x1E));
 
     // The food gate in a real pass: supply 20, 15 used: one unit, not two.
     ProdWorld();
@@ -1914,7 +2055,8 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
     // Config: every key reads, typos and bad values are reported, nothing else changes.
     WriteFileText(ini,
                   "[auto_production]\nenabled = true\ntoggle_key = \"F11\"\nworkers_tier1 = 5\nworkers_tier2 = 7\nworkers_tier3 = 201\nfood_free_min = 6\n"
-                  "food_free_percent = 15\nreserve_extra = 0.5\nupgrade_bias = 0\nfiller_min = 20\nnavy_weight = 0.5\nnavy_max = 40\n"
+                  "food_free_percent = 15\nreserve_extra = 0.5\nupgrade_bias = 0\nfiller_min = 20\nsave_up_seconds = 120\n"
+                  "navy_weight = 0.5\nnavy_max = 40\n"
                   "bogus = 1\n"
                   "[auto_production.units]\nsiege = false\nsubmarines = false\nsappers = true\n"
                   "[auto_production.bank_multiple]\nall = 2.5\nknights = 8\nflyers = 0\n"
@@ -1926,7 +2068,7 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
         const AutoProduction& c = config::g.production;
         CHECK(c.enabled && c.toggleKey == VK_F11 && c.workersTier[0] == 5 && c.workersTier[1] == 7 && c.foodFreeMin == 6 &&
                   c.foodFreePercent == 15 && c.bankMultiple == 2.5 && c.reserveExtra == 0.5 && c.upgradeBias == 0 &&
-                  c.fillerMin == 20 && c.navyWeight == 0.5 && c.navyMax == 40,
+                  c.fillerMin == 20 && c.saveUpSeconds == 120 && c.navyWeight == 0.5 && c.navyMax == 40,
               "[auto_production] keys");
         CHECK(c.workersTier[2] == 200 && LogContains(dir, "[auto_production] workers_tier3 = 201 is outside 0..200, using 200"),
               "a worker target above 200 is clamped and logged (%d)", c.workersTier[2]);
@@ -1938,8 +2080,9 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
                   c.navy[0][kProdSubmarines] == 30 && c.land[0][kProdInfantry] == 75,
               "[auto_production.land_tier2] / [.navy_tier1]: 101 refused, a ship class is not a land key");
         CHECK(LogContains(dir, "unknown key [auto_production] bogus") && LogContains(dir, "unknown key [auto_production.units] sappers") &&
-                  LogContains(dir, "unknown key [auto_production.land_tier2] destroyers"),
-              "auto_production typos must be logged");
+                  LogContains(dir, "unknown key [auto_production.land_tier2] destroyers") &&
+                  !LogContains(dir, "unknown key [auto_production] save_up_seconds"),
+              "auto_production typos must be logged, and a real key must never be one");
         CHECK(c.noEnemyNavyCap[kProdDestroyers] == 8 && c.noEnemyNavyCap[kProdBattleships] == 2 &&
                   c.noEnemyNavyCap[kProdKnights] == 3 && c.noEnemyNavyCap[kProdTankers] == 1 &&
                   c.noEnemyNavyCap[kProdInfantry] == -1 &&

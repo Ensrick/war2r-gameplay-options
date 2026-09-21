@@ -424,6 +424,34 @@ A mod-side rally point would issue a move (on-map tile, `game::IssueOrder` guard
 
 ---
 
+## Saving up: why the mod holds a building's money (mod design, not engine RE)
+
+The mod's own decision core, not the engine. `PickArmyClass` skips every class it cannot pay for and takes the best
+deficit among the rest, so inside ONE building a cheap class and a dear class that spend the SAME scarce resource
+deadlock: the cheap one is bought the moment the resource crosses its threshold, the resource drops back, and the dear
+one's threshold is never reached. Observed in the author's 1.10.1 session: a tier-3 shipyard on a 23 %-ship map with
+about 2200 to 2900 oil, reserve 120. A destroyer needs `4 x 700 + 120 = 2920` oil, a battleship `4 x 1000 + 120 =
+4120`; the oil crossed 2920, a destroyer was bought, and the fleet became all destroyers although battleships are
+60 % of the tier-3 navy mix and were the class furthest behind their share the whole time.
+
+The rule (`production::Decide`): when the candidate with the highest positive `target - count` is not affordable and
+ONLY `CanAfford` stops it (a target of 0 already covers "switched off", "not trainable" and "at its cap"; the food
+rule is checked before all of it), the tightest resource of its `Buys` is the blocking one. If the class the mix or
+the filler would otherwise build costs that resource, the building starts nothing and keeps the money; a class that
+does not cost it is built as before (grunts while knights wait for lumber, and no land unit ever waits for oil).
+
+Against a deadlock the rule is timed, not unconditional: per building the mod keeps the blocked resource's last value
+and the play time it last GREW at. While it grows the building waits however long that takes; once it has not grown
+for `[auto_production] save_up_seconds` (60 by default, 0 = the old behaviour) the building gives up once, builds the
+best it can afford and starts over, so a stalled economy costs one unit per minute, not a stopped building. Spending
+the resource yourself lowers the mark without restarting the clock. The state is per unit slot (serial-keyed, like
+the back-off) and `OnNewMap` clears it, so nothing carries into the next map or a loaded game.
+
+Not a "resource cap": a huge bank does NOT bend the mix. In `Targets` the per-class money factor is
+`min(Buys / 5, 1)`, so everything from five units' worth upwards weighs the same; `CanAfford` is a threshold, not a
+score; and `PickFiller`, the only place that compares raw `Buys`, is reached only when no candidate has a target at
+all (every one of them below one price after the reserve), which a rich player never is.
+
 ## Recommended way for the mod to train a unit
 
 Single player only, from the tick hook after the multiplayer gate (same as every other mod feature):

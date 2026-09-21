@@ -89,6 +89,10 @@ max_active = 3            # eyes out at once, all your ogre-magi together
 [autocast]
 area_min_enemies = 3      # enemy units needed close together when no enemy building is in the blast
 area_building_value = 3   # Blizzard / Death and Decay: an enemy building counts as this many units
+
+[priority]                # the order each caster tries its spells in
+death_knight = ["death_and_decay", "raise_dead", "death_coil", "haste", "unholy_armor", "whirlwind"]
+save_mana = true          # save up for the spell at the top instead of spending on the cheap ones
 fireball_min_enemies = 2  # enemies needed along a Fireball's path[/code]
 
 [size=4][b]2. Workers[/b][/size]
