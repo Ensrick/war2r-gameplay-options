@@ -826,6 +826,78 @@ Good to know:
 - Both halves of a hit react differently to armor: **piercing ignores armor, basic is reduced by it**. That is the
   whole of this game's "damage types": there is no table of bonuses against buildings, ships or flyers.
 
+### Your own weapon and armor types
+
+Warcraft II has **no armor types**. A hit is basic damage minus the target's armor, plus piercing damage which
+ignores armor, and nothing in the game asks what the target is. This mod lets you build the system the game is
+missing: you invent the type names, say who carries them, and give each pair a multiplier.
+
+```toml
+[weapon_types]                  # a name you invent = who attacks with it
+siege = ["ballista", "catapult", "human_cannon_tower", "orc_cannon_tower"]
+
+[armor_types]                   # a name you invent = who wears it
+structure = ["structures"]
+ship      = ["ships"]
+
+[damage_bonus.siege]            # one table per weapon type
+structure = 2.0                 # siege weapons deal double damage to anything with "structure" armor
+ship      = 1.5
+```
+
+That is the author's own example: catapults, ballistas and cannon towers hit buildings twice as hard and ships half
+again, and everything else is untouched.
+
+Lists take the same names as the `[unit.NAME]` and `[building.NAME]` tables (both races), plus four ready-made
+groups: **`structures`, `ships`, `air_units`, `land_units`**. A unit named on its own always beats a group, so this
+gives keeps their own armor type while every other building keeps "structure":
+
+```toml
+[armor_types]
+structure = ["structures"]
+fortified = ["keep", "castle", "stronghold", "fortress"]
+```
+
+A Warcraft III flavoured set, kept short:
+
+```toml
+[weapon_types]
+normal = ["footman", "grunt", "knight", "ogre"]
+pierce = ["archer", "axethrower", "ranger", "berserker"]
+siege  = ["ballista", "catapult"]
+
+[armor_types]
+unarmored = ["peasant", "peon", "mage", "death_knight"]
+heavy     = ["knight", "ogre", "paladin", "ogre_mage"]
+fortified = ["structures"]
+
+[damage_bonus.pierce]
+unarmored = 1.5
+heavy     = 0.75
+fortified = 0.5
+
+[damage_bonus.siege]
+fortified = 2.0
+unarmored = 0.5
+```
+
+Rules, all of them:
+
+- A unit carries **at most one** weapon type and one armor type. If two types claim the same unit, the one whose
+  name comes first alphabetically keeps it and the other is written to the log.
+- A pair you do not list is x1.0, and so is any attacker without a weapon type or any target without an armor type.
+- Multipliers run from 0.0 to 10.0. Up to 32 weapon types and 32 armor types; the names may hold a to z, 0 to 9
+  and `_`.
+- A misspelled unit name, a bonus table for a weapon type you never defined, or a key naming an armor type you
+  never defined: one line in the log each, and the rest keeps working.
+- **Spells are never touched.** Only normal attacks are: melee, missiles, tower shots and splash.
+- **Splash is scaled per victim**, so a catapult aimed at a building hits the footmen beside it with the footmen's
+  own multiplier, not the building's.
+- Walls take splash damage unscaled: the game damages a wall before it knows which units are in the blast.
+- **The computer's units use the same types.** These are global rules, not a per-player setting.
+- The mod writes one line to the log when it reads the config, so you can check what it understood:
+  `damage types: weapon siege (4 units), armor structure (43), ship (14); 2 bonuses`.
+
 ### Change or remove the hotkey
 
 `Ctrl` plus this key toggles autocast in game.
@@ -950,4 +1022,6 @@ makes the log long.
 | spell_damage | fireball, flame_shield, blizzard, death_and_decay, whirlwind, death_coil, runes, heal | -1 each | Your own damage per hit (heal: hit points per cast), -1 = the game's; limits 254 / 127 (death_coil) / 128 (runes) / 255 (heal) |
 | mana | regen | 1.0 | How fast casters regain mana (0.1 to 40). The 255 mana limit stays |
 | upgrades | missile_damage, melee_damage, shields, ship_damage, ship_armor, siege_damage | -1 each | What one upgrade level adds; -1 = the game's number (2 / 2 / 2 / 5 / 5 / 15), otherwise 0 to 100 |
+| weapon_types / armor_types | names you invent | none | Which units attack with / wear a type; entries are unit and building names or the groups structures, ships, air_units, land_units |
+| damage_bonus.WEAPON | armor type names | 1.0 | Damage multiplier for that pair (0.0 to 10.0) |
 | unit.NAME / building.NAME | hit_points, armor, basic_damage, piercing_damage, range, sight, gold, lumber, oil, build_time | -1 each | Base stats of one unit or structure type, -1 = the game's value |
