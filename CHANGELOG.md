@@ -7,6 +7,11 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.14.1 - 2026-09-20
+
+- Tutorial: `plenty_units`, `bank_multiple` and `filler_min` all count units of bank and are easy to mix up; the
+  auto-production chapter now says which is a weight, which is a gate and which is neither.
+
 ## 1.14.0 - 2026-09-20
 
 - New `[auto_production] plenty_units` (10): being able to pay for this many of a unit counts as plenty. At or above

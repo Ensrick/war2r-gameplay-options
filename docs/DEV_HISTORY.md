@@ -15,6 +15,11 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.14.1 (2026-09-20, NOT released)
+
+- The agent amended its plenty_units commit after I had merged it (our messages crossed); the delta was one tutorial
+  paragraph. The tutorial ships in the zip, so it gets its own patch version like any other change.
+
 ## 1.14.0 (2026-09-20, UNTESTED in game, NOT released)
 
 - Author: "If I can simultaneously afford to produce 10 of any unit then resource ratios don't matter, does that make
