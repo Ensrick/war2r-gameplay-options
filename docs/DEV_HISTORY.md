@@ -15,6 +15,20 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.12.0 (2026-09-20, UNTESTED in game, NOT released)
+
+- Author, in game: "I'm getting a lot of Troll Destroyers, likely because I have an abundance of gold or something."
+  The log said otherwise: bank 590000 gold / 41000 lumber but only 2200 to 2900 oil (the mod builds one tanker), 21
+  destroyers against 2 battleships started, at tier 3 where the mix wants 25 / 60. Gold cannot be it: the money factor
+  in Targets saturates at a few units' worth. The cause is PickArmyClass skipping every class that fails CanAfford
+  and taking the best AFFORDABLE deficit: a destroyer at 2920 oil (4 x 700 + the 120 reserve), so the 4120 a
+  battleship needs is never reached. Issue #26.
+- Fresh agent in its own worktree (the spell agent was busy): one pure production::Decide wrapping PickArmyClass,
+  PickFiller and the new hold, per-building SaveUp state in the serial-keyed slots, release after save_up_seconds
+  without growth of the blocked resource. It corrected two of my numbers (2920 not 2800; 21 is a cumulative count,
+  the over-share rule already refuses with that many alive). 10 mutations, 10 caught.
+- His "if I can afford 10 of any unit then resource ratios don't matter" becomes plenty_units in the next version.
+
 ## 1.11.0 (2026-09-20, UNTESTED in game, NOT released)
 
 - Author, in game on 1.10.1: "We need priority orders for autocast ... One thing that is not working at all is death

@@ -7,6 +7,18 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.12.0 - 2026-09-20
+
+- Fixed in auto-production: a cheap unit could starve a dearer one of a scarce resource for ever. With little oil, a
+  shipyard bought a destroyer every time the oil allowed one, so the oil never reached what a battleship needs and the
+  fleet ended up all destroyers, whatever the mix said. A building whose most-wanted class is short of money only now
+  keeps that resource and saves up. Classes that do not cost the blocked resource are still trained (grunts keep
+  coming while knights wait for lumber; land units never wait for oil).
+- New `[auto_production] save_up_seconds` (60): saving up ends after this long without the blocked resource growing,
+  and one unit of the cheaper class is released, so a stalled economy never stops a building. 0 = the old behaviour.
+- The log (with `log_casts`) says what a building is saving for, and "saving" is a reason in the "nothing was built"
+  line.
+
 ## 1.11.0 - 2026-09-20
 
 - New `[priority]` section: the order each caster tries its spells in (`paladin`, `mage`, `ogre_mage`,

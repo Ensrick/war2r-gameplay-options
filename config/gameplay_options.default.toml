@@ -527,6 +527,11 @@ food_free_percent = 10
 reserve_extra = 0.25
 upgrade_bias = 0.25         # each upgrade level a unit line already has raises that class's share by this much
 filler_min = 10             # nothing of the mix affordable at a building: build what the spare bank buys this often
+# A building whose most-wanted class is held back by MONEY alone keeps its money instead of spending that resource on
+# a cheaper class (a shipyard saving oil for a battleship rather than buying another destroyer). Classes that do not
+# cost that resource are still trained. It gives up after this many seconds without the blocked resource growing, so
+# a stalled economy can never stop a building. 0 = off.
+save_up_seconds = 60
 # How much of your army is ships comes from the MAP: the water fraction plus 5% per oil source (at most 30% from
 # oil), a little higher while you only have a town hall. No oil and less than 10% water = a land map, no ships.
 navy_weight = 1.0           # x that share (0 = never build ships)
