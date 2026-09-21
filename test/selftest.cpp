@@ -18,6 +18,7 @@
 #include "../src/log.h"
 #include "../src/production.h"
 #include "../src/spells.h"
+#include "../src/upgrades.h"
 #include "../src/aiwatch.h"
 #include "../src/trees.h"
 
@@ -844,6 +845,88 @@ static void SpellNumberTests(const wchar_t* dir, const wchar_t* ini) {
     ResetSpellConfig();
     spells::Sync(false);
     CHECK(AllSitesAreGame() && CostsAreGame(), "the test must leave the image as the game made it");
+}
+
+// ---- [upgrades]: the per-upgrade-group effect bytes (src/upgrades.cpp, docs/research/damage.md) ----
+static void UpgradeTests(const wchar_t* dir, const wchar_t* ini) {
+    uint8_t* table = At<uint8_t>(kRvaUpgradeEffects);
+    const int idx[kUpgradeEffectCount] = {0, 1, 2, 3, 4, 6};
+    uint8_t saved[kUpgradeEffectTableLen];
+    memcpy(saved, table, sizeof(saved));
+    const int savedCfg[kUpgradeEffectCount] = {config::g.upgradeEffect[0], config::g.upgradeEffect[1],
+                                               config::g.upgradeEffect[2], config::g.upgradeEffect[3],
+                                               config::g.upgradeEffect[4], config::g.upgradeEffect[5]};
+    auto tableIs = [&](int missile, int melee, int shields, int shipDmg, int shipArm, int siege) {
+        const int want[kUpgradeEffectCount] = {missile, melee, shields, shipDmg, shipArm, siege};
+        for (int i = 0; i < kUpgradeEffectCount; ++i)
+            if (table[idx[i]] != want[i]) return false;
+        return true;
+    };
+    // The exe's own bytes are the ones the mod knows, and entries 5 and 7..10 are never touched.
+    CHECK(tableIs(2, 2, 2, 5, 5, 15) && table[5] == 10 && table[7] == 0 && table[8] == 1 && table[9] == 0xFF &&
+              table[10] == 3,
+          "the upgrade effect table is not 02 02 02 05 05 0a 0f 00 01 ff 03");
+    const unsigned before = upgrades::WriteCount();
+    upgrades::Sync(false);
+    CHECK(upgrades::WriteCount() == before && tableIs(2, 2, 2, 5, 5, 15), "the shipped config must write no effect byte");
+    // The author's own case plus one of every other key.
+    config::g.upgradeEffect[kUpgradeSiegeDamage] = 30;
+    config::g.upgradeEffect[kUpgradeMissileDamage] = 4;
+    config::g.upgradeEffect[kUpgradeShipDamage] = 0;
+    upgrades::Sync(false);
+    CHECK(tableIs(4, 2, 2, 0, 5, 30), "[upgrades] must write the configured bytes (%u %u %u %u %u %u)", table[0], table[1],
+          table[2], table[3], table[4], table[6]);
+    CHECK(table[5] == 10 && table[8] == 1, "the dead entry 5 and the range byte must be left alone");
+    // Multiplayer: the game's own numbers, and back again afterwards.
+    upgrades::Sync(true);
+    CHECK(tableIs(2, 2, 2, 5, 5, 15), "a multiplayer game must get the game's own upgrade numbers");
+    upgrades::Sync(false);
+    CHECK(tableIs(4, 2, 2, 0, 5, 30), "and single player gets the configured ones back");
+    // -1 puts one line back without touching the others.
+    config::g.upgradeEffect[kUpgradeSiegeDamage] = -1;
+    upgrades::Sync(false);
+    CHECK(tableIs(4, 2, 2, 0, 5, 15), "-1 must restore the game's siege number only");
+    // A byte that is neither the game's nor the mod's last write is left alone for the session.
+    table[idx[kUpgradeMissileDamage]] = 99;
+    config::g.upgradeEffect[kUpgradeMissileDamage] = 6;
+    upgrades::Sync(false);
+    CHECK(table[idx[kUpgradeMissileDamage]] == 99 && LogContains(dir, "upgrades: missile_damage is 99, neither the game's 2"),
+          "a foreign effect byte must be left alone and logged (%u)", table[idx[kUpgradeMissileDamage]]);
+    table[idx[kUpgradeMissileDamage]] = 2;
+    for (int i = 0; i < kUpgradeEffectCount; ++i) config::g.upgradeEffect[i] = -1;
+    upgrades::Sync(false);
+    CHECK(tableIs(2, 2, 2, 5, 5, 15) || table[idx[kUpgradeMissileDamage]] == 2, "everything back to the game's numbers");
+    // A table that is not the one this mod knows switches the whole feature off, before anything is written.
+    table[idx[kUpgradeSiegeDamage]] = 7;
+    upgrades::ResetForTest();
+    config::g.upgradeEffect[kUpgradeSiegeDamage] = 30;
+    upgrades::Sync(false);
+    CHECK(table[idx[kUpgradeSiegeDamage]] == 7 &&
+              LogContains(dir, "upgrades: the upgrade effect table is not the one this mod knows"),
+          "a foreign effect table must switch [upgrades] off (%u)", table[idx[kUpgradeSiegeDamage]]);
+    table[idx[kUpgradeSiegeDamage]] = 15;
+    upgrades::ResetForTest();
+    config::g.upgradeEffect[kUpgradeSiegeDamage] = -1;
+    upgrades::Sync(false);
+
+    // The reader: range, typos, and the log line of the new-map hook.
+    WriteFileText(ini, "[upgrades]\nsiege_damage = 30\nmelee_damage = 101\nship_armor = -5\nbogus = 3\n");
+    CHECK(config::Init(dir), "[upgrades] config rejected");
+    CHECK(config::g.upgradeEffect[kUpgradeSiegeDamage] == 30 && config::g.upgradeEffect[kUpgradeMeleeDamage] == 100 &&
+              config::g.upgradeEffect[kUpgradeShipArmor] == -1 && config::g.upgradeEffect[kUpgradeShields] == -1,
+          "[upgrades] keys (siege %d melee %d ship_armor %d)", config::g.upgradeEffect[kUpgradeSiegeDamage],
+          config::g.upgradeEffect[kUpgradeMeleeDamage], config::g.upgradeEffect[kUpgradeShipArmor]);
+    CHECK(LogContains(dir, "unknown key [upgrades] bogus") && LogContains(dir, "[upgrades] melee_damage = 101 is outside -1..100"),
+          "an unknown [upgrades] key and an out-of-range value must be logged");
+    upgrades::OnNewMap(false);
+    CHECK(LogContains(dir, "upgrades: melee_damage 2->100 siege_damage 15->30"), "the new-map line must list what changed");
+    upgrades::Sync(true);
+    DeleteFileW(ini);
+    CHECK(config::Init(dir), "the default config did not come back");
+    for (int i = 0; i < kUpgradeEffectCount; ++i) config::g.upgradeEffect[i] = savedCfg[i];
+    upgrades::Sync(false);
+    memcpy(table, saved, sizeof(saved));
+    EnableEverythingForTests();
 }
 
 // ---- [auto_production] (src/production.cpp, docs/research/production.md) ----
@@ -4829,6 +4912,7 @@ int wmain(int argc, wchar_t** argv) {
 
     AiWatchTests();
     SpellNumberTests(dir, ini);
+    UpgradeTests(dir, ini);
     ProductionTests(dir, ini);
 
     // TOML config: a custom file is honoured, typos and bad values are survivable, a syntax error keeps old settings.

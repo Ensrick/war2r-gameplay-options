@@ -42,6 +42,13 @@ struct Priority {
     bool saveMana = true;
 };
 
+// [upgrades] keys: what one level of an upgrade line is worth. The game keeps one byte per upgrade group and
+// the damage code multiplies it by the player's level counter (docs/research/damage.md).
+enum UpgradeEffect {
+    kUpgradeMissileDamage, kUpgradeMeleeDamage, kUpgradeShields, kUpgradeShipDamage, kUpgradeShipArmor,
+    kUpgradeSiegeDamage, kUpgradeEffectCount
+};
+
 // Keys of a [unit.<name>] table, same order as config::kStatKeys.
 enum UnitStat {
     kStatHitPoints, kStatArmor, kStatBasicDamage, kStatPiercingDamage, kStatRange, kStatSight,
@@ -241,6 +248,9 @@ struct Config {
     // [auto_production] and its sub-tables: your idle production buildings train by themselves (never the computer's)
     AutoProduction production;
     Priority priority;
+
+    // [upgrades]: -1 = the game's own number for that line.
+    int upgradeEffect[kUpgradeEffectCount] = {-1, -1, -1, -1, -1, -1};
 };
 
 namespace config {
@@ -252,6 +262,7 @@ extern const char* const kSpellCostKeys[kSpellCostCount];
 extern const char* const kSpellDamageKeys[kSpellDamageCount];
 extern const char* const kProductionClassKeys[kProdClassCount];
 extern const char* const kCasterKindKeys[kCasterKindCount];
+extern const char* const kUpgradeEffectKeys[kUpgradeEffectCount];
 
 // Loads <dir>\gameplay_options.toml, writing the default file first if it is missing.
 // Returns false when the file has a syntax error (the previous / default settings stay in force).

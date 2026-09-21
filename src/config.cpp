@@ -377,6 +377,8 @@ static void ReadAutoProduction(const toml::table& root, Config& c) {
 }
 
 const char* const kCasterKindKeys[kCasterKindCount] = {"paladin", "mage", "ogre_mage", "death_knight"};
+const char* const kUpgradeEffectKeys[kUpgradeEffectCount] = {"missile_damage", "melee_damage", "shields",
+                                                             "ship_damage",    "ship_armor",   "siege_damage"};
 
 // [priority]: one list of spell names per caster, plus save_mana. A name that is misspelled or belongs to another
 // caster is logged and dropped; the caster's own spells that the list leaves out are appended in the default order,
@@ -525,6 +527,7 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"mana", " regen "},
         {"auto_production", nullptr},  // validates its own keys and sub-tables
         {"priority", " save_mana paladin mage ogre_mage death_knight "},
+        {"upgrades", " missile_damage melee_damage shields ship_damage ship_armor siege_damage "},
     };
     for (const auto& [sectionKey, sectionNode] : root) {
         const std::string section(sectionKey.str());
@@ -626,6 +629,10 @@ static bool Load() {
     ReadInt(root, "unit_regen", "hp_per_second", 0, 1000, c.unitRegenPerSecond);
     ReadRegenFor(root, "unit_regen", c.unitRegenMineOnly);
     ReadHeroes(root, c);
+    // [upgrades]: -1 keeps the game's number, otherwise 0..100 (the damage path clamps at 255 and a level
+    // counter reaches 2, so no product can wrap).
+    for (int i = 0; i < kUpgradeEffectCount; ++i)
+        ReadInt(root, "upgrades", kUpgradeEffectKeys[i], -1, 100, c.upgradeEffect[i]);
     ReadPriority(root, c);
     ReadAutoProduction(root, c);
     g = c;

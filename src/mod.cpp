@@ -10,6 +10,7 @@
 #include "log.h"
 #include "production.h"
 #include "spells.h"
+#include "upgrades.h"
 #include "trees.h"
 #include "tweaks.h"
 #include "workers.h"
@@ -103,6 +104,7 @@ void __cdecl OnTick() {
     // A savegame can be loaded without a new map ever starting, so this cannot live in the map-load hook alone.
     datatweaks::SyncRangeBonus(*At<uint32_t>(kRvaNetGame) != 0);
     spells::Sync(*At<uint32_t>(kRvaNetGame) != 0);
+    upgrades::Sync(*At<uint32_t>(kRvaNetGame) != 0);
 
     // Everything below changes game state locally. In a network game that desyncs the match, so nothing runs.
     if (*At<uint32_t>(kRvaNetGame) != 0) {

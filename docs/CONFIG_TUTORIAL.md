@@ -799,6 +799,33 @@ Good to know:
 - With `[general] log_casts = true` a caster that is saving writes one line every 30 seconds:
   `saving: death_knight at 46,33 mana 60 for death_and_decay (needs 90)`.
 
+### What an upgrade is worth
+
+Every weapon, armor and siege upgrade adds a fixed number per level, and that number is one byte per upgrade line.
+`[upgrades]` changes those bytes. `-1` means "leave the game's own number".
+
+```toml
+[upgrades]
+missile_damage = -1   # archers, rangers, axethrowers, berserkers: piercing per level (the game: 2)
+melee_damage   = -1   # everything that swings: basic damage per level (2)
+shields        = -1   # armor per level for land units (2)
+ship_damage    = -1   # ship cannons: basic damage per level for ships (5)
+ship_armor     = -1   # armor per level for ships (5)
+siege_damage   = 30   # catapults and ballistas: basic damage per level (15)
+```
+
+With `siege_damage = 30` a fully upgraded catapult gets +60 basic damage instead of +30. The numbers run from 0
+(the upgrade still costs and still shows, but adds nothing) to 100. The range upgrade is not here: it lives in
+`[range] upgrade_bonus`, because the game adds it as a fixed +1 in code rather than from this table.
+
+Good to know:
+
+- **The computer's units get the same numbers.** These are the game's own tables, not a per-player setting.
+- The status panel prints level x this number, so a unit's displayed damage matches what it deals.
+- Multiplayer: the game's own numbers are put back for the whole session, like every other data change.
+- Both halves of a hit react differently to armor: **piercing ignores armor, basic is reduced by it**. That is the
+  whole of this game's "damage types": there is no table of bonuses against buildings, ships or flyers.
+
 ### Change or remove the hotkey
 
 `Ctrl` plus this key toggles autocast in game.
@@ -922,4 +949,5 @@ makes the log long.
 | spell_damage | all | 1.0 | Multiplies every damage number and the heal limit; makes heal and exorcism cheaper per hit point |
 | spell_damage | fireball, flame_shield, blizzard, death_and_decay, whirlwind, death_coil, runes, heal | -1 each | Your own damage per hit (heal: hit points per cast), -1 = the game's; limits 254 / 127 (death_coil) / 128 (runes) / 255 (heal) |
 | mana | regen | 1.0 | How fast casters regain mana (0.1 to 40). The 255 mana limit stays |
+| upgrades | missile_damage, melee_damage, shields, ship_damage, ship_armor, siege_damage | -1 each | What one upgrade level adds; -1 = the game's number (2 / 2 / 2 / 5 / 5 / 15), otherwise 0 to 100 |
 | unit.NAME / building.NAME | hit_points, armor, basic_damage, piercing_damage, range, sight, gold, lumber, oil, build_time | -1 each | Base stats of one unit or structure type, -1 = the game's value |

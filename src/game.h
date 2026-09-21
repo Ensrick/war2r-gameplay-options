@@ -85,6 +85,11 @@ constexpr uint32_t kRvaArmorByType = 0x517F90;       // uint8[110]
 constexpr uint32_t kRvaBasicDamageByType = 0x5180E0; // uint8[110]
 constexpr uint32_t kRvaPiercingDamageByType = 0x518150;  // uint8[110]
 constexpr uint32_t kRvaResearchTime = 0x5188A8;      // uint8[52], PUD UGRD order
+// Per-upgrade-group effect bytes: the damage code reads counter[owner] * this byte (0x4BDA8B missile, 0x4BDBA1
+// melee, 0x4BD7CA shields, 0x4BDB3D ship cannons, 0x4BD7BA ship armor, 0x4BDB67 siege). Nothing in the game writes
+// the table: a sweep of .text finds no instruction with a destination in 0x8C1100..0x8C1300 (docs/research/damage.md).
+constexpr uint32_t kRvaUpgradeEffects = 0x4C11DC;      // uint8[11], index = upgrade group
+constexpr int kUpgradeEffectTableLen = 11;
 constexpr uint32_t kRvaRangeBonusDisplay = 0x4C11E4; // uint8, entry 8 of the per-upgrade-group effect table 0x8C11DC: what both
                                                      // status panels multiply the longbow / lighter axes counter by
 constexpr uint32_t kRvaGoldCostByType = 0x517980;    // uint8[110], price / 10

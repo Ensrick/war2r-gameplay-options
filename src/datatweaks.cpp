@@ -13,6 +13,7 @@
 #include "trees.h"
 #include "tweaks.h"
 #include "units.h"
+#include "upgrades.h"
 #include "world.h"
 
 using namespace game;
@@ -148,6 +149,7 @@ void OnNewMapTablesLoaded() {
     const bool multiplayer = *At<uint8_t>(kRvaNetGameAtLoad) != 0;
     SyncRangeBonus(multiplayer);
     spells::OnNewMap(multiplayer);
+    upgrades::OnNewMap(multiplayer);
     if (multiplayer) {
         logx::Write("map load: multiplayer game, data tables left alone");
         return;
