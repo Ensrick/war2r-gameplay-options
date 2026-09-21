@@ -578,6 +578,7 @@ food_free_percent = 10      # 10 % of your supply, whichever is more
 reserve_extra = 0.25        # money kept back for upgrades (below)
 upgrade_bias = 0.25         # a line with upgrades gets a bigger share (below)
 filler_min = 10             # spare money for this many units unblocks the filler rule (below)
+save_up_seconds = 60        # how long a building keeps its money for a unit it cannot pay for yet (below)
 navy_weight = 1.0           # how much of the map's water turns into ships (0 = never build ships)
 navy_max = 80               # ships are never more than this much of the army, in percent
 workers_ignore_reserve = true  # workers only wait for their own price, never for the upgrade reserve
@@ -662,6 +663,24 @@ Four things bend them:
 A building whose classes are all well past their share (more than 2 units and more than 25 % over) waits instead, so
 the money goes to whatever is behind.
 
+**Saving up for what you cannot pay for yet.** A shipyard can afford a destroyer long before it can afford a
+battleship, and both are paid for in the same scarce oil: left alone it buys destroyer after destroyer, the oil never
+reaches a battleship's price, and the fleet ends up all destroyers however much of the mix belongs to battleships.
+So when the class that is furthest behind its share is held back **by money alone**, the building keeps its money
+instead of spending that resource on a cheaper class. Only money counts: a class you may not build yet, one at its
+`no_enemy_navy_cap` ceiling and the food rule are other things entirely, and never make a building wait.
+
+**A class that does not cost the blocked resource is built as before**, so a gold-rich, lumber-poor game keeps making
+grunts while its knights wait, and no land unit ever waits for oil. And saving never becomes a deadlock:
+`save_up_seconds` (60 by default) is how long the building goes on waiting **without the blocked resource growing**.
+While the oil is still coming in it waits as long as it takes; once the oil stands still for a minute it gives up,
+builds the best thing it can afford, and starts over. `save_up_seconds = 0` turns the whole rule off. With
+`log_casts = true` the log says what is happening:
+
+```
+production: saving oil for battleship (have 2950, need 4120)
+```
+
 **When the enemy has no navy, neither do you.** While no hostile player owns a shipyard or a warship anywhere on the
 map, the mod holds at most **1 oil tanker, 5 destroyers, 2 battleships / juggernaughts and 2 submarines** and builds
 no further ships, however much water there is; the share that would have gone to ships goes to your land army
@@ -701,7 +720,8 @@ Good to know:
   `off` (switched off), `mission` (the map forbids it), `prereq` (a building or upgrade is missing), `busy` /
   `waiting` (the building is working, or waiting out a failed start), `food`, `gold` / `lumber` / `oil` (the price
   itself), `reserve` (the upgrade reserve), `bank` (affordable, but not `bank_multiple` times over), `no platform`
-  (the tanker), and `enough` with the mix deficit when there are simply enough of them already.
+  (the tanker), `saving` (the building could pay for it, but is keeping that resource for a class further behind its
+  share), and `enough` with the mix deficit when there are simply enough of them already.
 
 ### Change or remove the hotkey
 
@@ -807,6 +827,7 @@ makes the log long.
 | auto_production | reserve_extra | 0.25 | Bank kept for upgrades: the dearest purchasable one + this much of the rest |
 | auto_production | upgrade_bias | 0.25 | Extra share per upgrade level of a class's line |
 | auto_production | filler_min | 10 | Spare money for this many units before the filler rule builds off-mix |
+| auto_production | save_up_seconds | 60 | A building keeps its money for the class furthest behind its share instead of spending that resource on a cheaper one; it gives up after this many seconds without the resource growing (0 to 600, 0 = never save up) |
 | auto_production | navy_weight | 1.0 | Scales the ship share the map asks for; 0 = never build ships |
 | auto_production | navy_max | 80 | Ships never take more than this much of the army, in percent |
 | auto_production | workers_ignore_reserve | true | Workers wait for their own price only, never for the upgrade reserve or bank_multiple |

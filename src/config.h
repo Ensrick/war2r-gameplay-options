@@ -70,6 +70,10 @@ struct AutoProduction {
     double reserveExtra = 0.25;       // bank kept for upgrades: the dearest one + this x all the others
     double upgradeBias = 0.25;        // each upgrade level of a class's line raises its share by this much
     int fillerMin = 10;               // nothing of the mix affordable here: build what the bank buys this many of
+    // The class furthest behind its share cannot be paid for, and a cheaper one at the same building would spend the
+    // very resource it is waiting for: the building keeps its money instead. Gives up after this many seconds without
+    // that resource growing, so a stalled economy can never deadlock a building. 0 = never save up.
+    int saveUpSeconds = 60;
     double navyWeight = 1.0;          // x the navy share the map asks for
     int navyMax = 80;                 // percent of the army, ships at most
     bool unitClass[kProdClassCount] = {true, true, true, true, true, true, true, true, true, true, true};

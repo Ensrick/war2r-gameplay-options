@@ -78,6 +78,34 @@ bool WantTanker(const Plan&, const AutoProduction&, bool ownsOilPlatform);
 bool FoodAllows(const Plan&, const AutoProduction&);
 void Commit(Plan&, int cls);  // book a start: count, bank, food
 
+// ---- Saving up: a cheap class must not eat the resource a dearer one of the same building waits for ----
+//
+// PickArmyClass skips everything it cannot pay for, so the class furthest behind its share can starve for ever
+// behind a cheaper one that spends the same scarce resource: a shipyard buys a destroyer the moment the oil passes
+// 4 x 700 + reserve, the oil falls back, and the 4 x 1000 + reserve a battleship wants is never reached, however
+// much of the mix belongs to battleships. When the wanted class is held back by MONEY ALONE (food, ceilings and
+// prerequisites are other gates and none of this rule's business), the building keeps its money instead of spending
+// that resource on a cheaper class. A class that does not cost the blocking
+// resource is still built, so a gold-rich, lumber-poor game keeps making grunts while its knights wait, and land
+// units never wait for oil.
+struct SaveUp {
+    int resource = -1;     // the resource being saved for, -1 = not saving
+    int mark = 0;          // how much of it the bank held at the last check
+    unsigned sinceMs = 0;  // play time when it last grew: the deadlock timer runs from here
+};
+struct Decision {
+    int cls = -1;           // what to start at this building, -1 = nothing
+    int saveResource = -1;  // -1 = not saving; otherwise the resource, the class waited for and the numbers, for the log
+    int saveClass = -1;
+    int have = 0, need = 0;
+};
+// The resource that keeps `cls` out of CanAfford's reach (the tightest one, the same one Buys measures), or -1 when
+// money is not what stops it.
+int BlockingResource(const Plan&, const AutoProduction&, int cls);
+// The whole decision for one idle building: the mix, the filler and the saving rule above. `state` is that building's
+// own saving state (the engine keeps one per building slot), `nowMs` is play time. Pure but for `state`.
+Decision Decide(const Plan&, const AutoProduction&, unsigned candidates, SaveUp& state, unsigned nowMs);
+
 // ---- Engine side ----
 void OnNewMap();                                        // forget the cached map profile (water, oil, navy share)
 void OnTick(const game::World& w, unsigned elapsedMs);  // one pass per second of play time
