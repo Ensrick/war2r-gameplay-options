@@ -7,6 +7,17 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.16.0 - 2026-09-21
+
+- New: weapon types and armor types you define yourself. `[weapon_types]` and `[armor_types]` map names you invent to
+  lists of units and buildings (or the ready-made groups `structures`, `ships`, `air_units`, `land_units`), and
+  `[damage_bonus.<weapon type>]` gives each pair a multiplier from 0.0 to 10.0. Example in the file: siege weapons at
+  x2 against structures and x1.5 against ships. Everything you leave out stays x1.0 and the sections ship empty.
+- Splash damage (catapults, ballistas, cannon towers, ship guns) is scaled per victim: a shot aimed at a building hits
+  the footmen next to it with their own multiplier. Spells are never affected. Walls take splash unscaled.
+- The game itself has no armor types (docs/research/damage.md): this adds them. The computer's units follow the same
+  types. Single player only: in multiplayer the hooks pass every hit through untouched.
+
 ## 1.15.0 - 2026-09-21
 
 - New `[upgrades]` section: what one level of an upgrade adds. `missile_damage` (2), `melee_damage` (2), `shields`

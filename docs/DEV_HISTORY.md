@@ -15,6 +15,23 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.16.0 (2026-09-21, UNTESTED in game, NOT released)
+
+- Author, after reading that the engine has no armor types: "being able to create a system where we can assign units
+  a type of armor, and then setup bonuses for/against that armor", "we need to allow players to define their own
+  weapon and armor types and what bonuses they get". This replaced my four fixed vs_ keys before they were built.
+- Four call-site hooks, three callees, all or none, byte-verified: melee 0x4A89D0 and missile 0x4AEEFB (roll
+  0x4BD770, target = attacker+0x88), tower 0x4AF8FF (0x4BDC20, target is the second argument) and the per-victim
+  splash call 0x4AFC2A inside FUN_004afb50 (0x4BD8F0(source, victim, damage)). The splash thunk is naked: the missile
+  is in EBX there. My re-check against the exe before merging: EBX is loaded once at 0x4AFB60 and only read up to the
+  call; the pushes are damage, victim, source; FUN_004bdc20 takes the attacker first; the splash-weapon table
+  0x8C090C is set for exactly 7, 13, 14, 24. I walked the thunk's stack arithmetic by hand: correct.
+- Splash is exact per victim, which I had asked the agent to evaluate: the two splash CREATION sites are not hooked
+  at all. Spells are excluded by the game's own table rather than by a list of ours.
+- Known behaviour: TOML tables iterate alphabetically, so when a unit is claimed twice the type whose NAME sorts first
+  wins, and the log says so. Walls take splash unscaled (damaged before the per-victim loop).
+- 12 mutations, 12 caught. His config: siege = ballista, catapult, both cannon towers; x2 structures, x1.5 ships.
+
 ## 1.15.0 (2026-09-21, UNTESTED in game, NOT released)
 
 - Author: "Let's make the damage bonus from upgrades configurable ... I will be using it to double the bonus given to

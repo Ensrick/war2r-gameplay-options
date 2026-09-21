@@ -520,6 +520,23 @@ ship_damage    = -1   # ship cannons: basic damage per level (5)
 ship_armor     = -1   # armor per level for ships (5)
 siege_damage   = -1   # catapults and ballistas: basic damage per level (15)
 
+# Warcraft II has no armor types: damage is basic minus the target's armor, plus piercing, which ignores armor. These
+# three sections add the system the game is missing. Invent the names, list who carries them, then give each pair a
+# multiplier. Lists take the [unit.NAME] / [building.NAME] names plus the groups "structures", "ships", "air_units"
+# and "land_units"; a unit named on its own beats a group. A unit has one weapon type and one armor type. Anything you
+# leave out is x1.0, spells are never affected, splash is scaled per victim, and the computer's units follow the same
+# types. Up to 32 weapon types and 32 armor types, multipliers 0.0 to 10.0. Single player only.
+[weapon_types]
+# siege = ["ballista", "catapult", "human_cannon_tower", "orc_cannon_tower"]
+
+[armor_types]
+# structure = ["structures"]
+# ship      = ["ships"]
+
+# [damage_bonus.siege]     # one table per weapon type: armor type = multiplier
+# structure = 2.0
+# ship      = 1.5
+
 # ==============================================================================================================
 #  11. AUTO-PRODUCTION
 # ==============================================================================================================

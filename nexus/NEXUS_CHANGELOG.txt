@@ -1,3 +1,10 @@
+[size=4][b]1.16.0[/b][/size]
+[list]
+[*]New: weapon types and armor types you define yourself. [weapon_types] and [armor_types] map names you invent to lists of units and buildings (or the ready-made groups structures, ships, air_units, land_units), and [damage_bonus.<weapon type>] gives each pair a multiplier from 0.0 to 10.0. Example in the file: siege weapons at x2 against structures and x1.5 against ships. Everything you leave out stays x1.0 and the sections ship empty.
+[*]Splash damage (catapults, ballistas, cannon towers, ship guns) is scaled per victim: a shot aimed at a building hits the footmen next to it with their own multiplier. Spells are never affected. Walls take splash unscaled.
+[*]The game itself has no armor types (docs/research/damage.md): this adds them. The computer's units follow the same types. Single player only: in multiplayer the hooks pass every hit through untouched.
+[/list]
+
 [size=4][b]1.15.0[/b][/size]
 [list]
 [*]New [upgrades] section: what one level of an upgrade adds. missile_damage (2), melee_damage (2), shields (2), ship_damage (5), ship_armor (5), siege_damage (15, catapults and ballistas); -1 keeps the game's number, otherwise 0 to 100. The unit panel in game shows the new bonus. These are the game's own tables, so the computer gets the same numbers. Single player only; the game's numbers come back in multiplayer.

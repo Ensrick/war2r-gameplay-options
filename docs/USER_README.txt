@@ -31,6 +31,10 @@ WHAT IT DOES
 OUT OF THE BOX only this is switched on:
   - Autocast for Heal, Slow, Bloodlust and Raise Dead.
   - Idle workers repair damaged buildings nearby.
+NEW IN 1.16: weapon types and armor types of your own. Warcraft II has none; [weapon_types], [armor_types] and
+[damage_bonus.NAME] let you invent them and set what each weapon does against each armor (for example siege weapons
+at double damage against buildings).
+
 NEW IN 1.15: [upgrades]. What one level of each weapon, armor, ship and siege upgrade adds is yours to set.
 
 NEW IN 1.11: [priority]. You decide the order each caster tries its spells in, and with save_mana a caster saves up
