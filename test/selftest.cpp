@@ -1432,6 +1432,55 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
         const Decision d = Decide(starving, defaults, kYard, foodState, 0);
         CHECK(d.cls == -1 && d.saveResource == -1 && foodState.resource == -1, "(g) nor is the food rule");
     }
+    // plenty_units: once the bank buys that many of every class of a group, the resource ratios play no part at all
+    // and the mix is the configured weights. Two banks with nothing in common must give the very same targets.
+    {
+        CHECK(defaults.plentyUnits == 10, "plenty_units defaults to 10 (%d)", defaults.plentyUnits);
+        Plan rich = CorePlan(3);
+        rich.navyShare = 0.5;
+        rich.bank = {{590000, 41000, 30000}};  // his bank: gold to burn, and oil is the thin one
+        Plan lean = rich;
+        lean.bank = {{30000, 30000, 30000}};  // 13 gryphons is the tightest of these, still over plenty_units
+        double a[kProdClassCount], b[kProdClassCount];
+        Targets(rich, defaults, a);
+        Targets(lean, defaults, b);
+        double landShares = 0, navyShares = 0;
+        for (int c = 0; c < kProdClassCount; ++c) {
+            landShares += GroupOf(c) == kGroupLand ? defaults.land[2][c] : 0;
+            navyShares += GroupOf(c) == kGroupNavy ? defaults.navy[2][c] : 0;
+        }
+        bool same = true, pure = true;
+        for (int c = 0; c < kProdClassCount; ++c) {
+            same = same && fabs(a[c] - b[c]) < 1e-9;
+            if (GroupOf(c) == kGroupNone) continue;
+            const bool navy = GroupOf(c) == kGroupNavy;
+            const double share = navy ? defaults.navy[2][c] : defaults.land[2][c];
+            pure = pure && fabs(a[c] - share / (navy ? navyShares : landShares) * 0.5) < 1e-9;
+            CHECK(Buys(rich, c) >= defaults.plentyUnits && Buys(lean, c) >= defaults.plentyUnits,
+                  "both banks must buy plenty of every class for this test to mean anything (%s: %.1f / %.1f)",
+                  config::kProductionClassKeys[c], Buys(rich, c), Buys(lean, c));
+        }
+        CHECK(same && pure, "plenty of everything: the mix is the configured weights, whatever the bank looks like");
+    }
+    // Below that line a class's share shrinks in proportion to what the bank buys of it.
+    {
+        Plan p = CorePlan(2);
+        p.bank = {{200000, 300, 0}};  // gold to burn; the lumber buys exactly 6 archers, and grunts need none
+        AutoProduction six, twenty;
+        six.plentyUnits = 6;
+        twenty.plentyUnits = 20;
+        double a[kProdClassCount], b[kProdClassCount], c[kProdClassCount];
+        Targets(p, six, a);
+        Targets(p, defaults, b);
+        Targets(p, twenty, c);
+        CHECK(fabs(a[kProdArchers] / a[kProdInfantry] - 25.0 / 10.0) < 1e-9,
+              "six archers and plenty_units 6: the archers' full 25 %% against the infantry's 10 %% (%.2f)",
+              a[kProdArchers] / a[kProdInfantry]);
+        CHECK(fabs(b[kProdArchers] / b[kProdInfantry] - 25.0 / 10.0 * 6 / 10) < 1e-9 &&
+                  fabs(c[kProdArchers] / c[kProdInfantry] - 25.0 / 10.0 * 6 / 20) < 1e-9,
+              "and 6/10 or 6/20 of it when the setting asks for more (%.2f, %.2f)", b[kProdArchers] / b[kProdInfantry],
+              c[kProdArchers] / c[kProdInfantry]);
+    }
     // upgrade_bias: a line with 4 upgrade levels takes a bigger share; bias 0 ignores upgrades.
     {
         Plan p = CorePlan(1);
@@ -2056,7 +2105,7 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
     WriteFileText(ini,
                   "[auto_production]\nenabled = true\ntoggle_key = \"F11\"\nworkers_tier1 = 5\nworkers_tier2 = 7\nworkers_tier3 = 201\nfood_free_min = 6\n"
                   "food_free_percent = 15\nreserve_extra = 0.5\nupgrade_bias = 0\nfiller_min = 20\nsave_up_seconds = 120\n"
-                  "navy_weight = 0.5\nnavy_max = 40\n"
+                  "plenty_units = 101\nnavy_weight = 0.5\nnavy_max = 40\n"
                   "bogus = 1\n"
                   "[auto_production.units]\nsiege = false\nsubmarines = false\nsappers = true\n"
                   "[auto_production.bank_multiple]\nall = 2.5\nknights = 8\nflyers = 0\n"
@@ -2072,6 +2121,8 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
               "[auto_production] keys");
         CHECK(c.workersTier[2] == 200 && LogContains(dir, "[auto_production] workers_tier3 = 201 is outside 0..200, using 200"),
               "a worker target above 200 is clamped and logged (%d)", c.workersTier[2]);
+        CHECK(c.plentyUnits == 100 && LogContains(dir, "[auto_production] plenty_units = 101 is outside 1..100, using 100"),
+              "plenty_units is a whole number from 1 to 100 (%d)", c.plentyUnits);
         CHECK(!c.unitClass[kProdSiege] && !c.unitClass[kProdSubmarines] && c.unitClass[kProdInfantry], "[auto_production.units]");
         CHECK(c.classBankMultiple[kProdKnights] == 8 && c.classBankMultiple[kProdFlyers] == 0 &&
                   LogContains(dir, "[auto_production.bank_multiple] flyers must be a number"),
@@ -2081,7 +2132,8 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
               "[auto_production.land_tier2] / [.navy_tier1]: 101 refused, a ship class is not a land key");
         CHECK(LogContains(dir, "unknown key [auto_production] bogus") && LogContains(dir, "unknown key [auto_production.units] sappers") &&
                   LogContains(dir, "unknown key [auto_production.land_tier2] destroyers") &&
-                  !LogContains(dir, "unknown key [auto_production] save_up_seconds"),
+                  !LogContains(dir, "unknown key [auto_production] save_up_seconds") &&
+                  !LogContains(dir, "unknown key [auto_production] plenty_units"),
               "auto_production typos must be logged, and a real key must never be one");
         CHECK(c.noEnemyNavyCap[kProdDestroyers] == 8 && c.noEnemyNavyCap[kProdBattleships] == 2 &&
                   c.noEnemyNavyCap[kProdKnights] == 3 && c.noEnemyNavyCap[kProdTankers] == 1 &&
@@ -2090,6 +2142,10 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
                   LogContains(dir, "unknown key [auto_production.no_enemy_navy_cap] galleys"),
               "[auto_production.no_enemy_navy_cap]: read, 201 refused, a class left out stays uncapped");
     }
+    WriteFileText(ini, "[auto_production]\nplenty_units = 25\nsave_up_seconds = 0\n");
+    CHECK(config::Init(dir) && config::g.production.plentyUnits == 25 && config::g.production.saveUpSeconds == 0,
+          "a value in range reads through, and save_up_seconds = 0 is a value, not a missing key (%d, %d)",
+          config::g.production.plentyUnits, config::g.production.saveUpSeconds);
     DeleteFileW(ini);
     CHECK(config::Init(dir), "default config did not come back");
     CHECK(!config::g.production.enabled, "the shipped file keeps auto-production off");

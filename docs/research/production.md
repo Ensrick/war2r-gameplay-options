@@ -448,9 +448,13 @@ the resource yourself lowers the mark without restarting the clock. The state is
 the back-off) and `OnNewMap` clears it, so nothing carries into the next map or a loaded game.
 
 Not a "resource cap": a huge bank does NOT bend the mix. In `Targets` the per-class money factor is
-`min(Buys / 5, 1)`, so everything from five units' worth upwards weighs the same; `CanAfford` is a threshold, not a
-score; and `PickFiller`, the only place that compares raw `Buys`, is reached only when no candidate has a target at
-all (every one of them below one price after the reserve), which a rich player never is.
+`min(Buys / plenty_units, 1)` (`[auto_production] plenty_units`, 10 by default, 1..100; it was a built-in 5 before
+1.11), so everything from ten units' worth upwards weighs the same and the mix is the configured shares alone;
+`CanAfford` is a threshold, not a score; and `PickFiller`, the only place that compares raw `Buys`, is reached only
+when no candidate has a target at all (every one of them below one price after the reserve), which a rich player
+never is. Below the line the factor is linear, so the weights stay proportional to what the bank buys, and because
+each group is renormalised over its own classes, a `plenty_units` every class of a group is under cancels out
+entirely: it only moves the mix where some classes are over the line and others are not.
 
 ## Recommended way for the mod to train a unit
 

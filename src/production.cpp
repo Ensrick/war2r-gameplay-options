@@ -99,6 +99,10 @@ int ArmySize(const Plan& plan) {
 
 void Targets(const Plan& plan, const AutoProduction& cfg, double target[kProdClassCount]) {
     const int tier = plan.tier < 1 ? 1 : (plan.tier > kProdTiers ? kProdTiers : plan.tier);
+    // Being able to buy plenty_units of a class is as good as being able to buy a thousand: above that line money
+    // stops counting and the mix is the configured shares alone. Below it a class's share shrinks in proportion to
+    // what the bank buys of it, so a resource you have run out of moves the army towards what you can still pay for.
+    const double plenty = cfg.plentyUnits > 0 ? cfg.plentyUnits : 1;
     double weight[kProdClassCount] = {};
     double groupTotal[2] = {0, 0};
     for (int c = 0; c < kProdClassCount; ++c) {
@@ -108,7 +112,7 @@ void Targets(const Plan& plan, const AutoProduction& cfg, double target[kProdCla
         if (g == kGroupNone || !plan.trainable[c] || !UnderCap(plan, c)) continue;
         const int share = g == kGroupNavy ? cfg.navy[tier - 1][c] : cfg.land[tier - 1][c];
         if (share <= 0) continue;
-        double money = Buys(plan, c) / 5.0;
+        double money = Buys(plan, c) / plenty;
         if (money > 1) money = 1;
         weight[c] = share * (1.0 + cfg.upgradeBias * plan.levels[c]) * money;
         groupTotal[g] += weight[c];
