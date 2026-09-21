@@ -78,6 +78,26 @@ buildings and two units beat four units. One building is reason enough to cast; 
 `area_min_enemies` units, so a building and a unit are a valid target while two lone units are not. A building is
 aimed at the middle of its footprint, so a 4x4 castle takes the wave on its centre and not on one corner.
 
+**The aim walks around your own units.** The waves do not all land on the aim tile: death and decay scatters its
+clouds 2 tiles either side of it, blizzard its chains from 1.5 tiles before to 2.5 tiles past it. So when your own
+army is in contact with the enemy the mod does not give the cast up, it moves the aim to the far side of the target
+and lets the scatter do the rest: the building or the group is still hit, and nothing of yours is within
+`area_friendly_clearance` tiles of the aim. Only when no such spot is left is the spell held back.
+
+```toml
+[autocast]
+area_friendly_clearance = 4   # tiles around the aim tile that must hold nothing of yours (0 to 6, default 4)
+```
+
+| Value | What it means |
+|---|---|
+| 4 (default) | Nothing of yours can be touched. The furthest impact is 2 tiles (64 px) from the aim and its splash reaches 42 px, so 106 px in all: a unit 4 tiles away (128 px) is out of reach. |
+| 3 | 96 px against those 106 px: a unit exactly 3 tiles away can catch a quarter hit (about a sixth of the damage) from the outermost cloud. Rare, and it buys a lot more casts. |
+| 0 | Your own units are ignored, the way the computer plays it. Expect losses. |
+
+The watchdog that stops a running channel uses the same number, so raising it also makes a channel end sooner when
+one of your units walks in. Walls keep their own 3 tiles.
+
 **No overkill on buildings.** One wave takes roughly 5 x the spell's damage number off a structure it is aimed at
 (about 50 hit points with the game's 10, more if you raised it in `[spell_damage]`), so the mod does not start a
 channel on buildings a single wave would already flatten, and it stops one as soon as the waves it has paid for cover
@@ -829,6 +849,7 @@ makes the log long.
 | autocast | cast_while_attacking | true | Casters may interrupt their own attack to cast |
 | autocast | area_min_enemies | 3 | Enemy units within 2 tiles of the target before Blizzard, Death and Decay or Whirlwind is cast, when no enemy building is in the blast (1 to 50) |
 | autocast | area_building_value | 3 | What an enemy building in the blast is worth in units when the spot is picked (1 to 20) |
+| autocast | area_friendly_clearance | 4 | Tiles around a Blizzard / Death and Decay aim tile that must hold nothing of yours (0 to 6) |
 | autocast | fireball_min_enemies | 2 | Enemies the Fireball's burning line must hit; 1 = the computer's own rule (1 to 50) |
 | autocast | channel_mana_reserve | 0 | A Blizzard / Death and Decay the mod started stops below this mana; 0 = until empty (0 to 255) |
 | spells | heal, slow, bloodlust, raise_dead | true | One switch per spell |
