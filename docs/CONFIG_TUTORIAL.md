@@ -598,6 +598,7 @@ food_free_percent = 10      # 10 % of your supply, whichever is more
 reserve_extra = 0.25        # money kept back for upgrades (below)
 upgrade_bias = 0.25         # a line with upgrades gets a bigger share (below)
 filler_min = 10             # spare money for this many units unblocks the filler rule (below)
+plenty_units = 10           # able to buy this many of a unit = rich enough that its price stops bending the mix
 save_up_seconds = 60        # how long a building keeps its money for a unit it cannot pay for yet (below)
 navy_weight = 1.0           # how much of the map's water turns into ships (0 = never build ships)
 navy_max = 80               # ships are never more than this much of the army, in percent
@@ -640,6 +641,19 @@ always want twice their number.
 **The mix numbers are weights.** Only the ratios count: `75 / 20 / 5` and `15 / 4 / 1` build the same army, and a
 tier's numbers need not add up to 100. Each class's weight is its number times its upgrade bonus times how affordable
 it is right now; land and ships are weighed separately, so raising a ship number never starves your land army.
+
+**When you are rich, prices stop counting: `plenty_units`.** If you could pay for ten of something, being able to pay
+for a hundred of it does not make it any more worth building. So a class your spare bank (what is left after the
+upgrade reserve) buys `plenty_units` of or more is at its **full** configured share, and the ratios between your
+gold, lumber and oil play no part at all: with plenty of everything the army comes out exactly as
+`land_tierN` / `navy_tierN` say. Only below that line does money bend the mix, and it bends it in proportion: a class
+the bank buys 3 of at `plenty_units = 10` gets three tenths of its share, and the rest goes to the classes you can
+still pay for. Lower it (say 5) to let a thin bank matter longer; raise it to make the mod insist on being properly
+rich before it treats a class as freely available.
+
+`plenty_units` and `filler_min` sound alike and do different jobs: `plenty_units` shapes the **mix** while the mix is
+working, and `filler_min` only comes into it when the mix has **nothing** a building can afford at all, as the size
+of bank that then justifies building off-mix. Changing one does not change the other.
 
 **Ships come from the map.** On the first pass of a map the mod counts the water tiles and the oil patches and
 platforms on it, and writes what it found to the log:
@@ -889,7 +903,8 @@ makes the log long.
 | auto_production | food_free_min / food_free_percent | 4 / 10 | Food always left free: the larger of the two |
 | auto_production | reserve_extra | 0.25 | Bank kept for upgrades: the dearest purchasable one + this much of the rest |
 | auto_production | upgrade_bias | 0.25 | Extra share per upgrade level of a class's line |
-| auto_production | filler_min | 10 | Spare money for this many units before the filler rule builds off-mix |
+| auto_production | filler_min | 10 | Spare money for this many units before the filler rule builds off-mix (only when the mix has nothing affordable) |
+| auto_production | plenty_units | 10 | Spare money for this many of a class = its full share in the mix; below that its share shrinks in proportion (1 to 100) |
 | auto_production | save_up_seconds | 60 | A building keeps its money for the class furthest behind its share instead of spending that resource on a cheaper one; it gives up after this many seconds without the resource growing (0 to 600, 0 = never save up) |
 | auto_production | navy_weight | 1.0 | Scales the ship share the map asks for; 0 = never build ships |
 | auto_production | navy_max | 80 | Ships never take more than this much of the army, in percent |

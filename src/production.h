@@ -62,7 +62,8 @@ bool CanAfford(const Plan&, const AutoProduction&, int cls);
 bool CanPay(const Plan&, int cls);
 int ArmySize(const Plan&);  // units of the army classes (every one of them eats 1 food)
 // Wanted number per army class: land and navy shares from the map, each mix renormalised over the classes that are
-// available and affordable, bent by upgrades and by what the bank can pay for.
+// available and affordable, bent by upgrades and by what the bank can pay for. A class the bank buys plenty_units
+// or more of is at its full share: past that line the size of the bank plays no part in the mix at all.
 void Targets(const Plan&, const AutoProduction&, double target[kProdClassCount]);
 // The army class among `candidates` (bit per class) with the largest target - count, or -1. *saving is set when a
 // candidate was rejected only because it is already well over its share (the building keeps the money for others).
