@@ -15,6 +15,18 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.14.0 (2026-09-20, UNTESTED in game, NOT released)
+
+- Author: "If I can simultaneously afford to produce 10 of any unit then resource ratios don't matter, does that make
+  sense? And we can make that number configurable." That is the saturation point of the money factor in Targets,
+  hard-coded 5 until now. The agent proved his sentence as a test: two banks with nothing in common, both above the
+  line for every class, give identical targets equal to the plain weights.
+- Agent's observation worth keeping: each group is renormalised over its own classes, so a plenty_units that EVERY
+  class of a group is under cancels out; it only moves the mix where some classes are over the line and others not.
+- filler_min is a different job (what to build when nothing of the mix is affordable); the tutorial says so.
+- Default 10 for new configs, his own installed config gets 10 (he asked for it); the migrator writes 5 into other
+  existing auto-production configs, because a migration never changes behaviour.
+
 ## 1.13.0 (2026-09-20, UNTESTED in game, NOT released)
 
 - Author, in game: "I did see a death and decay use on 3 enemy battleships, but I've never seen it on land, and I've

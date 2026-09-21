@@ -7,6 +7,14 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.14.0 - 2026-09-20
+
+- New `[auto_production] plenty_units` (10): being able to pay for this many of a unit counts as plenty. At or above
+  it the class gets its full weight and the size of your bank stops mattering, so with plenty of everything the army
+  is exactly your weights; below it the share shrinks in proportion. This was a built-in 5 until now.
+- New configs ship 10. `migrate_config.py` writes 5 into a config that already had auto-production set up, so an
+  existing game keeps its mix until you change the number yourself.
+
 ## 1.13.0 - 2026-09-20
 
 - Blizzard and Death and Decay autocast now work next to your own army. Until now the mod only tried the target's own

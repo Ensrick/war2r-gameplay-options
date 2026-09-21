@@ -367,6 +367,10 @@ food_free_percent = 10
 reserve_extra = 0.25
 upgrade_bias = 0.25         # each upgrade level a unit line already has raises that class's share by this much
 filler_min = 10             # nothing of the mix affordable at a building: build what the spare bank buys this often
+# Being able to pay for this many of a unit is "plenty": at or above it the class gets its full share below and the
+# size of your bank stops counting, so with plenty of everything the army is exactly the weights below. Under it a
+# class's share shrinks in proportion to what the bank buys of it.
+plenty_units = 10
 # A building whose most-wanted class is held back by MONEY alone keeps its money instead of spending that resource on
 # a cheaper class (a shipyard saving oil for a battleship rather than buying another destroyer). Classes that do not
 # cost that resource are still trained. It gives up after this many seconds without the blocked resource growing, so
