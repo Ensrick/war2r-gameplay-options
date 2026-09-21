@@ -651,9 +651,11 @@ the bank buys 3 of at `plenty_units = 10` gets three tenths of its share, and th
 still pay for. Lower it (say 5) to let a thin bank matter longer; raise it to make the mod insist on being properly
 rich before it treats a class as freely available.
 
-`plenty_units` and `filler_min` sound alike and do different jobs: `plenty_units` shapes the **mix** while the mix is
-working, and `filler_min` only comes into it when the mix has **nothing** a building can afford at all, as the size
-of bank that then justifies building off-mix. Changing one does not change the other.
+Three settings here count units of bank and are easy to mix up. `plenty_units` is a **weight**: it decides how big a
+share of the mix a class gets while the mix is working. `bank_multiple` is a **gate**: it decides whether a unit may
+be started at all, and no amount of extra money past it buys anything. `filler_min` is neither; it only comes into it
+when the mix has **nothing** a building can afford, as the size of bank that then justifies building off-mix.
+Changing one does not change the others.
 
 **Ships come from the map.** On the first pass of a map the mod counts the water tiles and the oil patches and
 platforms on it, and writes what it found to the log:
