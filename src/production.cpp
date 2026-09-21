@@ -72,10 +72,14 @@ double Buys(const Plan& plan, int cls) {
     return n < 0 ? 0 : n;
 }
 
+// How many of its own price the spare bank must hold before this class is affordable.
+static double BankMultipleFor(const AutoProduction& cfg, int cls) {
+    const double want = cfg.classBankMultiple[cls] > 0 ? cfg.classBankMultiple[cls] : cfg.bankMultiple;
+    return cls == kProdSubmarines ? want * 2 : want;  // only when there is money to spare
+}
+
 bool CanAfford(const Plan& plan, const AutoProduction& cfg, int cls) {
-    double want = cfg.classBankMultiple[cls] > 0 ? cfg.classBankMultiple[cls] : cfg.bankMultiple;
-    if (cls == kProdSubmarines) want *= 2;  // only when there is money to spare
-    return Buys(plan, cls) >= want;
+    return Buys(plan, cls) >= BankMultipleFor(cfg, cls);
 }
 
 bool CanPay(const Plan& plan, int cls) {
@@ -206,6 +210,90 @@ void Commit(Plan& plan, int cls) {
     for (int r = 0; r < kResourceCount; ++r) plan.bank.r[r] -= plan.cost[cls].r[r];
 }
 
+int BlockingResource(const Plan& plan, const AutoProduction& cfg, int cls) {
+    if (CanAfford(plan, cfg, cls)) return -1;  // money is not what stops it
+    int worst = -1;
+    double tightest = 0;
+    for (int r = 0; r < kResourceCount; ++r) {
+        const int cost = plan.cost[cls].r[r];
+        if (cost <= 0) continue;
+        const double v = (static_cast<double>(plan.bank.r[r]) - plan.reserve.r[r]) / cost;
+        if (worst < 0 || v < tightest) {
+            worst = r;
+            tightest = v;
+        }
+    }
+    return worst;  // the resource Buys measured: what the class is actually waiting for
+}
+
+// What the bank must hold of one resource before CanAfford lets a class through: the upgrade reserve plus
+// bank_multiple prices. The number the log line prints as "need".
+static int NeededFor(const Plan& plan, const AutoProduction& cfg, int cls, int resource) {
+    const double v = plan.reserve.r[resource] + BankMultipleFor(cfg, cls) * plan.cost[cls].r[resource];
+    return v > 2e9 ? 2000000000 : static_cast<int>(std::ceil(v - 1e-9));
+}
+
+Decision Decide(const Plan& plan, const AutoProduction& cfg, unsigned candidates, SaveUp& state, unsigned nowMs) {
+    Decision d;
+    if (!FoodAllows(plan, cfg)) {  // nothing is anybody's fault here: the food rule stops the whole building
+        state.resource = -1;
+        return d;
+    }
+    bool overShare = false;
+    d.cls = PickArmyClass(plan, cfg, candidates, &overShare);
+    // Nothing of the mix affordable (but not "well over its share"): build whatever the bank is full of.
+    if (d.cls < 0 && !overShare) d.cls = PickFiller(plan, cfg, candidates);
+    if (cfg.saveUpSeconds <= 0) {  // saving switched off: exactly what the mod did before the rule existed
+        state.resource = -1;
+        return d;
+    }
+
+    // The class furthest behind its share, whatever it costs. A target of 0 already covers "switched off", "not
+    // trainable" and "at its ceiling", and the food rule was handled above: what is left can only be money.
+    double target[kProdClassCount];
+    Targets(plan, cfg, target);
+    int wanted = -1;
+    double bestDeficit = 0;
+    for (int c = 0; c < kProdClassCount; ++c) {
+        if (!(candidates & (1u << c)) || !IsArmy(c) || target[c] <= 0) continue;
+        const double deficit = target[c] - plan.count[c];
+        if (wanted < 0 || deficit > bestDeficit) {
+            wanted = c;
+            bestDeficit = deficit;
+        }
+    }
+    const int resource = (wanted >= 0 && bestDeficit > 0) ? BlockingResource(plan, cfg, wanted) : -1;
+    // Nothing is waiting, or what this building would build does not touch what it waits for: carry on.
+    if (resource < 0 || d.cls < 0 || plan.cost[d.cls].r[resource] <= 0) {
+        state.resource = -1;
+        return d;
+    }
+
+    // Keep the money, but never for ever: the timer runs from the last time the blocked resource grew. Spending it
+    // yourself is not growth, it only moves the mark, so a resource that goes nowhere still releases on time.
+    const int have = plan.bank.r[resource];
+    if (state.resource != resource) {
+        state.resource = resource;
+        state.mark = have;
+        state.sinceMs = nowMs;
+    } else if (have > state.mark) {
+        state.mark = have;
+        state.sinceMs = nowMs;
+    } else if (have < state.mark) {
+        state.mark = have;
+    }
+    if (nowMs - state.sinceMs >= static_cast<unsigned>(cfg.saveUpSeconds) * 1000u) {
+        state.resource = -1;  // it is not coming: build once and start over
+        return d;
+    }
+    d.saveResource = resource;
+    d.saveClass = wanted;
+    d.have = have;
+    d.need = NeededFor(plan, cfg, wanted, resource);
+    d.cls = -1;
+    return d;
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // Engine side
 // ---------------------------------------------------------------------------------------------------------------------
@@ -215,6 +303,7 @@ namespace {
 constexpr unsigned kPassEveryMs = 1000;
 constexpr unsigned kBackoffMs = 10000;
 constexpr unsigned kDiagEveryMs = 30000;  // at most one "why nothing" line per 30 s of play
+constexpr unsigned kSaveLogEveryMs = 60000;  // and one "saving" line per 60 s, however many buildings are saving
 constexpr uint16_t kJobProducing = 0x10;  // kOffJobFlags
 constexpr uint8_t kNotTrainable = 'n';    // 0x838248 entry of a type no building trains
 
@@ -222,6 +311,7 @@ unsigned g_playMs = 0;
 unsigned g_sincePassMs = 0;
 unsigned g_starts = 0;
 unsigned g_nextDiagMs = 0;
+unsigned g_nextSaveLogMs = 0;
 int g_navyCapState = -1;  // -1 not decided yet, 0 the caps are in force, 1 the enemy has a navy
 Plan g_lastPlan;
 
@@ -242,6 +332,7 @@ struct SlotState {
     bool pending;          // we started a unit here and have not seen the building idle since
     uint8_t pendingType;
     uint32_t serialMark;   // highest creation serial alive when it started
+    SaveUp save;           // what this building is saving up for, and since when
 };
 SlotState g_slots[kMaxSlots];
 
@@ -358,10 +449,12 @@ bool RequirementsMet(uint8_t type, const Owned& o) {
 // Why a class is not being trained, for the log line. The order is the order the gates are applied in.
 enum Block {
     kBlockNone, kBlockOff, kBlockNever, kBlockNoBuilding, kBlockMission, kBlockPrereq, kBlockNoPlatform, kBlockCap, kBlockBusy,
-    kBlockWaiting, kBlockFood, kBlockGold, kBlockLumber, kBlockOil, kBlockReserve, kBlockBank, kBlockEnough
+    kBlockWaiting, kBlockFood, kBlockGold, kBlockLumber, kBlockOil, kBlockReserve, kBlockBank, kBlockSaving, kBlockEnough
 };
 const char* const kBlockNames[] = {"ok",   "off",     "never",  "no building", "mission", "prereq",  "no platform", "cap", "busy",
-                                   "waiting", "food", "gold",   "lumber",      "oil",     "reserve", "bank",        "enough"};
+                                   "waiting", "food", "gold",   "lumber",      "oil",     "reserve", "bank",        "saving",
+                                   "enough"};
+const char* const kResourceNames[kResourceCount] = {"gold", "lumber", "oil"};
 
 // The building comes first, so a class the player has nothing to build in stays out of the log line entirely.
 Block TrainBlock(uint8_t type, const Owned& o) {
@@ -554,7 +647,7 @@ void LogNavyCaps(const AutoProduction& cfg, bool enemyNavy) {
 
 // The first gate that stops a class this pass, for the log line below.
 Block WhyNot(const Plan& plan, const AutoProduction& cfg, const Owned& o, int race, int cls, unsigned idleMask,
-             unsigned usableMask, bool ownsPlatform) {
+             unsigned usableMask, bool ownsPlatform, unsigned savingResources) {
     if (!cfg.unitClass[cls]) return kBlockOff;
     const Block b = TrainBlock(TypeFor(cls, race, o), o);
     if (b != kBlockNone) return b;
@@ -570,13 +663,16 @@ Block WhyNot(const Plan& plan, const AutoProduction& cfg, const Owned& o, int ra
         if (Buys(plan, cls) < 1) return kBlockReserve;    // the bank holds the price, the upgrade reserve does not
         if (!CanAfford(plan, cfg, cls)) return kBlockBank;  // affordable, but not bank_multiple times over
     }
+    // A building is saving that resource up for a class further behind its share: this one would have spent it.
+    for (int r = 0; r < kResourceCount; ++r)
+        if ((savingResources & (1u << r)) && plan.cost[cls].r[r] > 0) return kBlockSaving;
     return kBlockEnough;  // nothing stops it: the count target or the mix says there are enough already
 }
 
 // Why the pass produced nothing, with the numbers behind it. One line per 30 s of play, and only while
 // [general] log_casts is on: enough to answer "why is it not building anything?" without guessing.
 void LogNothing(const Plan& plan, const AutoProduction& cfg, const Owned& o, int race, unsigned idleMask,
-                unsigned usableMask, bool ownsPlatform, unsigned nowMs) {
+                unsigned usableMask, bool ownsPlatform, unsigned savingResources, unsigned nowMs) {
     if (!config::g.logCasts || nowMs < g_nextDiagMs) return;
     g_nextDiagMs = nowMs + kDiagEveryMs;
     double target[kProdClassCount];
@@ -584,7 +680,7 @@ void LogNothing(const Plan& plan, const AutoProduction& cfg, const Owned& o, int
     char blocked[400] = "";
     size_t used = 0;
     for (int c = 0; c < kProdClassCount; ++c) {
-        const Block b = WhyNot(plan, cfg, o, race, c, idleMask, usableMask, ownsPlatform);
+        const Block b = WhyNot(plan, cfg, o, race, c, idleMask, usableMask, ownsPlatform, savingResources);
         if (b == kBlockNever || b == kBlockNoBuilding) continue;  // nothing of the kind anywhere: not news
         char one[64];
         if (b == kBlockEnough && IsArmy(c))
@@ -600,6 +696,14 @@ void LogNothing(const Plan& plan, const AutoProduction& cfg, const Owned& o, int
                 plan.count[kProdWorkers], WorkerTarget(plan, cfg), cap - plan.used - plan.inTraining,
                 plan.bank.r[kGold], plan.bank.r[kLumber], plan.bank.r[kOil], plan.reserve.r[kGold],
                 plan.reserve.r[kLumber], plan.reserve.r[kOil], blocked);
+}
+
+// One line when a building starts keeping its money, at most one per 60 s of play and only with log_casts on.
+void LogSaving(const Decision& d, unsigned nowMs) {
+    if (!config::g.logCasts || nowMs < g_nextSaveLogMs) return;
+    g_nextSaveLogMs = nowMs + kSaveLogEveryMs;
+    logx::Write("production: saving %s for %s (have %d, need %d)", kResourceNames[d.saveResource], kClassNames[d.saveClass],
+                d.have, d.need);
 }
 
 bool Start(const World& w, Plan& plan, Unit* b, unsigned slot, int cls, uint8_t type, uint32_t serialMark, unsigned nowMs) {
@@ -627,7 +731,9 @@ bool Start(const World& w, Plan& plan, Unit* b, unsigned slot, int cls, uint8_t 
 void OnNewMap() {
     g_map.valid = false;
     g_nextDiagMs = 0;
+    g_nextSaveLogMs = 0;
     g_navyCapState = -1;
+    for (unsigned i = 0; i < kMaxSlots; ++i) g_slots[i].save = SaveUp{};  // no building saves into the next map
 }
 
 void Pass(const World& w, unsigned nowMs) {
@@ -653,7 +759,7 @@ void Pass(const World& w, unsigned nowMs) {
     for (unsigned i = 0; i < count; ++i) {
         Unit* u = UnitAt(w, i);
         const uint32_t serial = Field<uint32_t>(u, kOffSerial);
-        if (g_slots[i].serial != serial) g_slots[i] = SlotState{serial, 0, false, 0, 0};
+        if (g_slots[i].serial != serial) g_slots[i] = SlotState{serial, 0, false, 0, 0, SaveUp{}};
         if (!IsActive(u)) continue;
         if (serial > maxSerial) maxSerial = serial;
         if (OwnerOf(u) != p) {
@@ -740,6 +846,7 @@ void Pass(const World& w, unsigned nowMs) {
         }
     }
     // 3. The army, from every idle production building in the same pass.
+    unsigned savingResources = 0;  // resources a building is keeping back this pass, for the diagnostic line
     for (int k = 0; k < idleCount; ++k) {
         if (!idle[k].unit || !usable(idle[k])) continue;
         if (!FoodAllows(plan, cfg)) break;
@@ -748,17 +855,21 @@ void Pass(const World& w, unsigned nowMs) {
         for (int c = 0; c < kProdClassCount; ++c)
             if ((ClassesAt(t) & (1u << c)) && IsArmy(c) && plan.trainable[c]) candidates |= 1u << c;
         if (!candidates) continue;
-        bool saving = false;
-        int cls = PickArmyClass(plan, cfg, candidates, &saving);
-        // Nothing of the mix affordable (but not "saving up"): build whatever the bank is full of.
-        if (cls < 0 && !saving) cls = PickFiller(plan, cfg, candidates);
-        if (cls < 0) continue;
-        const uint8_t type = TypeFor(cls, t & 1, o);
+        SaveUp& save = g_slots[idle[k].slot].save;
+        const int savedBefore = save.resource;
+        const Decision d = Decide(plan, cfg, candidates, save, nowMs);
+        if (d.saveResource >= 0) {
+            savingResources |= 1u << d.saveResource;
+            if (savedBefore != d.saveResource) LogSaving(d, nowMs);  // only when it STARTS saving
+        }
+        if (d.cls < 0) continue;
+        const uint8_t type = TypeFor(d.cls, t & 1, o);
         if (At<uint8_t>(kRvaTrainedAt)[type] != AsTrainer(t)) continue;  // the game's table disagrees: leave it alone
-        Start(w, plan, idle[k].unit, idle[k].slot, cls, type, maxSerial, nowMs);
+        Start(w, plan, idle[k].unit, idle[k].slot, d.cls, type, maxSerial, nowMs);
     }
     // A building was idle and nothing was built: say why, once every 30 s.
-    if (g_starts == startsBefore && idleCount > 0) LogNothing(plan, cfg, o, race, idleMask, usableMask, ownsPlatform, nowMs);
+    if (g_starts == startsBefore && idleCount > 0)
+        LogNothing(plan, cfg, o, race, idleMask, usableMask, ownsPlatform, savingResources, nowMs);
 }
 
 void OnTick(const World& w, unsigned elapsedMs) {
