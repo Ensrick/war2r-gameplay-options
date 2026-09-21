@@ -12,7 +12,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")  # static CRT, no redist needed
 
-set(CORE_SOURCES src/aiwatch.cpp src/autocast.cpp src/config.cpp src/datatweaks.cpp src/eye.cpp src/hook.cpp src/log.cpp src/mod.cpp src/production.cpp src/spells.cpp src/trees.cpp src/tweaks.cpp src/units.cpp src/workers.cpp
+set(CORE_SOURCES src/aiwatch.cpp src/autocast.cpp src/config.cpp src/datatweaks.cpp src/eye.cpp src/hook.cpp src/log.cpp src/mod.cpp src/production.cpp src/spells.cpp src/trees.cpp src/upgrades.cpp src/tweaks.cpp src/units.cpp src/workers.cpp
     src/world.cpp src/resources.rc)
 # The .rc embeds the default config; rebuild the resource when the toml changes.
 set_source_files_properties(src/resources.rc PROPERTIES OBJECT_DEPENDS ${CMAKE_SOURCE_DIR}/config/gameplay_options.default.toml)
