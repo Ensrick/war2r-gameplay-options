@@ -509,6 +509,17 @@ death_and_decay = -1   # game: 30 per wave
 # limit is part of the game. Everyone gets it, the computer too.
 regen = 1.0
 
+[upgrades]
+# What ONE level of an upgrade adds. -1 = the game's own number, otherwise 0 to 100. These are the game's tables, so
+# the computer's units get the same numbers, and the unit panel in game shows the new bonus. The range upgrade is
+# not here: it lives in [range] upgrade_bonus.
+missile_damage = -1   # archers, rangers, axethrowers, berserkers: piercing damage per level (the game: 2)
+melee_damage   = -1   # everything that swings a weapon: basic damage per level (2)
+shields        = -1   # armor per level for land units (2)
+ship_damage    = -1   # ship cannons: basic damage per level (5)
+ship_armor     = -1   # armor per level for ships (5)
+siege_damage   = -1   # catapults and ballistas: basic damage per level (15)
+
 # ==============================================================================================================
 #  11. AUTO-PRODUCTION
 # ==============================================================================================================

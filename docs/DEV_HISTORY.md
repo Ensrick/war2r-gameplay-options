@@ -15,6 +15,21 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.15.0 (2026-09-21, UNTESTED in game, NOT released)
+
+- Author: "Let's make the damage bonus from upgrades configurable ... I will be using it to double the bonus given to
+  catapults and ballistas", "And ships too for sure". He also suspected an armor-type / damage-type system. Issue #28.
+- Research first (docs/research/damage.md), and I re-checked its addresses against the exe before any code: the
+  effect table at 0x8C11DC reads `02 02 02 05 05 0a 0f 00 01 ff 03` and all six readers are where the report says.
+  The verdict on armor types is no: the damage path reads the target's armor byte, the armor-upgradable flag and
+  the ship flag, nothing else. One correction from my re-check: the five damage call sites have THREE callees
+  (0x4BD770 roll, 0x4BDBD0 splash, 0x4BDC20 roll with the target as argument), not one.
+- src/upgrades.cpp follows the spell cost table pattern: game bytes known, table checked once, per-key guard against
+  a foreign byte, sync at the new-map hook and every tick before the multiplayer return. A .text sweep found no
+  writer of the table, so neither a data load nor a savegame restores it. Entry 5 (10) has no reader at all and stays
+  untouched. 7 mutations, 7 caught.
+- His config: siege_damage = 30 (his stated intent). The multipliers by target class are the next version.
+
 ## 1.14.2 (2026-09-20, UNTESTED in game)
 
 - Author, playing 1.14.1: "it seems to make a second oil tanker even if I already have one ... production doesn't count

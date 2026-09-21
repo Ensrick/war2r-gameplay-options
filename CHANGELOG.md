@@ -7,6 +7,15 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.15.0 - 2026-09-21
+
+- New `[upgrades]` section: what one level of an upgrade adds. `missile_damage` (2), `melee_damage` (2), `shields`
+  (2), `ship_damage` (5), `ship_armor` (5), `siege_damage` (15, catapults and ballistas); -1 keeps the game's number,
+  otherwise 0 to 100. The unit panel in game shows the new bonus. These are the game's own tables, so the computer
+  gets the same numbers. Single player only; the game's numbers come back in multiplayer.
+- Research write-up of the damage formula in docs/research/damage.md. For the record: this game has no armor types or
+  damage types. Piercing damage ignores armor, basic damage is reduced by it, the hit is 50 to 100 % of the sum.
+
 ## 1.14.2 - 2026-09-20
 
 - Fixed in auto-production: units that are inside a building were not counted. A tanker inside its oil platform or the
