@@ -2594,6 +2594,7 @@ int wmain(int argc, wchar_t** argv) {
         memcpy(savedSizes, sizes, sizeof(savedSizes));
         memcpy(savedRanges, rangeT, sizeof(savedRanges));
         constexpr uint8_t kBarracks = 0x3C, kCastle = 0x5A, kAxe = 9;
+        constexpr int kChannelWallsForTest = 3;  // src/autocast.cpp kChannelWalls
         defType(kBarracks, kTfBuilding, 800);
         sizes[kBarracks] = {3, 3};
         defType(kCastle, kTfBuilding, 1600);
@@ -2724,41 +2725,108 @@ int wmain(int argc, wchar_t** argv) {
             Field<uint8_t>(c, kOffMana) = static_cast<uint8_t>(ac.threeWaves);
             mod::RunAutocastPass();
             CHECK(castAt(c, ac.order, 27, 20), "%s at the group (order %u at %d,%d)", name, OrderOf(c), ox(c), oy(c));
+            // The waves scatter over the tiles around the aim tile, so one friendly on one side does not end the
+            // cast: the aim walks off the group until nothing of the player's is within area_friendly_clearance.
             const Blocker areaBlockers[] = {
-                {kFootman, 0, 31, 21, "an own footman 4 tiles from the group"},
                 {kFootman, 2, 29, 23, "an allied footman"},
                 {kDragon, 0, 25, 18, "an own dragon overhead"},
                 {kBarracks, 0, 22, 16, "an own barracks whose footprint (not its top-left tile) is 4 tiles away"},
             };
+            auto aimClear = [&](Unit* cc, int fx, int fy) {
+                const int dx = abs(ox(cc) - fx), dy = abs(oy(cc) - fy);
+                return (dx > dy ? dx : dy) > config::g.areaFriendlyClearance;
+            };
+            auto hitsGroup = [&](Unit* cc) {  // at least one of the three grunts is still inside the 5x5 pattern
+                const int gx[3] = {27, 28, 27}, gy[3] = {20, 21, 22};
+                for (int i = 0; i < 3; ++i)
+                    if (abs(ox(cc) - gx[i]) <= 2 && abs(oy(cc) - gy[i]) <= 2) return true;
+                return false;
+            };
+            c = areaWorld(20, 20);  // one footman on one side: the aim walks to the far side of the group
+            AddUnit(kFootman, 0, 31, 21, 60, 0, kOrderStand);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == ac.order && aimClear(c, 31, 21) && hitsGroup(c),
+                  "%s with an own footman 4 tiles from the group: the aim must walk clear and still cover it (order %u at %d,%d)",
+                  name, OrderOf(c), ox(c), oy(c));
+            // These leave no clean aim that still covers all three grunts AND is inside the spell range, so they
+            // block the cast outright, as they always did.
             for (const Blocker& b : areaBlockers) {
                 c = areaWorld(20, 20);
                 AddUnit(b.type, b.owner, b.x, b.y, 100, 0, kOrderStand);
                 mod::RunAutocastPass();
-                CHECK(OrderOf(c) == kOrderStand, "%s cast with %s", name, b.what);
+                CHECK(OrderOf(c) == kOrderStand, "%s cast with %s (order %u at %d,%d)", name, b.what, OrderOf(c), ox(c), oy(c));
             }
-            c = areaWorld(20, 20);  // exactly 4 tiles from one group tile: that tile is out, the next one is used
-            AddUnit(kFootman, 0, 27, 16, 60, 0, kOrderStand);
+            c = areaWorld(20, 20);  // a friendly on every side: there is no clean aim tile left, so nothing is cast
+            for (int i = 0; i < 4; ++i) {
+                const int fx[4] = {23, 31, 27, 27}, fy[4] = {21, 21, 17, 25};
+                AddUnit(kFootman, 0, fx[i], fy[i], 60, 0, kOrderStand);
+            }
             mod::RunAutocastPass();
-            CHECK(castAt(c, ac.order, 27, 22), "%s should move to the group tile 5+ tiles from the footman (order %u at %d,%d)", name,
-                  OrderOf(c), ox(c), oy(c));
-            c = areaWorld(20, 20);  // 5 tiles from every group tile: fine
+            CHECK(OrderOf(c) == kOrderStand, "%s cast with the group ringed by friendlies (order %u at %d,%d)", name, OrderOf(c),
+                  ox(c), oy(c));
+            CHECK(LogContains(dir, "every spot worth casting on has your own type"),
+                  "%s: the diagnostic must name the friendly that blocks every spot", name);
+            {  // and it is throttled like the raise_dead one: one line per caster per 30 s of play
+                char pattern[64];
+                sprintf_s(pattern, "%s not cast: caster type", name);
+                const int lines = LogCount(dir, pattern);
+                mod::RunAutocastPass();
+                mod::RunAutocastPass();
+                CHECK(LogCount(dir, pattern) == lines, "%s: the not-cast diagnostic must be throttled", name);
+            }
+            {  // the watchdog stops on the same clearance the cast used: with 0 nothing of the player stops it
+                c = areaWorld(20, 20);
+                mod::RunAutocastPass();
+                CHECK(OrderOf(c) == ac.order, "%s watchdog clearance setup (order %u)", name, OrderOf(c));
+                // Below three waves: the caster cannot start a new channel, so only the watchdog can change the order.
+                Field<uint8_t>(c, kOffMana) = static_cast<uint8_t>(ac.threeWaves - 1);
+                config::g.areaFriendlyClearance = 0;
+                AddUnit(kFootman, 0, 29, 20, 60, 0, kOrderMove);
+                mod::RunAutocastPass();
+                CHECK(OrderOf(c) == ac.order, "%s: with clearance 0 a friendly must not stop the channel (order %u)", name,
+                      OrderOf(c));
+                config::g.areaFriendlyClearance = 4;
+                mod::RunAutocastPass();
+                CHECK(OrderOf(c) == kOrderStop, "%s: clearance 4 again must stop it (order %u)", name, OrderOf(c));
+            }
+            c = areaWorld(20, 20);  // 5 tiles from every group tile: the straight aim is clean and stays
             AddUnit(kFootman, 0, 27, 15, 60, 0, kOrderStand);
             mod::RunAutocastPass();
-            CHECK(castAt(c, ac.order, 27, 20), "%s refused with the nearest friendly 5 tiles away", name);
+            CHECK(castAt(c, ac.order, 27, 20), "%s moved the aim although the nearest friendly is 5 tiles away", name);
             c = areaWorld(24, 20);  // the caster is the missile's source and never hurt; a unit next to it is
             mod::RunAutocastPass();
             CHECK(castAt(c, ac.order, 27, 20), "%s: the caster itself must not count as a friendly in the area", name);
             c = areaWorld(24, 20);
             AddUnit(kFootman, 0, 24, 22, 60, 0, kOrderStand);
             mod::RunAutocastPass();
-            CHECK(OrderOf(c) == kOrderStand, "%s cast with a footman beside the caster inside the area", name);
+            CHECK(OrderOf(c) == ac.order && aimClear(c, 24, 22) && hitsGroup(c),
+                  "%s with a footman beside the caster: the aim must walk clear (order %u at %d,%d)", name, OrderOf(c), ox(c),
+                  oy(c));
+            c = areaWorld(20, 20);  // area_friendly_clearance = 0: the player's own units are ignored, centre aim
+            AddUnit(kFootman, 0, 27, 21, 60, 0, kOrderStand);
+            config::g.areaFriendlyClearance = 0;
+            mod::RunAutocastPass();
+            CHECK(castAt(c, ac.order, 27, 20), "%s with clearance 0 must take the straight aim (order %u at %d,%d)", name,
+                  OrderOf(c), ox(c), oy(c));
+            config::g.areaFriendlyClearance = 4;
             c = areaWorld(20, 20);
             *At<uint16_t*>(kRvaSquareFlags) = sqTest;
             sqTest[20 * kMap + 30] = kSqWalls;
             mod::RunAutocastPass();
-            CHECK(OrderOf(c) == kOrderStand, "%s cast with a wall 3 tiles from the group", name);
+            CHECK(OrderOf(c) == ac.order && hitsGroup(c) && abs(ox(c) - 30) > kChannelWallsForTest,
+                  "%s with a wall 3 tiles from the group: the aim must clear the wall (order %u at %d,%d)", name, OrderOf(c),
+                  ox(c), oy(c));
             sqTest[20 * kMap + 30] = 0;
             *At<uint16_t*>(kRvaSquareFlags) = savedSq;
+            {  // the group is against the top-left corner: no aim may fall off the map
+                ResetWorld();
+                Unit* edge = caster(ac.casterType, 3, 3);
+                for (int i = 0; i < 3; ++i) AddUnit(kGrunt, 1, 0, i, 60, 0, kOrderAttack);
+                AddUnit(kFootman, 0, 2, 2, 60, 0, kOrderStand);  // forces the search
+                mod::RunAutocastPass();
+                CHECK(OrderOf(edge) != ac.order || (ox(edge) >= 0 && oy(edge) >= 0 && ox(edge) < kMap && oy(edge) < kMap),
+                      "%s put an aim tile off the map at %d,%d", name, ox(edge), oy(edge));
+            }
             c = areaWorld(20, 20);
             Field<uint8_t>(slot(3), kOffStateFlags) = kStateDying;
             mod::RunAutocastPass();
@@ -2886,7 +2954,16 @@ int wmain(int argc, wchar_t** argv) {
             AddUnit(kCastle, 1, 26, 19, 1600, 0, kOrderStand);
             AddUnit(kFootman, 0, 31, 20, 60, 0, kOrderStand);  // 2 tiles past the far edge, 4 from the centre tile
             mod::RunAutocastPass();
-            CHECK(OrderOf(c) == kOrderStand, "%s cast at a 4x4 building with an own footman 4 tiles from the aim tile", name);
+            {
+                const int dx = abs(ox(c) - 31), dy = abs(oy(c) - 20);
+                const int away = dx > dy ? dx : dy;
+                const int lo = ac.spell == kSpellBlizzard ? -3 : -2;  // the aim may sit this far off the target tile
+                CHECK(OrderOf(c) == ac.order && away > 4 && ox(c) - 27 >= lo && ox(c) - 27 <= 2 && oy(c) - 20 >= lo &&
+                          oy(c) - 20 <= 2,
+                      "%s with a footman beside a 4x4 building: the aim must walk clear and still cover its centre "
+                      "(order %u at %d,%d)",
+                      name, OrderOf(c), ox(c), oy(c));
+            }
             // A friendly in the blast still refuses, building or no building.
             ResetWorld();
             c = caster(ac.casterType, 20, 20);

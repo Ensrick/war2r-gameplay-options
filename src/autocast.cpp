@@ -160,13 +160,25 @@ bool WallNear(const World& w, int cx, int cy, int radius) {
 
 // True when an own or allied unit, flyer or building (any tile of its footprint) is within `radius` tiles of x, y, or a
 // wall within `walls` tiles (-1 = walls do not matter). `spared` is the one unit the engine exempts (the missile source).
-bool FriendlyInDanger(const World& w, int x, int y, int radius, Unit* spared, int walls) {
-    if (ScanTileRaw(w, x, y, radius, [&](Unit* u) { return u != spared && CanBeHurt(u) && IsFriend(w, u); })) return true;
+bool FriendlyInDanger(const World& w, int x, int y, int radius, Unit* spared, int walls, Unit** who = nullptr) {
+    if (who) *who = nullptr;
+    Unit* found = nullptr;
+    if (ScanTileRaw(w, x, y, radius, [&](Unit* u) {
+            if (u == spared || !CanBeHurt(u) || !IsFriend(w, u)) return false;
+            found = u;
+            return true;
+        })) {
+        if (who) *who = found;
+        return true;
+    }
     for (int i = 0; i < g_footprintCount; ++i) {
         const Footprint& b = g_footprints[i];
-        if (b.unit != spared && x >= b.x0 - radius && x <= b.x1 + radius && y >= b.y0 - radius && y <= b.y1 + radius) return true;
+        if (b.unit != spared && x >= b.x0 - radius && x <= b.x1 + radius && y >= b.y0 - radius && y <= b.y1 + radius) {
+            if (who) *who = b.unit;
+            return true;
+        }
     }
-    return WallNear(w, x, y, walls);
+    return WallNear(w, x, y, walls);  // a wall has no unit: the caller says "a wall"
 }
 
 // Distinct enemies within `radius` tiles that a spell would hurt; a building counts once, whatever its size.
@@ -618,8 +630,51 @@ void RememberChannel(Unit* caster, uint8_t order, int x, int y, int buildingHp) 
     if (g_channelCount < kMaxChannels) g_channels[g_channelCount++] = c;
 }
 
-// Blizzard, Death and Decay (channelled) and Whirlwind, at the tile of the enemy whose blast is worth the most:
-// buildings count area_building_value each, units one each, and the nearest tile wins a tie.
+// With log_casts on: why an area spell was not cast, once per caster per 30 s of play. The reasons are the gates
+// below, in the order they are tested.
+RaiseNote g_areaNotes[kMaxNoteSlots];
+
+void NoteArea(const World& w, Unit* caster, Spell spell, const char* fmt, ...) {
+    if (!config::g.logCasts || g_dryRun) return;
+    const unsigned slot =
+        static_cast<unsigned>((reinterpret_cast<uintptr_t>(caster) - reinterpret_cast<uintptr_t>(w.units)) / kUnitSize);
+    if (slot >= kMaxNoteSlots) return;
+    RaiseNote& n = g_areaNotes[slot];
+    const uint32_t serial = Field<uint32_t>(caster, kOffSerial);
+    if (n.logged && n.serial == serial && g_playMs - n.lastMs < kRaiseNoteEveryMs) return;
+    n = {serial, g_playMs, true};
+    char why[160];
+    va_list args;
+    va_start(args, fmt);
+    vsprintf_s(why, fmt, args);
+    va_end(args);
+    logx::Write("%s not cast: caster type %u at %d,%d mana %u: %s", config::kSpellKeys[spell], TypeOf(caster), X(caster),
+                Y(caster), Field<uint8_t>(caster, kOffMana), why);
+}
+
+// How far the aim tile may sit from the tile that must be hit. The waves scatter over a fixed pattern around the aim
+// tile, so a target anywhere inside that pattern is hit about as often as one in the middle:
+//   Death and decay (FUN_004af500): cloud = aim tile centre + (rand()%5 << 5) - 0x40 px = -64..+64 px = -2..+2 tiles,
+//     centred on the aim tile, so the aim may sit 2 tiles either side of the target.
+//   Blizzard (FUN_004aec70): chain = aim tile centre + (rand()%5 << 5) - 0x30 px = -48..+80 px = -1.5..+2.5 tiles.
+//     That pattern is half a tile PAST the aim tile: full damage (within ~22 px of a tile centre) still reaches a
+//     target 2 tiles before and 3 tiles past the aim, so the aim may sit 3 tiles before and 2 tiles past the target.
+struct AimSpan {
+    int lo, hi;
+};
+AimSpan SpanFor(uint8_t order) { return order == kOrderBlizzard ? AimSpan{-3, 2} : AimSpan{-2, 2}; }
+
+// Aim tiles searched per caster per pass once the straight aim was blocked by a friendly: two targets' worth of the
+// 6x6 / 5x5 pattern. A pass runs every [general] interval_ticks steps and each aim reads 5x5 grid tiles, so this is
+// a few thousand reads in the worst case, and the nearest blocked targets are the ones worth the search anyway.
+constexpr int kAimSearchBudget = 64;
+
+enum AimResult { kAimOk, kAimOffMap, kAimOutOfRange, kAimGate, kAimOverkill, kAimClaimed, kAimFriendly, kAimWorse };
+
+// Blizzard, Death and Decay (channelled) and Whirlwind. The aim tile is the spot whose blast is worth the most:
+// buildings count area_building_value each, units one each, nearest wins a tie. When the straight aim would catch
+// something of the player's, the mod walks the aim off the target - the scatter pattern still covers it - instead of
+// giving the cast up, which is what kept these spells off the field whenever his own army was in contact.
 bool TryAreaSpell(const World& w, Unit* caster, Spell spell) {
     const uint8_t order = kSpells[spell].order;
     const bool channel = spell != kSpellWhirlwind;
@@ -631,40 +686,113 @@ bool TryAreaSpell(const World& w, Unit* caster, Spell spell) {
         if (config::g.channelManaReserve + cost > need) need = config::g.channelManaReserve + cost;
         if (g_channelCount >= kMaxChannels) return false;  // a channel the watchdog could not follow is never started
     }
-    if (!Ready(caster, spell, need)) return false;
+    if (!Ready(caster, spell, need)) {
+        if (channel && config::g.spell[spell] &&
+            (At<uint32_t>(kRvaSpellsResearched)[OwnerOf(caster)] & kSpells[spell].researchBit) &&
+            Field<uint8_t>(caster, kOffMana) < need)
+            NoteArea(w, caster, spell, "%s mana (needs %d)", config::g.priority.saveMana ? "saving" : "not enough", need);
+        return false;
+    }
     if (spell == kSpellWhirlwind && WhirlwindInFlight(caster)) return false;  // one whirlwind per caster at a time
-    const int clearance = channel ? kChannelClearance : kWhirlwindClearance;
+    const int clearance = channel ? config::g.areaFriendlyClearance : kWhirlwindClearance;
     const int walls = channel ? kChannelWalls : kWhirlwindClearance;
+    const int reach = Reach(order);
     const uint8_t me = OwnerOf(caster);
     const int wave = channel ? WaveDamage(order) : 0;
     const Size* sizes = At<Size>(kRvaUnitSizeByType);
     Unit* best = nullptr;
     int bestScore = 0, bestDistance = 1 << 30, bestBuildingHp = 0, bestX = 0, bestY = 0;
-    ScanGrid(w, caster, Reach(order), [&](Unit* t) {
-        if (!IsTarget(w, me, t)) return false;
-        // A building is filed by its top-left tile, but the splash measures from its CENTRE (section 2.6a of
-        // docs/research/autocast_all_spells.md): aiming a 4x4 keep at its corner throws most of the wave past it.
-        // Everything below - the value, the friendly-fire check and the watchdog - works on the tile that is ordered.
-        const Size s = (w.typeFlags[TypeOf(t)] & kTfBuilding) ? sizes[TypeOf(t)] : Size{1, 1};
-        const int x = X(t) + (s.w ? s.w - 1 : 0) / 2, y = Y(t) + (s.h ? s.h - 1 : 0) / 2, d = Distance(caster, t);
-        if (!OnMap(w, x, y)) return false;
-        const AreaTargets a = ScanArea(w, me, x, y, kAreaCount);
-        if (!AreaGateMet(a, channel)) return false;
-        const int value = AreaValue(a);
-        if (value < bestScore || (value == bestScore && d >= bestDistance)) return false;
+    int budget = kAimSearchBudget;
+    // Why nothing was cast, for the log line at the end.
+    bool sawTarget = false, gateMet = false, blockedFriendly = false, blockedClaim = false, blockedOverkill = false;
+    int bestGateValue = 0;
+    Unit* witness = nullptr;
+    int witnessX = 0, witnessY = 0;
+
+    auto tryAim = [&](Unit* t, int ax, int ay) {
+        if (!OnMap(w, ax, ay)) return kAimOffMap;
+        // The aim tile itself must be in range: an order further away would send the caster walking, and the
+        // friendly-fire check it passed here would be stale by the time it arrived. [unverified] what the engine
+        // does with an out-of-range spell order; the mod never issues one.
+        const int dx = abs(ax - X(caster)), dy = abs(ay - Y(caster));
+        const int d = dx > dy ? dx : dy;
+        if (d > reach) return kAimOutOfRange;
+        const AreaTargets a = ScanArea(w, me, ax, ay, kAreaCount);
+        if (!AreaGateMet(a, channel)) {
+            const int value = AreaValue(a);
+            if (value > bestGateValue) bestGateValue = value;
+            return kAimGate;
+        }
+        gateMet = true;
         // No overkill: what one wave would already flatten is not worth a channel, unless the units in the blast
         // are reason enough on their own. Units are never in this sum, they walk out of it.
-        if (channel && a.buildings > 0 && a.buildingHp <= wave && a.units < config::g.areaMinEnemies) return false;
-        if (AreaSpellNear(x, y, clearance) || FriendlyInDanger(w, x, y, clearance, caster, walls)) return false;
+        if (channel && a.buildings > 0 && a.buildingHp <= wave && a.units < config::g.areaMinEnemies) {
+            blockedOverkill = true;
+            return kAimOverkill;
+        }
+        if (AreaSpellNear(ax, ay, clearance)) {
+            blockedClaim = true;
+            return kAimClaimed;
+        }
+        Unit* who = nullptr;
+        if (FriendlyInDanger(w, ax, ay, clearance, caster, walls, &who)) {
+            blockedFriendly = true;
+            if (who) {
+                witness = who;
+                witnessX = X(who);
+                witnessY = Y(who);
+            }
+            return kAimFriendly;
+        }
+        const int value = AreaValue(a);
+        if (value < bestScore || (value == bestScore && d >= bestDistance)) return kAimWorse;
         best = t;
         bestScore = value;
         bestDistance = d;
         bestBuildingHp = a.buildingHp;
-        bestX = x;
-        bestY = y;
+        bestX = ax;
+        bestY = ay;
+        return kAimOk;
+    };
+
+    ScanGrid(w, caster, reach, [&](Unit* t) {
+        if (!IsTarget(w, me, t)) return false;
+        sawTarget = true;
+        // A building is filed by its top-left tile, but the splash measures from its CENTRE (section 2.6a of
+        // docs/research/autocast_all_spells.md): aiming a 4x4 keep at its corner throws most of the wave past it.
+        const Size s = (w.typeFlags[TypeOf(t)] & kTfBuilding) ? sizes[TypeOf(t)] : Size{1, 1};
+        const int tx = X(t) + (s.w ? s.w - 1 : 0) / 2, ty = Y(t) + (s.h ? s.h - 1 : 0) / 2;
+        // The straight aim first: it is the one that hits hardest and it is almost always the one that is taken.
+        if (tryAim(t, tx, ty) != kAimFriendly || !channel) return false;
+        // Something of the player's is standing in the way. The scatter pattern is wide enough to keep hitting this
+        // target from a tile or two further off, so walk the aim around it and take the best spot that is clear.
+        const AimSpan span = SpanFor(order);
+        for (int oy = span.lo; oy <= span.hi && budget > 0; ++oy)
+            for (int ox = span.lo; ox <= span.hi && budget > 0; ++ox) {
+                if (!ox && !oy) continue;
+                --budget;
+                tryAim(t, tx + ox, ty + oy);
+            }
         return false;
     });
-    if (!best || !CastAtTile(w, caster, spell, bestX, bestY, bestScore)) return false;
+
+    if (!best) {
+        if (!sawTarget) NoteArea(w, caster, spell, "no enemy in reach");
+        else if (!gateMet)
+            NoteArea(w, caster, spell, "the best spot is worth %d: it takes one building or %d units", bestGateValue,
+                     config::g.areaMinEnemies);
+        else if (blockedFriendly && witness)
+            NoteArea(w, caster, spell, "every spot worth casting on has your own type %u at %d,%d within %d tiles",
+                     TypeOf(witness), witnessX, witnessY, clearance);
+        else if (blockedFriendly)
+            NoteArea(w, caster, spell, "every spot worth casting on has a wall of yours within %d tiles", walls);
+        else if (blockedClaim)
+            NoteArea(w, caster, spell, "another area spell is already on the spot");
+        else if (blockedOverkill)
+            NoteArea(w, caster, spell, "the buildings there would die to one wave");
+        return false;
+    }
+    if (!CastAtTile(w, caster, spell, bestX, bestY, bestScore)) return false;
     if (channel && !g_dryRun) RememberChannel(caster, order, bestX, bestY, bestBuildingHp);
     return true;
 }
@@ -766,7 +894,8 @@ bool InUnitArray(const World& w, Unit* u) {
 }
 
 const char* StopReason(const World& w, const Channel& c) {
-    if (FriendlyInDanger(w, c.x, c.y, kChannelClearance, c.caster, -1)) return "a friendly unit or building is in the area";
+    if (FriendlyInDanger(w, c.x, c.y, config::g.areaFriendlyClearance, c.caster, -1))
+        return "a friendly unit or building is in the area";
     if (CountEnemies(w, w.localPlayer, c.x, c.y, kChannelReach, false) == 0) return "no enemy left in reach";
     if (config::g.channelManaReserve > 0 && Field<uint8_t>(c.caster, kOffMana) < config::g.channelManaReserve)
         return "mana below channel_mana_reserve";

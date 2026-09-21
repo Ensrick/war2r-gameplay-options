@@ -146,6 +146,7 @@ struct Config {
     int channelManaReserve = 0;   // a Blizzard / Death and Decay the mod started is stopped below this mana; 0 = never
     int areaMinEnemies = 3;       // Blizzard, Death and Decay, Whirlwind: enemies within 2 tiles of the target tile
     int areaBuildingValue = 3;    // an enemy building in that blast is worth this many units when the tile is picked
+    int areaFriendlyClearance = 4;  // tiles around a Blizzard / Death and Decay aim tile that must hold nothing of yours
     int fireballMinEnemies = 2;   // enemies the Fireball's splash line would hit; 1 = the computer's own rule
 
     // [spells]
