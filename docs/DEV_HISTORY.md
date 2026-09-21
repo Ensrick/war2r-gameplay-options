@@ -15,7 +15,21 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
-## 1.14.1 (2026-09-20, NOT released)
+## 1.14.2 (2026-09-20, UNTESTED in game)
+
+- Author, playing 1.14.1: "it seems to make a second oil tanker even if I already have one ... production doesn't count
+  units I already have". The log agreed: tanker started 20:25:00 and again 20:25:25 at the same shipyard. Cause: the
+  production pass skipped every unit that failed IsActive (state low nibble != 0), and a unit inside a building has
+  bit 3 set (hidden). A tanker is inside its platform or the shipyard most of the time. The same bug explains the
+  worker counts above target in earlier logs ("workers 28/24"): peasants in the mine were invisible to the count.
+- Evidence for the bit: the engine's own recount adds a unit when (state & 7) == 0 (ai_stall.md), and a savegame shows
+  a peon on a harvest order with state nibble 8. kStateGoneMask / kStateHidden in game.h.
+- The "one tanker" unit test passed all along because its fake tanker never went inside anything: the test world now
+  hides the tanker and ten of eighteen peasants. Mutation (old filter back) fails four checks.
+- Slip of mine while verifying: I undid the mutation with git checkout and threw away the uncommitted fix with it,
+  then re-applied it. Restore a mutated file from the saved copy, never from git, while the fix is uncommitted.
+
+## 1.14.1 (2026-09-20, released with everything since 1.9.0)
 
 - The agent amended its plenty_units commit after I had merged it (our messages crossed); the delta was one tutorial
   paragraph. The tutorial ships in the zip, so it gets its own patch version like any other change.

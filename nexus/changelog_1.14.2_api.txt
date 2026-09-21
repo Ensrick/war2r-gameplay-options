@@ -1,0 +1,1 @@
+Fixed in auto-production: units that are inside a building were not counted. A tanker inside its oil platform or the shipyard counted as "no tanker", so a second tanker was trained; peasants inside the gold mine or the hall were missing from the worker count, so more workers were trained than the target. Units inside mines, platforms, halls and transports are counted now.

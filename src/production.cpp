@@ -764,13 +764,19 @@ void Pass(const World& w, unsigned nowMs) {
         Unit* u = UnitAt(w, i);
         const uint32_t serial = Field<uint32_t>(u, kOffSerial);
         if (g_slots[i].serial != serial) g_slots[i] = SlotState{serial, 0, false, 0, 0, SaveUp{}};
-        if (!IsActive(u)) continue;
+        // A unit INSIDE a building (a tanker in its platform, a peasant in the mine or handing in at the hall, anyone in
+        // a transport) is hidden, not gone: it is the player's unit and must be counted, or the mod trains a second
+        // tanker every time the first one is loading. The engine's own counters use the same filter (state & 7).
+        const uint8_t state = Field<uint8_t>(u, kOffStateFlags) & 0x0F;
+        if (state & kStateGoneMask) continue;  // free slot, dying, dead
+        const bool hidden = (state & kStateHidden) != 0;
         if (serial > maxSerial) maxSerial = serial;
         if (OwnerOf(u) != p) {
-            if (!enemyNavy && HostileNavy(w, u, p)) enemyNavy = true;
+            if (!hidden && !enemyNavy && HostileNavy(w, u, p)) enemyNavy = true;
             continue;
         }
         const uint8_t type = TypeOf(u);
+        if (hidden && (w.typeFlags[type] & kTfBuilding)) continue;  // no such thing in this game: never a production site
         if (!(w.typeFlags[type] & kTfBuilding)) {
             if (type < 0x3A && serial > newestOwn[type]) newestOwn[type] = serial;
             const int cls = ClassOfType(type);

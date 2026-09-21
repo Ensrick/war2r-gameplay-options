@@ -1732,6 +1732,43 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
     ProdPass(4000);
     CHECK(StartsOf(0x1A) == 1 && StartsAt(yard2) >= 3, "never a second tanker; the shipyard goes back to warships");
 
+    // Found in play (1.14.1): a tanker spends most of its life INSIDE the platform or the shipyard, and a peasant inside
+    // the mine or the hall: hidden (state bit 3), not gone. The mod skipped hidden units, saw "no tanker" and trained a
+    // second one 25 s after the first. Hidden units of the player count like any other.
+    {
+        Unit* tanker = nullptr;
+        int hiddenWorkers = 0;
+        for (int i = 0; i < g_unitCount; ++i) {
+            Unit* u = reinterpret_cast<Unit*>(g_units + i * kUnitSize);
+            if (OwnerOf(u) != 0) continue;
+            if (TypeOf(u) == 0x1A) tanker = u;
+            if (TypeOf(u) == 0x02 && hiddenWorkers < 10) {  // ten of the eighteen peasants are in the mine right now
+                Field<uint8_t>(u, kOffStateFlags) |= kStateHidden;
+                ++hiddenWorkers;
+            }
+        }
+        CHECK(tanker != nullptr && hiddenWorkers == 10, "test world: one tanker and ten peasants to hide");
+        if (tanker) Field<uint8_t>(tanker, kOffStateFlags) |= kStateHidden;
+        const int tankersBefore = StartsOf(0x1A), workersBefore = StartsOf(0x02);
+        FinishTraining(0);
+        ProdPass(5000);
+        FinishTraining(0);
+        ProdPass(6000);
+        CHECK(StartsOf(0x1A) == tankersBefore, "a tanker inside its platform is still a tanker: never a second one (%d started)",
+              StartsOf(0x1A) - tankersBefore);
+        CHECK(StartsOf(0x02) == workersBefore, "peasants inside the mine still count as workers (%d trained on top of 18)",
+              StartsOf(0x02) - workersBefore);
+        CHECK(production::LastPlan().count[kProdTankers] == 1 && production::LastPlan().count[kProdWorkers] == 18,
+              "the plan must see 1 tanker and 18 workers, hidden ones included (%d / %d)",
+              production::LastPlan().count[kProdTankers], production::LastPlan().count[kProdWorkers]);
+        // A dead or dying unit is still not counted.
+        if (tanker) Field<uint8_t>(tanker, kOffStateFlags) = static_cast<uint8_t>((Field<uint8_t>(tanker, kOffStateFlags) & 0xF0) | kStateDying);
+        FinishTraining(0);
+        ProdPass(7000);
+        CHECK(production::LastPlan().count[kProdTankers] == 0, "a dying tanker is no tanker (%d)",
+              production::LastPlan().count[kProdTankers]);
+    }
+
     // Submarines: only on top of a real bank, and never more than a fifth of the fleet.
     ProdWorld();
     ProdWaterMap(60, 4);

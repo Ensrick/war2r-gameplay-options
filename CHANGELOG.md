@@ -7,6 +7,13 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.14.2 - 2026-09-20
+
+- Fixed in auto-production: units that are inside a building were not counted. A tanker inside its oil platform or the
+  shipyard counted as "no tanker", so a second tanker was trained; peasants inside the gold mine or the hall were
+  missing from the worker count, so more workers were trained than the target. Units inside mines, platforms, halls
+  and transports are counted now.
+
 ## 1.14.1 - 2026-09-20
 
 - Tutorial: `plenty_units`, `bank_multiple` and `filler_min` all count units of bank and are easy to mix up; the
