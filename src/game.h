@@ -88,6 +88,17 @@ constexpr uint32_t kRvaResearchTime = 0x5188A8;      // uint8[52], PUD UGRD orde
 // Per-upgrade-group effect bytes: the damage code reads counter[owner] * this byte (0x4BDA8B missile, 0x4BDBA1
 // melee, 0x4BD7CA shields, 0x4BDB3D ship cannons, 0x4BD7BA ship armor, 0x4BDB67 siege). Nothing in the game writes
 // the table: a sweep of .text finds no instruction with a destination in 0x8C1100..0x8C1300 (docs/research/damage.md).
+// The four call sites where a normal attack's damage is decided, and the three functions they call
+// (docs/research/damage.md). Melee and the direct missile roll with the target read from attacker+0x88; the tower
+// path passes the target in; the splash hit is per victim, with the missile in EBX at the call.
+constexpr uint32_t kRvaDamageRoll = 0xBD770;          // FUN_004BD770(attacker) -> damage, armor applied
+constexpr uint32_t kRvaDamageRollTarget = 0xBDC20;    // FUN_004BDC20(attacker, target) -> the same with the target given
+constexpr uint32_t kRvaApplyDamage = 0xBD8F0;         // FUN_004BD8F0(source, victim, damage)
+constexpr uint32_t kRvaMeleeRollSite = 0xA89D0;       // call in FUN_004a89b0
+constexpr uint32_t kRvaMissileRollSite = 0xAEEFB;     // call in FUN_004aedf0, the non-splash branch
+constexpr uint32_t kRvaTowerRollSite = 0xAF8FF;       // call in FUN_004af860 (towers)
+constexpr uint32_t kRvaSplashApplySite = 0xAFC2A;     // call in FUN_004afb50, once per splash victim
+constexpr uint32_t kRvaMissileSplashes = 0x4C090C;    // uint8[missile type]: 1 for the splashing weapons 7, 13, 14, 24
 constexpr uint32_t kRvaUpgradeEffects = 0x4C11DC;      // uint8[11], index = upgrade group
 constexpr int kUpgradeEffectTableLen = 11;
 constexpr uint32_t kRvaRangeBonusDisplay = 0x4C11E4; // uint8, entry 8 of the per-upgrade-group effect table 0x8C11DC: what both

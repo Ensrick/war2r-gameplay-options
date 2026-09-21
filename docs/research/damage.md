@@ -171,13 +171,31 @@ All five are `cdecl` with the attacker pushed and the result used as a byte (`0x
 which makes a thunk trivial: call the original, scale, clamp, return. The bytes at each site are a plain `E8 rel32`,
 the same shape the mod already byte-verifies in `src/hook.cpp`.
 
-- Sites 1 and 5 know the target directly (`attacker+0x88`, or the second argument). Sites 2, 3 and 4 can read
-  `attacker+0x88`, which is the unit the attack was ordered at; `[unverified]` whether a tower's `+0x88` is always
-  set when `FUN_004af860` runs, so the thunk must treat a null target as "no class multiplier".
-- **Splash victims other than the intended target get the intended target's multiplier**, because the byte is fixed
-  when the missile is created. That is a deliberate simplification; the alternative is hooking the four unit-side
-  call sites of `FUN_004bd8f0` instead, where attacker and victim are both known per hit, at the price of having to
-  exclude spell missiles by type (and death coil shares a normal missile type, so that filter is not clean).
+### What the mod hooks (implemented)
+
+Four sites, three callees, and splash is scaled **per victim** rather than inherited:
+
+| site | callee | thunk sees | scaled with |
+|---|---|---|---|
+| `0x4A89D0` | `FUN_004BD770` | attacker | attacker and `attacker+0x88` |
+| `0x4AEEFB` | `FUN_004BD770` | attacker | the same |
+| `0x4AF8FF` | `FUN_004BDC20` | attacker, target | both arguments |
+| `0x4AFC2A` | `FUN_004BD8F0` | source, victim, damage, **missile in EBX** | the missile's source unit and this victim |
+
+The two splash *creation* sites (`0x4AEEF4`, `0x4AF8F3`) are deliberately **not** hooked: the missile's byte is
+fixed before the victims are known, so scaling there would give every unit in the blast the intended target's
+multiplier. `0x4AFC2A` is inside `FUN_004afb50`, which runs once per victim; the missile pointer sits in `EBX`
+(loaded at `0x4AFB60` from `[ebp+8]`) and the three cdecl arguments are pushed at `0x4AFC25..0x4AFC27`, so a naked
+thunk can read the missile, rewrite the damage argument in place and tail-jump to the callee.
+
+Spell damage is excluded by the game's own table: the thunk scales only when `0x8C090C[missile type]` is set, which
+is true for the weapon missiles 7, 13, 14 and 24 and false for every spell missile type (2 fireball, 3 flame shield
+bolt, 4 flame orbiter, 5 blizzard, 6 death and decay, 12 whirlwind). The selftest asserts both halves of that against
+the real exe image.
+
+Walls are the one gap: `FUN_004af9e0` damages a wall before the per-victim loop, so wall splash is unscaled.
+
+- A tower's `+0x88` is not needed after all: the tower site passes its target as the second argument.
 - **What a multiplier does to the roll:** applied after the roll, so the spread stays proportional (a x2 catapult
   rolls 2 x [half, full]). The game has no minimum damage - a roll of 0 is legal - so the mod should keep 0 at 0,
   round to nearest otherwise, and clamp to 1..255 so a multiplier below 1 cannot make a unit immune by rounding.
@@ -232,5 +250,4 @@ two are display-only.
 
 - What upgrade group 5 (effect byte 10) was for; nothing reads it in this build.
 - What entry 9 (0xFF) does at `0x4E6228` beyond display.
-- Whether a tower's `+0x88` target pointer is valid at `FUN_004af860` time.
 - The status-panel damage path was not traced end to end.

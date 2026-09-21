@@ -5,6 +5,7 @@
 
 #include "mod.h"
 #include "game.h"
+#include "damagetypes.h"
 #include "hook.h"
 #include "log.h"
 
@@ -72,6 +73,10 @@ BOOL APIENTRY DllMain(HMODULE self, DWORD reason, LPVOID) {
     logx::Write("gameplay_options " MOD_VERSION " loaded into %ls", exeName);
     const uintptr_t base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
     mod::SetModuleBase(base, dllDir);
-    if (hook::Install(base)) logx::Write("tick hook installed at %p", reinterpret_cast<void*>(base + game::kRvaTickCallSite));
+    if (hook::Install(base)) {
+        logx::Write("tick hook installed at %p", reinterpret_cast<void*>(base + game::kRvaTickCallSite));
+        // The damage hooks are their own decision: all four sites or none, and the rest of the mod runs either way.
+        if (damagetypes::InstallHooks(base)) logx::Write("damage type hooks installed");
+    }
     return TRUE;
 }

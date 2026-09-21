@@ -429,6 +429,171 @@ static void ReadPriority(const toml::table& root, Config& c) {
     }
 }
 
+// [weapon_types] / [armor_types]: a name the player invents, and the units and buildings that carry it. Entries
+// are the names the [unit.NAME] / [building.NAME] tables accept, plus the four ready-made groups. A unit carries at
+// most one weapon type and one armor type; a specific name always beats a group, and among specific names the
+// first one wins and the second is logged.
+static bool ValidTypeName(const std::string& name) {
+    if (name.empty() || name.size() >= kDamageTypeNameLen) return false;
+    for (char ch : name)
+        if (!((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '_')) return false;
+    return true;
+}
+
+// -1 = not a group name. The groups come from the static unit table, not from the game's flags, so they are the
+// same before the first map is loaded.
+static int GroupMembers(const std::string& name, bool* out) {
+    memset(out, 0, units::kTypeCount);
+    int n = 0;
+    for (int t = 0; t < units::kTypeCount; ++t) {
+        const units::Entry* e = t < units::kFirstBuilding ? units::FindById(static_cast<uint8_t>(t)) : nullptr;
+        bool member = false;
+        if (name == "structures") member = t >= units::kFirstBuilding;
+        else if (name == "ships") member = e && e->group == units::kNaval;
+        else if (name == "air_units") member = e && e->group == units::kAir;
+        else if (name == "land_units") member = e && e->group != units::kNaval && e->group != units::kAir;
+        else return -1;
+        out[t] = member;
+        n += member;
+    }
+    return n;
+}
+
+static void ReadTypeSection(const toml::table& root, const char* section, char (*names)[kDamageTypeNameLen], int& count,
+                            uint8_t* slot, const char* what) {
+    const auto sec = root[section];
+    if (!sec) return;
+    const toml::table* tbl = sec.as_table();
+    if (!tbl) {
+        logx::Write("config: [%s] must be a table of name = [ ... ] lists", section);
+        return;
+    }
+    // Two passes: the named units first, so a name listed anywhere always beats a ready-made group.
+    for (int pass = 0; pass < 2; ++pass) {
+        for (const auto& [key, value] : *tbl) {
+            const std::string name(key.str());
+            const toml::array* list = value.as_array();
+            if (!list) {
+                if (pass == 0) logx::Write("config: [%s] %s must be a list of unit names in quotes", section, name.c_str());
+                continue;
+            }
+            if (!ValidTypeName(name)) {
+                if (pass == 0)
+                    logx::Write("config: [%s] \"%s\" is not a usable type name (a to z, 0 to 9 and _ only, under %d letters)",
+                                section, name.c_str(), kDamageTypeNameLen);
+                continue;
+            }
+            int index = -1;
+            for (int i = 0; i < count; ++i)
+                if (name == names[i]) index = i;
+            if (index < 0) {
+                if (pass == 1) continue;  // it was refused in pass 0
+                if (count >= kMaxDamageTypes) {
+                    logx::Write("config: [%s] %s: more than %d %s types, ignored", section, name.c_str(), kMaxDamageTypes, what);
+                    continue;
+                }
+                index = count++;
+                strcpy_s(names[index], name.c_str());
+            }
+            for (const auto& item : *list) {
+                const auto member = item.value<std::string>();
+                if (!member) {
+                    if (pass == 0) logx::Write("config: [%s] %s: every entry must be a name in quotes", section, name.c_str());
+                    continue;
+                }
+                bool group[units::kTypeCount];
+                const int groupSize = GroupMembers(*member, group);
+                if (groupSize < 0) {  // a single unit or building name
+                    if (pass != 0) continue;
+                    const units::Entry* e = units::FindByName(member->c_str());
+                    const units::Building* b = e ? nullptr : units::FindBuildingByName(member->c_str());
+                    const int id = e ? e->id : (b ? b->id : -1);
+                    if (id < 0) {
+                        logx::Write("config: [%s] %s: unknown unit \"%s\" ignored", section, name.c_str(), member->c_str());
+                        continue;
+                    }
+                    if (slot[id] != kNoDamageType && slot[id] != index) {
+                        logx::Write("config: [%s] %s already has the %s type %s, \"%s\" ignored", section,
+                                    member->c_str(), what, names[slot[id]], name.c_str());
+                        continue;
+                    }
+                    slot[id] = static_cast<uint8_t>(index);
+                } else if (pass == 1) {
+                    for (int t = 0; t < units::kTypeCount; ++t)
+                        if (group[t] && slot[t] == kNoDamageType) slot[t] = static_cast<uint8_t>(index);
+                }
+            }
+        }
+    }
+}
+
+static void ReadDamageTypes(const toml::table& root, Config& c) {
+    DamageTypes& d = c.damageTypes;
+    ReadTypeSection(root, "weapon_types", d.weaponName, d.weaponCount, d.weaponOf, "weapon");
+    ReadTypeSection(root, "armor_types", d.armorName, d.armorCount, d.armorOf, "armor");
+    const auto sec = root["damage_bonus"];
+    if (const toml::table* tbl = sec ? sec.as_table() : nullptr) {
+        for (const auto& [key, value] : *tbl) {
+            const std::string weapon(key.str());
+            int w = -1;
+            for (int i = 0; i < d.weaponCount; ++i)
+                if (weapon == d.weaponName[i]) w = i;
+            const toml::table* row = value.as_table();
+            if (!row) {
+                logx::Write("config: [damage_bonus.%s] must be a table of armor_type = multiplier", weapon.c_str());
+                continue;
+            }
+            if (w < 0) {
+                logx::Write("config: [damage_bonus.%s] there is no weapon type called \"%s\", ignored", weapon.c_str(),
+                            weapon.c_str());
+                continue;
+            }
+            for (const auto& [armorKey, armorValue] : *row) {
+                const std::string armor(armorKey.str());
+                int a = -1;
+                for (int i = 0; i < d.armorCount; ++i)
+                    if (armor == d.armorName[i]) a = i;
+                if (a < 0) {
+                    logx::Write("config: [damage_bonus.%s] there is no armor type called \"%s\", ignored", weapon.c_str(),
+                                armor.c_str());
+                    continue;
+                }
+                const auto v = armorValue.value<double>();
+                if (!v || *v < 0.0 || *v > 10.0) {
+                    logx::Write("config: [damage_bonus.%s] %s must be a number from 0 to 10", weapon.c_str(), armor.c_str());
+                    continue;
+                }
+                d.bonus[w][a] = static_cast<uint16_t>(*v * 256.0 + 0.5);
+                if (d.bonus[w][a] != kDamageBonusOne) {
+                    d.any = true;
+                    ++d.bonusCount;
+                }
+            }
+        }
+    }
+    if (d.weaponCount || d.armorCount) {
+        char line[320] = "damage types:";
+        for (int i = 0; i < d.weaponCount; ++i) {
+            int n = 0;
+            for (uint8_t s : d.weaponOf) n += s == i;
+            char one[64];
+            sprintf_s(one, "%s weapon %s (%d units)", i ? "," : "", d.weaponName[i], n);
+            if (strlen(line) + strlen(one) < sizeof(line)) strcat_s(line, one);
+        }
+        for (int i = 0; i < d.armorCount; ++i) {
+            int n = 0;
+            for (uint8_t s : d.armorOf) n += s == i;
+            char one[64];
+            sprintf_s(one, "%s armor %s (%d)", i || d.weaponCount ? "," : "", d.armorName[i], n);
+            if (strlen(line) + strlen(one) < sizeof(line)) strcat_s(line, one);
+        }
+        char tail[32];
+        sprintf_s(tail, "; %d bonus%s", d.bonusCount, d.bonusCount == 1 ? "" : "es");
+        if (strlen(line) + strlen(tail) < sizeof(line)) strcat_s(line, tail);
+        logx::Write("%s", line);
+    }
+}
+
 static void SetPolymorphTargets(Config& c, const char* const* names, size_t count) {
     memset(c.polymorphRank, 0, sizeof(c.polymorphRank));
     uint8_t rank = 1;
@@ -528,6 +693,9 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"auto_production", nullptr},  // validates its own keys and sub-tables
         {"priority", " save_mana paladin mage ogre_mage death_knight "},
         {"upgrades", " missile_damage melee_damage shields ship_damage ship_armor siege_damage "},
+        {"weapon_types", nullptr},   // the keys are names the player invents; the reader validates them
+        {"armor_types", nullptr},
+        {"damage_bonus", nullptr},
     };
     for (const auto& [sectionKey, sectionNode] : root) {
         const std::string section(sectionKey.str());
@@ -633,6 +801,7 @@ static bool Load() {
     // counter reaches 2, so no product can wrap).
     for (int i = 0; i < kUpgradeEffectCount; ++i)
         ReadInt(root, "upgrades", kUpgradeEffectKeys[i], -1, 100, c.upgradeEffect[i]);
+    ReadDamageTypes(root, c);
     ReadPriority(root, c);
     ReadAutoProduction(root, c);
     g = c;

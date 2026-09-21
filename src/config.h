@@ -1,6 +1,8 @@
 #pragma once
 #include <cstdint>
 
+#include <cstring>
+
 #include "units.h"
 
 enum Spell {
@@ -47,6 +49,32 @@ struct Priority {
 enum UpgradeEffect {
     kUpgradeMissileDamage, kUpgradeMeleeDamage, kUpgradeShields, kUpgradeShipDamage, kUpgradeShipArmor,
     kUpgradeSiegeDamage, kUpgradeEffectCount
+};
+
+// [weapon_types] / [armor_types] / [damage_bonus]: names the player invents, the units that carry them, and one
+// multiplier per (weapon type, armor type) pair. The game has no such system; the mod adds it at the four call
+// sites where a normal attack's damage is decided (docs/research/damage.md).
+constexpr int kMaxDamageTypes = 32;
+constexpr int kDamageTypeNameLen = 32;
+constexpr uint8_t kNoDamageType = 0xFF;      // this unit type carries no weapon / armor type
+constexpr uint16_t kDamageBonusOne = 256;    // x256 fixed point: 256 = x1.0, no scaling
+
+struct DamageTypes {
+    char weaponName[kMaxDamageTypes][kDamageTypeNameLen] = {};
+    char armorName[kMaxDamageTypes][kDamageTypeNameLen] = {};
+    int weaponCount = 0, armorCount = 0;
+    uint8_t weaponOf[units::kTypeCount] = {};  // filled with kNoDamageType by the constructor
+    uint8_t armorOf[units::kTypeCount] = {};
+    uint16_t bonus[kMaxDamageTypes][kMaxDamageTypes] = {};
+    bool any = false;                          // at least one bonus differs from x1.0
+    int bonusCount = 0;
+
+    DamageTypes() {
+        memset(weaponOf, kNoDamageType, sizeof(weaponOf));
+        memset(armorOf, kNoDamageType, sizeof(armorOf));
+        for (auto& row : bonus)
+            for (uint16_t& b : row) b = kDamageBonusOne;
+    }
 };
 
 // Keys of a [unit.<name>] table, same order as config::kStatKeys.
@@ -248,6 +276,8 @@ struct Config {
     // [auto_production] and its sub-tables: your idle production buildings train by themselves (never the computer's)
     AutoProduction production;
     Priority priority;
+
+    DamageTypes damageTypes;
 
     // [upgrades]: -1 = the game's own number for that line.
     int upgradeEffect[kUpgradeEffectCount] = {-1, -1, -1, -1, -1, -1};

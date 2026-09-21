@@ -12,6 +12,7 @@
 #include "../src/autocast.h"
 #include "../src/world.h"
 #include "../src/config.h"
+#include "../src/damagetypes.h"
 #include "../src/datatweaks.h"
 #include "../src/game.h"
 #include "../src/hook.h"
@@ -845,6 +846,194 @@ static void SpellNumberTests(const wchar_t* dir, const wchar_t* ini) {
     ResetSpellConfig();
     spells::Sync(false);
     CHECK(AllSitesAreGame() && CostsAreGame(), "the test must leave the image as the game made it");
+}
+
+// ---- weapon / armor types and the damage hooks (src/damagetypes.cpp, docs/research/damage.md) ----
+static int g_stubDamage = 0;
+static Unit* g_stubAttacker = nullptr;
+static int __cdecl StubRoll(Unit* attacker) {
+    g_stubAttacker = attacker;
+    return g_stubDamage;
+}
+static int __cdecl StubTower(Unit* attacker, Unit* target) {
+    g_stubAttacker = attacker;
+    (void)target;
+    return g_stubDamage;
+}
+
+static void DamageTypeTests(const wchar_t* dir, const wchar_t* ini) {
+    // The exe still has the four call sites and the three callees the mod knows.
+    {
+        struct Site { uint32_t rva, callee; const char* what; };
+        const Site sites[] = {{kRvaMeleeRollSite, kRvaDamageRoll, "melee"},
+                              {kRvaMissileRollSite, kRvaDamageRoll, "missile"},
+                              {kRvaTowerRollSite, kRvaDamageRollTarget, "tower"},
+                              {kRvaSplashApplySite, kRvaApplyDamage, "splash"}};
+        for (const Site& s : sites) {
+            const uint8_t* at = At<uint8_t>(s.rva);
+            int32_t rel;
+            memcpy(&rel, at + 1, sizeof(rel));
+            CHECK(at[0] == 0xE8 && reinterpret_cast<uintptr_t>(at) + 5 + rel == g_base + s.callee,
+                  "the %s damage call site 0x%06X no longer calls 0x%06X", s.what, 0x400000 + s.rva, 0x400000 + s.callee);
+        }
+        // The splash filter: the game's own "this missile type splashes" table, spell missile types are not in it.
+        const uint8_t* splashes = At<uint8_t>(kRvaMissileSplashes);
+        CHECK(splashes[7] && splashes[13] && splashes[14] && splashes[24], "the splashing weapon missile types changed");
+        CHECK(!splashes[2] && !splashes[3] && !splashes[4] && !splashes[5] && !splashes[6] && !splashes[12],
+              "a spell missile type is marked as a splashing weapon: the filter would scale spell damage");
+    }
+
+    // The install is all four sites or none, and it refuses a site whose bytes changed.
+    {
+        const uint32_t rvas[4] = {kRvaMeleeRollSite, kRvaMissileRollSite, kRvaTowerRollSite, kRvaSplashApplySite};
+        uint8_t before[4][5];
+        for (int i = 0; i < 4; ++i) memcpy(before[i], At<uint8_t>(rvas[i]), 5);
+        auto poke = [&](uint32_t rva, int offset, uint8_t value) {
+            uint8_t* at = At<uint8_t>(rva);
+            DWORD old;
+            VirtualProtect(at, 5, PAGE_EXECUTE_READWRITE, &old);
+            at[offset] = value;
+            VirtualProtect(at, 5, old, &old);
+        };
+        poke(kRvaTowerRollSite, 1, static_cast<uint8_t>(before[2][1] ^ 0xFF));  // it now calls somewhere else
+        CHECK(!damagetypes::InstallHooks(g_base) && !damagetypes::Installed(),
+              "a changed call site must refuse the whole install");
+        bool untouched = true;
+        for (int i = 0; i < 4; ++i)
+            if (i != 2) untouched = untouched && memcmp(At<uint8_t>(rvas[i]), before[i], 5) == 0;
+        CHECK(untouched, "a refused install must leave every site alone");
+        poke(kRvaTowerRollSite, 1, before[2][1]);
+        CHECK(damagetypes::InstallHooks(g_base) && damagetypes::Installed(), "the install must take on the game's own bytes");
+        bool redirected = true;
+        for (int i = 0; i < 4; ++i) redirected = redirected && memcmp(At<uint8_t>(rvas[i]), before[i], 5) != 0;
+        CHECK(redirected, "every site must be redirected once the install took");
+        for (int i = 0; i < 4; ++i)
+            for (int b = 0; b < 5; ++b) poke(rvas[i], b, before[i][b]);  // the image goes back as it was
+    }
+
+    const DamageTypes savedTypes = config::g.damageTypes;
+    ResetWorld();
+    // The author's own example: siege weapons hit structures twice as hard and ships half again.
+    WriteFileText(ini,
+                  "[weapon_types]\nsiege = [\"ballista\", \"catapult\", \"human_cannon_tower\"]\n"
+                  "[armor_types]\nstructure = [\"structures\"]\nship = [\"ships\"]\n"
+                  "[damage_bonus.siege]\nstructure = 2.0\nship = 1.5\n");
+    CHECK(config::Init(dir), "[weapon_types] config rejected");
+    {
+        const DamageTypes& d = config::g.damageTypes;
+        CHECK(d.weaponCount == 1 && d.armorCount == 2 && d.any && d.bonusCount == 2,
+              "one weapon type, two armor types, two bonuses (%d %d %d)", d.weaponCount, d.armorCount, d.bonusCount);
+        CHECK(d.weaponOf[0x04] == 0 && d.weaponOf[0x05] == 0 && d.weaponOf[0x62] == 0 && d.weaponOf[0x00] == kNoDamageType,
+              "ballista, catapult and the human cannon tower carry the siege weapon type");
+        // Sections are read in alphabetical key order (that is how the TOML reader stores a table), so the index a
+        // type gets is not the file order: look them up by name.
+        auto armorIndex = [&](const char* name) {
+            for (int i = 0; i < d.armorCount; ++i)
+                if (strcmp(d.armorName[i], name) == 0) return static_cast<uint8_t>(i);
+            return kNoDamageType;
+        };
+        CHECK(d.armorOf[0x4A] == armorIndex("structure") && d.armorOf[0x1E] == armorIndex("ship") &&
+                  d.armorOf[0x00] == kNoDamageType && d.armorOf[0x2B] == kNoDamageType,
+              "structures and ships carry their armor types, footmen and dragons carry none");
+        CHECK(LogContains(dir, "damage types: weapon siege (3 units), armor ") && LogContains(dir, "; 2 bonuses"),
+              "the config load must log the types it read");
+    }
+    // The rule itself: x2 on a town hall, x1.5 on a destroyer, x1 on a footman and a dragon.
+    {
+        Unit* ballista = AddUnit(0x04, 0, 10, 10, 100, 0, kOrderStand);
+        Unit* hall = AddUnit(0x4A, 1, 20, 20, 1200, 0, kOrderStand);
+        Unit* destroyer = AddUnit(0x1E, 1, 22, 20, 100, 0, kOrderStand);
+        Unit* footman = AddUnit(0x00, 1, 24, 20, 60, 0, kOrderStand);
+        Unit* dragon = AddUnit(0x2B, 1, 26, 20, 100, 0, kOrderStand);
+        Unit* knight = AddUnit(0x06, 0, 12, 10, 90, 0, kOrderStand);
+        CHECK(damagetypes::Scale(40, ballista, hall) == 80 && damagetypes::Scale(40, ballista, destroyer) == 60 &&
+                  damagetypes::Scale(40, ballista, footman) == 40 && damagetypes::Scale(40, ballista, dragon) == 40,
+              "the bonus must be x2 on a hall, x1.5 on a ship, x1 elsewhere (%d %d %d %d)",
+              damagetypes::Scale(40, ballista, hall), damagetypes::Scale(40, ballista, destroyer),
+              damagetypes::Scale(40, ballista, footman), damagetypes::Scale(40, ballista, dragon));
+        CHECK(damagetypes::Scale(40, knight, hall) == 40, "a weapon type nobody assigned must change nothing");
+        // Rounding, the clamps and the guards.
+        CHECK(damagetypes::Scale(5, ballista, destroyer) == 8 && damagetypes::Scale(1, ballista, destroyer) == 2,
+              "x1.5 must round to nearest (5 -> %d, 1 -> %d)", damagetypes::Scale(5, ballista, destroyer),
+              damagetypes::Scale(1, ballista, destroyer));
+        CHECK(damagetypes::Scale(200, ballista, hall) == 255, "the result must clamp at 255");
+        CHECK(damagetypes::Scale(0, ballista, hall) == 0, "zero damage stays zero");
+        CHECK(damagetypes::Scale(40, ballista, nullptr) == 40 && damagetypes::Scale(40, nullptr, hall) == 40,
+              "a null unit must leave the damage alone");
+        static uint8_t outside[kUnitSize] = {};  // a unit-shaped block that is not in the game's array
+        outside[kOffType] = 0x4A;
+        CHECK(damagetypes::Scale(40, ballista, reinterpret_cast<Unit*>(outside)) == 40,
+              "a pointer outside the unit array must be refused");
+        CHECK(damagetypes::Scale(40, reinterpret_cast<Unit*>(reinterpret_cast<uint8_t*>(ballista) + 3), hall) == 40,
+              "a pointer that is not on a unit boundary must be refused");
+        *At<uint32_t>(kRvaNetGame) = 1;
+        CHECK(damagetypes::Scale(40, ballista, hall) == 40, "a multiplayer game must never be scaled");
+        *At<uint32_t>(kRvaNetGame) = 0;
+        // The thunks, driven through a stub instead of the engine.
+        damagetypes::SetOriginalsForTest(&StubRoll, &StubTower);
+        g_stubDamage = 40;
+        Field<Unit*>(ballista, kOffOrderTarget) = hall;
+        CHECK(damagetypes::RollThunkForTest(ballista) == 80 && g_stubAttacker == ballista,
+              "the roll thunk must scale with the attacker's own target");
+        Field<Unit*>(ballista, kOffOrderTarget) = nullptr;
+        CHECK(damagetypes::RollThunkForTest(ballista) == 40, "no target: the damage must come through untouched");
+        CHECK(damagetypes::TowerThunkForTest(ballista, destroyer) == 60, "the tower thunk must scale with its own target");
+        // The splash hit is scaled per victim, and only for missile types the game marks as splashing weapons.
+        static uint8_t splashMissile[kMissileSize] = {};
+        splashMissile[kMisOffType] = 7;  // a catapult / ballista weapon missile
+        CHECK(damagetypes::SplashScaleForTest(splashMissile, ballista, hall, 40) == 80 &&
+                  damagetypes::SplashScaleForTest(splashMissile, ballista, footman, 40) == 40,
+              "the splash hit must use the victim in front of it");
+        splashMissile[kMisOffType] = 5;  // blizzard: a spell missile, never scaled
+        CHECK(damagetypes::SplashScaleForTest(splashMissile, ballista, hall, 40) == 40 &&
+                  damagetypes::SplashScaleForTest(nullptr, ballista, hall, 40) == 40,
+              "spell splash and a missing missile must go through untouched");
+        Field<Unit*>(ballista, kOffOrderTarget) = nullptr;
+    }
+    // A specific name beats a group, a second assignment warns and the first wins, unknown names warn.
+    WriteFileText(ini,
+                  "[weapon_types]\nsiege = [\"ballista\"]\nheavy = [\"ballista\", \"nonsense_unit\"]\n"
+                  "[armor_types]\nfortified = [\"structures\"]\nkeep = [\"castle\"]\n"
+                  "[damage_bonus.siege]\nfortified = 3.0\nkeep = 4.0\nmissing = 2.0\n"
+                  "[damage_bonus.nosuchweapon]\nfortified = 2.0\n");
+    CHECK(config::Init(dir), "the second damage-type config was rejected");
+    {
+        const DamageTypes& d = config::g.damageTypes;
+        // "heavy" sorts before "siege", and the reader walks a table in that order: the first claim keeps the unit.
+        CHECK(strcmp(d.weaponName[d.weaponOf[0x04]], "heavy") == 0 && LogContains(dir, "already has the weapon type heavy"),
+              "the first claim on a unit wins and the second is logged (%s)", d.weaponName[d.weaponOf[0x04]]);
+        CHECK(d.armorOf[0x5A] == 1 && d.armorOf[0x4A] == 0,
+              "a named building must beat the structures group (castle %u, hall %u)", d.armorOf[0x5A], d.armorOf[0x4A]);
+        CHECK(LogContains(dir, "unknown unit \"nonsense_unit\" ignored") &&
+                  LogContains(dir, "[damage_bonus.siege] there is no armor type called \"missing\"") &&
+                  LogContains(dir, "[damage_bonus.nosuchweapon] there is no weapon type called"),
+              "an unknown unit, armor type and weapon type must each be logged");
+    }
+    // More than 32 types of one kind: the rest are refused with a warning, and nothing else breaks.
+    {
+        char toml[2048] = "[weapon_types]\n";
+        for (int i = 0; i < 34; ++i) {
+            char line[48];
+            sprintf_s(line, "w%d = [\"ballista\"]\n", i);
+            strcat_s(toml, line);
+        }
+        WriteFileText(ini, toml);
+        CHECK(config::Init(dir), "the 34-type config was rejected");
+        CHECK(config::g.damageTypes.weaponCount == kMaxDamageTypes && LogContains(dir, "more than 32 weapon types, ignored"),
+              "at most %d weapon types, the rest logged (%d)", kMaxDamageTypes, config::g.damageTypes.weaponCount);
+    }
+    // Nothing configured: the hook passes everything through.
+    DeleteFileW(ini);
+    CHECK(config::Init(dir), "the default config did not come back");
+    {
+        Unit* ballista = AddUnit(0x04, 0, 30, 30, 100, 0, kOrderStand);
+        Unit* hall = AddUnit(0x4A, 1, 34, 30, 1200, 0, kOrderStand);
+        CHECK(!config::g.damageTypes.any && damagetypes::Scale(40, ballista, hall) == 40,
+              "the shipped config must leave every hit alone");
+    }
+    config::g.damageTypes = savedTypes;
+    ResetWorld();
+    EnableEverythingForTests();
 }
 
 // ---- [upgrades]: the per-upgrade-group effect bytes (src/upgrades.cpp, docs/research/damage.md) ----
@@ -4913,6 +5102,7 @@ int wmain(int argc, wchar_t** argv) {
     AiWatchTests();
     SpellNumberTests(dir, ini);
     UpgradeTests(dir, ini);
+    DamageTypeTests(dir, ini);
     ProductionTests(dir, ini);
 
     // TOML config: a custom file is honoured, typos and bad values are survivable, a syntax error keeps old settings.
