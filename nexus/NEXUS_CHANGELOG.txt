@@ -1,3 +1,8 @@
+[size=4][b]1.17.1[/b][/size]
+[list]
+[*]Checked after a report that the spell button shows a different cost than the cast drains: the button reads the same table the game charges from, so it always shows the mod's price. For Heal and Exorcism that price is PER HIT POINT (the game's rule): the button says what one hit point costs, and a heal that mends 30 hit points at heal = 2 drains 60 mana. The config comment and the tutorial say so now.
+[/list]
+
 [size=4][b]1.17.0[/b][/size]
 [list]
 [*]New [heal] cooldown_seconds (0 = off): seconds a paladin waits after a Heal or an Exorcism before autocasting either again, one timer per paladin. Two things break the wait: a heal target at or below urgent_below_percent (10) of its hit points, and an exorcism the paladin's mana can finish outright. With log_casts the cast line says why the wait was broken.

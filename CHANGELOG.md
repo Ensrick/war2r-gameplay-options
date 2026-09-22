@@ -7,6 +7,13 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.17.1 - 2026-09-22
+
+- Checked after a report that the spell button shows a different cost than the cast drains: the button reads the
+  same table the game charges from, so it always shows the mod's price. For Heal and Exorcism that price is PER HIT
+  POINT (the game's rule): the button says what one hit point costs, and a heal that mends 30 hit points at
+  heal = 2 drains 60 mana. The config comment and the tutorial say so now.
+
 ## 1.17.0 - 2026-09-22
 
 - New `[heal] cooldown_seconds` (0 = off): seconds a paladin waits after a Heal or an Exorcism before autocasting

@@ -15,6 +15,15 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.17.1 (2026-09-22, docs + test, NOT released)
+
+- Author: "the cost the text says it has doesn't match what it actually costs." Research (docs/research/spells.md): both
+  panels read the cost table the mod writes (classic 0x4E80BC, Remastered 0x52E299), there is no display copy and no
+  number baked into a string. The mismatch is the game's per-hit-point pricing of Heal and Exorcism: the button shows
+  the price of ONE hit point. Nothing to patch; a selftest now pins the classic read site to the table, and the
+  tutorial plus the config comment explain the arithmetic. The classic panel reads the cost as a byte, which is why
+  kMaxCost is 255.
+
 ## 1.17.0 (2026-09-22, UNTESTED in game, NOT released)
 
 - Author: "Both the AI and my autocast heal and exorcise too frequently. Add a cooldown between heal/exorcism casting

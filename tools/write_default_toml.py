@@ -325,8 +325,9 @@ heal = -1              # the most hit points one Heal restores (game: 40, at mos
 
 [spell_cost]
 # Mana cost of every spell x this, rounded up. The per-spell numbers below replace the game's own first (-1 = the
-# game's), then this multiplier applies. 1 to 255. Heal and Exorcism cost mana PER HIT POINT, and
-# [spell_damage] all lowers that price further (x2 damage = half the price). Everyone gets these costs.
+# game's), then this multiplier applies. 1 to 255. Heal and Exorcism cost mana PER HIT POINT: the number here, and
+# the one on the spell button, is what ONE hit point costs, so a heal that mends 30 hit points at heal = 2 drains
+# 60 mana. [spell_damage] all lowers that price further (x2 damage = half the price). Everyone gets these costs.
 all = 1.0
 holy_vision = -1       # game: 70
 heal = -1              # game: 5 per hit point healed
