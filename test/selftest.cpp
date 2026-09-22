@@ -18,6 +18,7 @@
 #include "../src/hook.h"
 #include "../src/log.h"
 #include "../src/production.h"
+#include "../src/resume.h"
 #include "../src/spells.h"
 #include "../src/upgrades.h"
 #include "../src/aiwatch.h"
@@ -50,6 +51,8 @@ static void __cdecl FakeIssueOrder(Unit* caster, int16_t x, int16_t y, Unit* tar
                           : rva == kRvaReturnHandler  ? kOrderReturnGoods
                           : rva == kRvaRepairHandler  ? kOrderRepair
                           : rva == kRvaStopHandler    ? kOrderStop
+                          : rva == kRvaAttackMoveHandler ? kOrderAttackArea
+                          : rva == kRvaPatrolHandler     ? kOrderPatrol
                                                       : static_cast<uint8_t>(*At<uint16_t>(kRvaPendingSpellOrder));
     Field<uint8_t>(caster, kOffNextOrder) = order;
     Field<Unit*>(caster, kOffOrderTarget) = target;
@@ -81,6 +84,7 @@ static void PatchJump(uint32_t rva, void* dest) {
 }
 
 static void ResetWorld() {
+    resume::OnNewMap();  // no attack-move waiting to be handed back into the next scenario
     memset(g_units, 0, sizeof(g_units));
     memset(g_grid, 0, sizeof(g_grid));
     memset(g_airGrid, 0, sizeof(g_airGrid));
@@ -878,6 +882,131 @@ static void SpellNumberTests(const wchar_t* dir, const wchar_t* ini) {
         CHECK(table == g_base + kRvaAttackRangeByType, "the panel no longer prints the attack range table");
     }
     CHECK(AllSitesAreGame() && CostsAreGame(), "the test must leave the image as the game made it");
+}
+
+// ---- [autocast] resume_orders: give the attack-move back after the cast (src/resume.cpp) ----
+static void ResumeOrderTests(const wchar_t* dir) {
+    const bool savedResume = config::g.resumeOrders, savedLog = config::g.logCasts;
+    const uint32_t savedRuleset = *At<uint32_t>(kRvaRuleset);
+    bool savedSpells[kSpellCount];
+    memcpy(savedSpells, config::g.spell, sizeof(savedSpells));
+    const int savedMissing = config::g.healMinMissingHp;
+    *At<uint32_t>(kRvaRuleset) = 1;  // the Remastered ruleset is what keeps a resume order at all
+    config::g.resumeOrders = true;
+    config::g.logCasts = true;
+    config::g.healMinMissingHp = 1;
+    for (int i = 0; i < kSpellCount; ++i) config::g.spell[i] = i == kSpellHeal;
+    uint32_t serial = 7000;
+    auto ox = [](Unit* u) { return static_cast<int>(Field<int16_t>(u, kOffOrderX)); };
+    auto oy = [](Unit* u) { return static_cast<int>(Field<int16_t>(u, kOffOrderY)); };
+    auto unitAt = [](int i) { return reinterpret_cast<Unit*>(g_units + i * kUnitSize); };
+
+    // A paladin on an attack-move heals: the resume byte must be clear while the spell runs (the 1.16.2 rule), and
+    // the attack-move must come back, with its destination, once the paladin is idle again.
+    auto setup = [&](uint8_t resumeOrder, int destOffset, int16_t dx, int16_t dy) {
+        ResetWorld();
+        Unit* pal = AddUnit(kTypePaladin, 0, 20, 20, 90, 255, kOrderStand);
+        Field<uint32_t>(pal, kOffSerial) = ++serial;
+        Field<uint8_t>(pal, kOffResumeOrder) = resumeOrder;
+        Field<uint8_t>(pal, kOffResumeState) = 0x14;
+        Field<int16_t>(pal, destOffset) = dx;
+        Field<int16_t>(pal, destOffset + 2) = dy;
+        AddUnit(kFootman, 0, 22, 20, 30, 0, kOrderStand);  // something to heal
+        return pal;
+    };
+    // After the cast the caster has to be left with nothing to do, or it heals again and never goes idle.
+    auto goIdle = [&](Unit* u) {
+        Field<uint16_t>(unitAt(1), kOffHp) = 60;  // the footman is whole again
+        Field<uint8_t>(u, kOffOrder) = kOrderStand;
+        Field<uint8_t>(u, kOffNextOrder) = kOrderNone;
+    };
+    Unit* pal = setup(10, 0x90, 34, 12);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(pal) == 0x27 && Field<uint8_t>(pal, kOffResumeOrder) == kOrderNone,
+          "the heal must go out with the resume byte cleared (order %u, resume %u)", OrderOf(pal),
+          Field<uint8_t>(pal, kOffResumeOrder));
+    CHECK(resume::Count() == 1, "the attack-move must be remembered (%u)", resume::Count());
+    mod::RunAutocastPass();  // still casting: nothing given back yet
+    CHECK(resume::Count() == 1 && OrderOf(pal) == 0x27, "a caster that is still casting keeps waiting");
+    goIdle(pal);  // the heal is over and there is nothing left to heal
+    const unsigned restored = resume::RestoreCount();
+    mod::RunAutocastPass();
+    CHECK(OrderOf(pal) == kOrderAttackArea && ox(pal) == 34 && oy(pal) == 12 && resume::RestoreCount() == restored + 1,
+          "the attack-move must come back with its destination (order %u at %d,%d)", OrderOf(pal), ox(pal), oy(pal));
+    CHECK(Field<uint8_t>(pal, kOffResumeOrder) == 10 && Field<uint8_t>(pal, kOffResumeState) == 0x14 &&
+              Field<int16_t>(pal, 0x90) == 34 && Field<int16_t>(pal, 0x92) == 12,
+          "and the resume bytes must be put back (resume %u state %u dest %d,%d)", Field<uint8_t>(pal, kOffResumeOrder),
+          Field<uint8_t>(pal, kOffResumeState), Field<int16_t>(pal, 0x90), Field<int16_t>(pal, 0x92));
+    CHECK(resume::Count() == 0 && LogContains(dir, "resumed attack-move of caster type 12"),
+          "the record is forgotten once it is handed back, and logged");
+
+    // A patrol is kept at its own pair of fields.
+    pal = setup(5, 0x94, 8, 41);
+    mod::RunAutocastPass();
+    goIdle(pal);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(pal) == kOrderPatrol && ox(pal) == 8 && oy(pal) == 41 && Field<uint8_t>(pal, kOffResumeOrder) == 5,
+          "the patrol must come back the same way (order %u at %d,%d)", OrderOf(pal), ox(pal), oy(pal));
+
+    // The player gives the caster something else in the meantime: the mod must not fight them for it.
+    pal = setup(10, 0x90, 34, 12);
+    mod::RunAutocastPass();
+    Field<uint16_t>(unitAt(1), kOffHp) = 60;
+    Field<uint8_t>(pal, kOffOrder) = kOrderMove;  // a move order of the player's
+    Field<uint8_t>(pal, kOffNextOrder) = kOrderNone;
+    mod::RunAutocastPass();
+    CHECK(resume::Count() == 0 && OrderOf(pal) == kOrderMove, "a new player order must drop the record (order %u)",
+          OrderOf(pal));
+    pal = setup(10, 0x90, 34, 12);  // or a new attack-move of their own, seen as a fresh resume byte
+    mod::RunAutocastPass();
+    goIdle(pal);
+    Field<uint8_t>(pal, kOffResumeOrder) = 10;
+    const unsigned restoredBefore = resume::RestoreCount();
+    mod::RunAutocastPass();
+    CHECK(resume::Count() == 0 && resume::RestoreCount() == restoredBefore,
+          "a resume byte set by someone else must drop the record without re-issuing anything");
+
+    // A caster that dies, and a record that simply grows old.
+    pal = setup(10, 0x90, 34, 12);
+    mod::RunAutocastPass();
+    Field<uint8_t>(pal, kOffStateFlags) = kStateDying;
+    mod::RunAutocastPass();
+    CHECK(resume::Count() == 0, "a dead caster must drop the record");
+    pal = setup(10, 0x90, 34, 12);
+    mod::RunAutocastPass();
+    CHECK(resume::Count() == 1, "the record is there before it expires");
+    for (int i = 0; i < 605; ++i) mod::RunAutocastPass();  // 30 s of play at 50 ms a step
+    CHECK(resume::Count() == 0 && OrderOf(pal) == 0x27, "the record must expire after 30 s (order %u)", OrderOf(pal));
+
+    // Switched off: nothing is remembered at all. Checked straight after the order, with no pass in between: a pass
+    // would drop the records on its own and hide a Remember that files them regardless of the setting.
+    config::g.resumeOrders = false;
+    pal = setup(10, 0x90, 34, 12);
+    IssueOrder(pal, 21, 21, nullptr, kRvaMoveHandler);
+    CHECK(resume::Count() == 0, "resume_orders = false must remember nothing (%u)", resume::Count());
+    pal = setup(10, 0x90, 34, 12);
+    mod::RunAutocastPass();
+    CHECK(resume::Count() == 0, "and the pass must not remember anything either");
+    goIdle(pal);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(pal) == kOrderStand, "and nothing is handed back (order %u)", OrderOf(pal));
+    config::g.resumeOrders = true;
+
+    // The eye of Kilrogg is the mod's own unit: never remembered, never re-ordered.
+    ResetWorld();
+    Unit* eye = AddUnit(kTypeEye, 0, 30, 30, 60, 0, kOrderStand);
+    Field<uint32_t>(eye, kOffSerial) = ++serial;
+    Field<uint8_t>(eye, kOffResumeOrder) = 10;
+    IssueOrder(eye, 31, 31, nullptr, kRvaMoveHandler);
+    CHECK(resume::Count() == 0, "the eye must never have a resume order remembered");
+
+    *At<uint32_t>(kRvaRuleset) = savedRuleset;
+    config::g.resumeOrders = savedResume;
+    config::g.logCasts = savedLog;
+    config::g.healMinMissingHp = savedMissing;
+    memcpy(config::g.spell, savedSpells, sizeof(savedSpells));
+    ResetWorld();
+    EnableEverythingForTests();
 }
 
 // ---- [heal] cooldown_seconds: one timer per caster, shared by Heal and Exorcism ----
@@ -5294,6 +5423,7 @@ int wmain(int argc, wchar_t** argv) {
     UpgradeTests(dir, ini);
     DamageTypeTests(dir, ini);
     HealCooldownTests(dir, ini);
+    ResumeOrderTests(dir);
     ProductionTests(dir, ini);
 
     // TOML config: a custom file is honoured, typos and bad values are survivable, a syntax error keeps old settings.

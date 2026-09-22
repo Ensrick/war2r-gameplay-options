@@ -9,6 +9,7 @@
 #include "eye.h"
 #include "log.h"
 #include "production.h"
+#include "resume.h"
 #include "spells.h"
 #include "upgrades.h"
 #include "trees.h"
@@ -132,6 +133,9 @@ void __cdecl OnTick() {
             autocast::GuardChannels(w);  // a Blizzard the mod started must not keep burning friends after Ctrl+F9
         }
     }
+    // After the casts: a caster that has finished gets its attack-move or patrol back (the order every spell of the
+    // mod had to clear, docs/DEV_HISTORY.md 1.16.2).
+    resume::Tick(w);
 }
 
 void SetKeyReaderForTest(KeyReader reader) { g_keyDown = reader ? reader : &RealKeyDown; }
@@ -141,6 +145,7 @@ void RunAutocastPass() {
     if (!BuildWorld(w)) return;
     autocast::Pass(w);
     eye::Pass(w);
+    resume::Tick(w);
 }
 
 }  // namespace mod

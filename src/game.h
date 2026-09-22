@@ -17,6 +17,8 @@ constexpr uint32_t kRvaRangeBonusInsn = 0xEE689;  // `inc al` (FE C0) in GetAtta
 constexpr uint32_t kRvaIssueOrder = 0xEF210;     // void __cdecl (Unit*, int16 x, int16 y, Unit* target, void (__cdecl*)(Unit*))
 constexpr uint32_t kRvaSpellOrderHandler = 0xE2970;  // handler passed to IssueOrder for every spell cast
 constexpr uint32_t kRvaMoveHandler = 0xD8690;        // order 3 entry of the handler table at 0x8C1498; x,y MUST be on the map
+constexpr uint32_t kRvaAttackMoveHandler = 0xD82E0;  // entry 10: SetOrder(unit, 10); the resume the player's attack-move leaves
+constexpr uint32_t kRvaPatrolHandler = 0xD8BD0;      // entry 5: clears +0x88 / +0x70, copies +0x90 to +0x6C, SetOrder(unit, 5)
 constexpr uint32_t kRvaHarvestHandler = 0xD85E0;     // order 23: target = gold mine, or target null and x,y = a forest tile
 constexpr uint32_t kRvaReturnHandler = 0xD8960;      // order 24: null target = the game finds the depot itself
 constexpr uint32_t kRvaRepairHandler = 0xD8920;      // order 27: target = building
@@ -215,6 +217,7 @@ constexpr int kOffResources = 0x82;     // uint16, gold mine / oil: what is left
 constexpr int kOffOrderX = 0x84;        // int16, order destination when there is no target unit
 constexpr int kOffOrderY = 0x86;        // int16
 constexpr int kOffOrderTarget = 0x88;   // Unit*
+constexpr int kOffResumeState = 0x8E;   // uint8 beside it: the engine sets 0x14 after resuming an attack-move, 0x28 a patrol
 constexpr int kOffResumeOrder = 0x8D;   // uint8, Remastered: order resumed after a stop (0x3C none, 5 patrol, 10 attack-move)
 
 constexpr uint16_t kStateComplete = 0x80;  // building finished (full 16-bit state word at kOffStateFlags)

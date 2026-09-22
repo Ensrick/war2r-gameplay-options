@@ -911,6 +911,23 @@ Rules, all of them:
 - The mod writes one line to the log when it reads the config, so you can check what it understood:
   `damage types: weapon siege (4 units), armor structure (43), ship (14); 2 bonuses`.
 
+### Casters go back to what they were doing
+
+A spell order replaces whatever the unit was doing, and in the Remastered ruleset it also has to clear the "resume"
+order the game keeps for an attack-move or a patrol (leaving it there is what crashed paladins mid-heal in 1.16.2).
+So a paladin you sent across the map on attack-move used to stop where it cast. Now the mod remembers the order and
+the destination and gives them back as soon as the caster is done:
+
+```toml
+[autocast]
+resume_orders = true    # the default; false leaves a caster standing where it cast
+```
+
+It only ever hands back what it took: if you give the unit anything of your own in the meantime, or a new
+attack-move, the mod forgets its record and stays out of the way. Records are dropped when the caster dies and after
+30 seconds. With `log_casts` on you get one line per hand-back:
+`resumed attack-move of caster type 12 at 30,20 -> 34,12`.
+
 ### Heal and Exorcism less often
 
 Paladins heal the moment anything is scratched, which drains their mana and interrupts whatever they were doing.
@@ -999,6 +1016,7 @@ makes the log long.
 | autocast | area_min_enemies | 3 | Enemy units within 2 tiles of the target before Blizzard, Death and Decay or Whirlwind is cast, when no enemy building is in the blast (1 to 50) |
 | autocast | area_building_value | 3 | What an enemy building in the blast is worth in units when the spot is picked (1 to 20) |
 | autocast | area_friendly_clearance | 4 | Tiles around a Blizzard / Death and Decay aim tile that must hold nothing of yours (0 to 6) |
+| autocast | resume_orders | true | Give a caster its attack-move or patrol back once the spell is over |
 | autocast | fireball_min_enemies | 2 | Enemies the Fireball's burning line must hit; 1 = the computer's own rule (1 to 50) |
 | autocast | channel_mana_reserve | 0 | A Blizzard / Death and Decay the mod started stops below this mana; 0 = until empty (0 to 255) |
 | spells | heal, slow, bloodlust, raise_dead | true | One switch per spell |
