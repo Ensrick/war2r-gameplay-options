@@ -15,6 +15,20 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.19.0 (2026-09-22, UNTESTED in game, NOT released)
+
+- Author: "Whatever I did for Juggernauts and Battleships also didn't give them 7 range." Two of his tables were
+  misnamed and ignored (the log said so every map); renamed, they applied at the 23:20 map load. The agent then found
+  the game's two REACT range tables (0x917EB0 computer, 0x917F20 yours: how far a unit looks for a target on its own)
+  which the mod never wrote, and first blamed them; reading the game's numbers out of unitdata.dat corrected that:
+  battleship / juggernaught are range 6, react 10 / 8, so a raised range of 7 was never held back by them. Towers are
+  the case where it matters (6/6/6): a tower given range 9 kept opening fire at 6.
+- Built anyway, it is right: `react_range` per unit / building, and an implicit raise of both react tables to `range`
+  when it is higher (never lowered). 8 mutations, 8 caught.
+- The juggernaught question stays open until he plays a game started after the rename: at range 7 it should fire one
+  tile further than stock. If not, the next suspect is a map's own UDTA section rewriting the table after the
+  map-load hook [unverified].
+
 ## 1.18.0 (2026-09-22, UNTESTED in game, NOT released)
 
 - Author, on the 1.16.2 crash fix: "healing disrupts the attack command ... it seems like they don't get back to what

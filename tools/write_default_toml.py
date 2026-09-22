@@ -524,6 +524,7 @@ submarines = 10
 # basic_damage = -1
 # piercing_damage = -1
 # range = -1
+# react_range = -1     # 0 to 20: how far it looks for a target on its own. Raised with range when range is higher
 # sight = -1
 # gold = -1
 # lumber = -1
@@ -546,6 +547,7 @@ submarines = 10
 # basic_damage = 37
 # piercing_damage = 2
 # range = 5
+# react_range = 12      # game: 10 computer / 8 yours
 # sight = 9
 # gold = 600
 # lumber = 300
@@ -558,6 +560,7 @@ submarines = 10
 # hit_points = 200
 # piercing_damage = 14
 # range = 7
+# react_range = 9       # game: 6 for all three tower numbers, so raise it with range or the tower keeps opening fire at 6
 '''
 out = pathlib.Path(__file__).resolve().parent.parent / 'config' / 'gameplay_options.default.toml'
 out.write_bytes(text.replace(LF, CRLF).encode('utf-8'))

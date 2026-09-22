@@ -7,6 +7,13 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.19.0 - 2026-09-22
+
+- New `react_range` in `[unit.NAME]` / `[building.NAME]` (0 to 20, -1 = the game's): how far a unit looks for a target
+  on its own, separate from how far it can shoot. A `range` above the game's reaction distance now raises the reaction
+  distance to match (never lowers it), so a tower given range 9 opens fire at 9 instead of its old 6. Ships and land
+  units already notice enemies further than they shoot, so their `range` alone was working.
+
 ## 1.18.0 - 2026-09-22
 
 - New `[autocast] resume_orders` (on): a caster that was on an attack-move or a patrol when the mod cast a spell for
