@@ -559,6 +559,13 @@ That also means the most it can do is x5 for heal and x4 for exorcism (1 mana pe
 The values are clamped to what the game can hold and the log says so; the log also lists every changed cost and damage
 number when a map starts.
 
+**Why the button says 2 and the cast drains 60.** Heal and Exorcism are priced **per hit point**: the game divides
+the caster's mana by the number in the table and heals (or burns) that many hit points, up to the cap. So the cost
+you set for them, and the cost the button and the panel show, is the price of **one hit point**, not of one cast: at
+`heal = 2` a paladin mending a 30 hit point wound spends 60 mana. Every other spell costs its number once, and its
+tooltip matches to the point. The mod does not fabricate those numbers: both status panels read the same live table
+the mod writes, so whatever you set is what the button shows.
+
 **Mana.** `[mana] regen` from 0.1 to 40 speeds up (or slows down) how fast every caster refills. The limit of 255 mana
 per caster is built into the game and cannot be raised.
 
