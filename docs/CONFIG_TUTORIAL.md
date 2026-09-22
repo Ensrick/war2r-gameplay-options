@@ -567,8 +567,9 @@ fires from its `range`. The game's own numbers usually leave room above the atta
 juggernaught 6 / 10 / 8, the three numbers being range / computer / yours), but not always: a guard tower is 6 / 6 / 6
 and a cannon tower 7 / 7 / 7, so raising a tower's `range` alone would have left it firing from its old distance.
 
-So `range` now carries the react ranges up with it: whenever the range you set is larger, both react numbers are
-raised to match, never lowered, and the log says how many types that touched. Set `react_range` yourself and your
+So `range` now carries the react ranges up with it: whenever the range you set is larger, that react number is
+raised to match, never lowered, each of the two separately, and the log names every type it touched:
+`unit elven_destroyer: react range computer 10 -> 12 and yours 8 -> 12 to match range 12`. Set `react_range` yourself and your
 number wins for that type, above or below the range - useful for a unit you want to shoot far but not go looking for
 trouble, or the other way round. It is one key for both tables, and nothing in the game prints it.
 

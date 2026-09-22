@@ -114,6 +114,7 @@ constexpr Building kBuildingNames[] = {
 };
 
 const Building* FindBuildingByName(const char* name);  // case-insensitive, nullptr when unknown
+const Building* FindBuildingById(uint8_t id);          // nullptr when the id is not a structure
 
 // Structures: 0x3A-0x5B alternate human / orc (farm, pig farm, ... castle, fortress); towers and walls likewise.
 // Gold mine, oil patch, start locations, circle of power, dark portal and runestone are neutral.

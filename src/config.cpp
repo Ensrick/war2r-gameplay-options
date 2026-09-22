@@ -670,7 +670,7 @@ static void WarnUnknownKeys(const toml::table& root) {
                      "area_building_value area_friendly_clearance fireball_min_enemies resume_orders "},
         {"spells", " heal exorcism slow polymorph bloodlust death_coil haste unholy_armor raise_dead holy_vision flame_shield "
                    "fireball invisibility blizzard death_and_decay whirlwind runes "},
-        {"heal", " min_missing_hp below_percent cooldown_seconds urgent_below_percent "},
+        {"heal", " min_missing_hp below_percent cooldown_seconds urgent_below_percent cooldown_for_computer "},
         {"polymorph", " targets "},
         {"haste", " flyers_only "},
         {"heroes", " units regen regen_hp_per_second regen_for "},
