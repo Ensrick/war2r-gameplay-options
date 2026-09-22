@@ -15,6 +15,7 @@ One small DLL and one text file, [b]gameplay_options.toml[/b], that put the sing
 [*][b]Resources:[/b] richer gold mines and oil, halls that give food, unlimited mines if you want them
 [*][b]Balance:[/b] health, prices, build and research times, spell damage and mana cost, per race, per group or per single unit
 [*][b]Regeneration[/b] for heroes and, separately, for every unit
+[*][b]Upgrade bonuses[/b] you set, and [b]weapon and armor types of your own[/b] with a damage multiplier for every pair
 [/list]
 
 [line]
@@ -216,6 +217,24 @@ build_time = 80         # game: 90[/code]
 The file ships with this destroyer example, sight 8 for dragons and gryphon riders (the game's value is 6) and a blank template as [b]comments[/b]: remove the "# " in front of the lines to switch one on.
 [code][range]
 upgrade_bonus = 2       # range that Longbow / Lighter Axes add. The game's own bonus is 1[/code]
+
+[size=4][b]9. Upgrade bonuses, weapon types and armor types[/b][/size]
+[b][upgrades][/b] sets what ONE level of an upgrade adds: missile_damage (the game: 2), melee_damage (2), shields (2), ship_damage (5), ship_armor (5), siege_damage (15). -1 keeps the game's number. The unit panel shows the new bonus.
+[code][upgrades]
+siege_damage = 30       # catapults and ballistas: double the game's 15 per level[/code]
+Warcraft II has [b]no armor types[/b]: a hit is basic damage minus the target's armor, plus piercing damage which ignores armor, and nothing asks what the target is. Three sections add the system the game is missing. You invent the names, list who carries them (unit and building names, or the groups structures, ships, air_units, land_units; a unit named on its own beats a group), and give each pair a multiplier from 0.0 to 10.0. Everything you leave out is x1.0. Spells are never affected, splash is scaled per victim, and the computer's units follow the same types.
+[code][weapon_types]
+siege = ["ballista", "catapult", "human_cannon_tower", "orc_cannon_tower", "ships"]
+
+[armor_types]
+structure  = ["structures"]
+heavy_hull = ["elven_destroyer", "troll_destroyer", "battleship", "juggernaught"]
+light_hull = ["gnomish_submarine", "giant_turtle", "human_transport", "orc_transport", "human_tanker", "orc_tanker"]
+
+[damage_bonus.siege]
+structure  = 2.0        # siege weapons and ships hit buildings twice as hard
+heavy_hull = 1.5        # and warships half again[/code]
+The file ships with two such examples as comments and the tutorial has every rule.
 
 [size=4][b]When do changes apply?[/b][/size]
 [list]
