@@ -123,6 +123,8 @@ int ApplyUnitStats() {
     byteTables[kStatLumber] = At<uint8_t>(kRvaLumberCostByType);
     byteTables[kStatOil] = At<uint8_t>(kRvaOilCostByType);
     byteTables[kStatBuildTime] = At<uint8_t>(kRvaBuildTimeByType);
+    uint8_t* reactComputer = At<uint8_t>(kRvaReactRangeComputer);
+    uint8_t* reactHuman = At<uint8_t>(kRvaReactRangeHuman);
     int changed = 0;
     for (int t = 0; t < units::kTypeCount; ++t)
         for (int stat = 0; stat < kStatCount; ++stat) {
@@ -132,8 +134,25 @@ int ApplyUnitStats() {
             if (stat == kStatHitPoints) At<uint16_t>(kRvaMaxHpByType)[t] = static_cast<uint16_t>(v);
             else if (stat == kStatSight) At<uint32_t>(kRvaSightByType)[t] = static_cast<uint32_t>(v);  // still a plain 0..9 here
             else if (stat >= kStatGold && stat <= kStatOil) byteTables[stat][t] = static_cast<uint8_t>(v / 10);
+            else if (stat == kStatReactRange) reactComputer[t] = reactHuman[t] = static_cast<uint8_t>(v);
             else byteTables[stat][t] = static_cast<uint8_t>(v);
         }
+
+    // A unit shoots only at a target it has already noticed, and how far it notices comes from these two tables
+    // (FUN_004a8e00 at 0x4A8EB8 / 0x4A8ECB), not from the range table the panel prints. The game's own numbers leave
+    // room above the attack range for most units (archer 4 / 7 / 5, juggernaught 6 / 10 / 8) but not for towers
+    // (guard tower 6 / 6 / 6), so a raised `range` alone can leave a tower firing at its old distance. Lift the
+    // react ranges to match; never lower them, and never touch a type that sets react_range itself.
+    int lifted = 0;
+    for (int t = 0; t < units::kTypeCount; ++t) {
+        const int range = config::g.unitStat[t][kStatRange];
+        if (range <= 0 || config::g.unitStat[t][kStatReactRange] >= 0) continue;
+        const bool raise = reactComputer[t] < range || reactHuman[t] < range;
+        if (reactComputer[t] < range) reactComputer[t] = static_cast<uint8_t>(range);
+        if (reactHuman[t] < range) reactHuman[t] = static_cast<uint8_t>(range);
+        lifted += raise;
+    }
+    if (lifted > 0) logx::Write("map load: %d type(s) notice an enemy from further, to match the range they were given", lifted);
     return changed;
 }
 

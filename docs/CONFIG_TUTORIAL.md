@@ -466,6 +466,7 @@ gold = 600              # 0-2550, steps of 10   game: 700
 lumber = 300            #                       game: 350
 oil = 500               #                       game: 700
 build_time = 80         # 0-255        game: 90
+react_range = 12        # 0-20 tiles   game: 10 (computer) / 8 (yours)
 ```
 
 The shipped config contains this destroyer example, and `sight = 8` for dragons and gryphon riders (the game's value is 6),
@@ -485,6 +486,7 @@ Exactly the same, in `[building.<name>]` tables. The damage and range keys matte
 hit_points = 200        # game: 130
 piercing_damage = 14    # game: 12 (plus 4 basic)
 range = 7               # game: 6
+react_range = 9         # game: 6 - how far it looks for a target (see below)
 
 [building.farm]
 gold = 400              # game: 500
@@ -559,11 +561,16 @@ That also means the most it can do is x5 for heal and x4 for exorcism (1 mana pe
 The values are clamped to what the game can hold and the log says so; the log also lists every changed cost and damage
 number when a map starts.
 
-**`range` changes how far a unit can shoot, not when it starts.** The panel shows the number you set and the unit
-really does fire from that distance when you order the attack yourself, but a unit left to pick its own targets
-notices enemies at a separate "react" distance the game keeps in another table, which this mod does not change yet.
-So a juggernaught with `range = 7` still waits for something to come inside its old reaction distance and then
-shoots from there.
+**`range` is how far a unit can shoot; `react_range` is how far it looks.** A unit left to pick its own targets
+searches a box built from a **separate** pair of tables, one for computer players and one for yours, and only then
+fires from its `range`. The game's own numbers usually leave room above the attack range (archer 4 / 7 / 5,
+juggernaught 6 / 10 / 8, the three numbers being range / computer / yours), but not always: a guard tower is 6 / 6 / 6
+and a cannon tower 7 / 7 / 7, so raising a tower's `range` alone would have left it firing from its old distance.
+
+So `range` now carries the react ranges up with it: whenever the range you set is larger, both react numbers are
+raised to match, never lowered, and the log says how many types that touched. Set `react_range` yourself and your
+number wins for that type, above or below the range - useful for a unit you want to shoot far but not go looking for
+trouble, or the other way round. It is one key for both tables, and nothing in the game prints it.
 
 **Why the button says 2 and the cast drains 60.** Heal and Exorcism are priced **per hit point**: the game divides
 the caster's mana by the number in the table and heals (or burns) that many hit points, up to the cap. So the cost
@@ -1078,4 +1085,4 @@ makes the log long.
 | upgrades | missile_damage, melee_damage, shields, ship_damage, ship_armor, siege_damage | -1 each | What one upgrade level adds; -1 = the game's number (2 / 2 / 2 / 5 / 5 / 15), otherwise 0 to 100 |
 | weapon_types / armor_types | names you invent | none | Which units attack with / wear a type; entries are unit and building names or the groups structures, ships, air_units, land_units |
 | damage_bonus.WEAPON | armor type names | 1.0 | Damage multiplier for that pair (0.0 to 10.0) |
-| unit.NAME / building.NAME | hit_points, armor, basic_damage, piercing_damage, range, sight, gold, lumber, oil, build_time | -1 each | Base stats of one unit or structure type, -1 = the game's value |
+| unit.NAME / building.NAME | hit_points, armor, basic_damage, piercing_damage, range, react_range, sight, gold, lumber, oil, build_time | -1 each | Base stats of one unit or structure type, -1 = the game's value |
