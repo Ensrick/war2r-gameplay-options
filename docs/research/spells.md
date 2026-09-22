@@ -355,6 +355,27 @@ hits of 40**. **Trap:** the damage byte doubles as the spell marker. Change 40 w
 fireball drops to the dragon trail (explosions at 8, 16, 24 = 3 hits). Change the compare's `mov eax` immediate and
 the trail length changes too, because the same register is the limit. The fix is the rewrite in section 4.
 
+### What the panels print as the mana cost
+
+Both status panels read the **same live table** the mod writes, indexed by the button record's spell order byte
+(`+0x11` of the 24-byte record, `0x8C5F48[type]` button sets):
+
+```
+classic FUN_004e7fa0:  0x4e80b8  movzx eax, byte [edi + 0x11]        ; the button's order id
+                       0x4e80bc  movzx eax, byte [eax*2 + 0x8c5eb8]  ; the cost table, byte wide
+                       0x4e80c5  call 0x4e9ca0                       ; the cost widget (hidden when 0)
+Remastered FUN_0052e080: 0x52e299 reads the same entry word wide into the format arguments
+```
+
+So `[spell_cost]` shows up in the tooltip by itself: there is no display copy to keep in step, unlike the range
+upgrade bonus (`0x8C11E4`). The classic panel reads a **byte**, which is another reason to keep costs <= 255.
+
+**Heal and Exorcism are per hit point.** `FUN_004e2220` (heal) computes `hp = mana / [0x8C5F06]`, caps it at 0x28 and
+adds it to the target; `FUN_004e2a70` (exorcism) computes `damage = mana / [0x8C5F0A]`. The number in the table, and
+therefore the number on the button, is the price of one hit point; a cast costs that times the hit points it moves.
+A player who sets `heal = 2` sees "2" on the button and watches 60 mana go into a 30 hit point wound: the display is
+right, the pricing is per hit point.
+
 ### Blizzard (order 0x2F)
 
 Action `0x4E19A0`: check / deduct 25, five `FUN_004af040(caster, 10)` (`push 0xa` at `0x4E19D9..0x4E19F9` = chain

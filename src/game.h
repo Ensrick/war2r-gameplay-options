@@ -53,6 +53,13 @@ constexpr uint32_t kRvaController = 0x518CAC;         // uint8[16]: 0 = human, 1
 constexpr uint32_t kRvaAlliance = 0x519578;           // uint8[16*16], [caster*16 + target] != 0 means allied
 constexpr uint32_t kRvaTypeFlags = 0x5185F0;          // uint32[unit type]
 constexpr uint32_t kRvaSpellsResearched = 0x519250;   // uint32[16], PUD ALOW bit layout
+// Both status panels print the mana cost from THIS table, indexed by the button record's spell order byte (+0x11):
+// the classic one at 0x4E80BC (`movzx eax, byte [eax*2 + 0x8C5EB8]`, byte-wide) and the Remastered one at 0x52E299
+// (word-wide). So a cost the mod writes shows up in the tooltip by itself; no display copy exists, unlike the range
+// bonus. Heal (0x8C5F06) and Exorcism (0x8C5F0A) are priced PER HIT POINT: the actions divide the caster's mana by
+// the entry (0x4E2220 heal, capped at 0x28 hit points; 0x4E2A70 exorcism), so the number on the button is the price
+// of one hit point, not of the cast. Evidence: docs/research/spells.md.
+constexpr uint32_t kRvaClassicCostDisplayRead = 0xE80B8;  // movzx eax, byte [edi+0x11]; movzx eax, byte [eax*2+table]
 constexpr uint32_t kRvaManaCostByOrder = 0x4C5EB8;    // uint16[order id], plain .data: not saved, never reloaded, 46 readers
 constexpr uint32_t kRvaOrderRange = 0x4C1744;         // uint8[order id]: cast range in tiles, 0xFF = anywhere (FUN_004d9420)
 // Missiles (docs/research/autocast_all_spells.md): a pool of kMissileSize records, slot count written once at 0x4C498D.

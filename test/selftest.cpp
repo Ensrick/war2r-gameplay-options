@@ -845,6 +845,27 @@ static void SpellNumberTests(const wchar_t* dir, const wchar_t* ini) {
           "a refused group stays refused even when its bytes look right again");
     ResetSpellConfig();
     spells::Sync(false);
+    // The mana cost the panels print comes from the same table [spell_cost] writes: the classic panel reads it at
+    // 0x4E80BC through the button record's order byte, so the tooltip follows the config with no display copy.
+    {
+        const uint8_t read[] = {0x0F, 0xB6, 0x47, 0x11, 0x0F, 0xB6, 0x04, 0x45};  // the table address is relocated
+        const uint8_t* at = At<uint8_t>(kRvaClassicCostDisplayRead);
+        uint32_t table;
+        memcpy(&table, at + sizeof(read), sizeof(table));
+        CHECK(memcmp(at, read, sizeof(read)) == 0 && table == g_base + kRvaManaCostByOrder,
+              "the status panel no longer reads the spell cost from the table the mod writes");
+        uint16_t* costs = At<uint16_t>(kRvaManaCostByOrder);
+        const uint16_t gameBlizzard = costs[kOrderBlizzard];
+        config::g.spellCost[kCostBlizzard] = 13;
+        spells::Sync(false);
+        CHECK(costs[kOrderBlizzard] == 13 && At<uint8_t>(kRvaManaCostByOrder)[kOrderBlizzard * 2] == 13,
+              "what the panel reads must be the configured cost (%u)", costs[kOrderBlizzard]);
+        spells::Sync(true);
+        CHECK(costs[kOrderBlizzard] == gameBlizzard, "and the game's own cost in a multiplayer game (%u)",
+              costs[kOrderBlizzard]);
+        config::g.spellCost[kCostBlizzard] = -1;
+        spells::Sync(false);
+    }
     CHECK(AllSitesAreGame() && CostsAreGame(), "the test must leave the image as the game made it");
 }
 
