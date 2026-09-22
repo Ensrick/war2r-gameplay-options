@@ -848,6 +848,137 @@ static void SpellNumberTests(const wchar_t* dir, const wchar_t* ini) {
     CHECK(AllSitesAreGame() && CostsAreGame(), "the test must leave the image as the game made it");
 }
 
+// ---- [heal] cooldown_seconds: one timer per caster, shared by Heal and Exorcism ----
+static void HealCooldownTests(const wchar_t* dir, const wchar_t* ini) {
+    const int savedCooldown = config::g.healCooldownSeconds, savedUrgent = config::g.healUrgentBelowPercent;
+    const int savedMissing = config::g.healMinMissingHp;
+    bool savedSpells[kSpellCount];
+    memcpy(savedSpells, config::g.spell, sizeof(savedSpells));
+    const bool savedLog = config::g.logCasts;
+    config::g.logCasts = true;
+    config::g.healMinMissingHp = 1;
+    uint16_t* maxHp = At<uint16_t>(kRvaMaxHpByType);
+    const uint16_t savedFootmanHp = maxHp[kFootman], savedSkeletonHp = maxHp[kSkeleton];
+    maxHp[kFootman] = 60;
+    maxHp[kSkeleton] = 40;
+    uint32_t serial = 9000;
+    auto paladin = [&](int mana) {
+        Unit* u = AddUnit(kTypePaladin, 0, 20, 20, 90, static_cast<uint8_t>(mana), kOrderStand);
+        Field<uint32_t>(u, kOffSerial) = ++serial;
+        return u;
+    };
+    auto tick = [&](unsigned ms) { autocast::AddPlayTime(ms); };
+
+    // A hurt footman, healed twice in a row: the cooldown must hold the second cast back.
+    for (int i = 0; i < kSpellCount; ++i) config::g.spell[i] = i == kSpellHeal;
+    config::g.healCooldownSeconds = 10;
+    config::g.healUrgentBelowPercent = 10;
+    ResetWorld();
+    autocast::OnNewMap();
+    Unit* pal = paladin(255);
+    Unit* hurt = AddUnit(kFootman, 0, 22, 20, 30, 0, kOrderStand);  // half health: not urgent
+    mod::RunAutocastPass();
+    CHECK(OrderOf(pal) == 0x27, "the first heal must go out (order %u)", OrderOf(pal));
+    Field<uint8_t>(pal, kOffOrder) = kOrderStand;
+    Field<uint8_t>(pal, kOffNextOrder) = kOrderNone;
+    tick(5000);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(pal) == kOrderStand, "a second heal inside the cooldown must wait (order %u)", OrderOf(pal));
+    tick(5000);  // 10 s of play time: the timer is up
+    mod::RunAutocastPass();
+    CHECK(OrderOf(pal) == 0x27, "after the cooldown the heal must come (order %u)", OrderOf(pal));
+
+    // A target at or below urgent_below_percent breaks the cooldown.
+    Field<uint8_t>(pal, kOffOrder) = kOrderStand;
+    Field<uint8_t>(pal, kOffNextOrder) = kOrderNone;
+    tick(1000);
+    Field<uint16_t>(hurt, kOffHp) = 5;  // 8 % of 60
+    mod::RunAutocastPass();
+    CHECK(OrderOf(pal) == 0x27 && LogContains(dir, "(urgent, 8 %)"),
+          "a target at 8 %% must break the cooldown and say so (order %u)", OrderOf(pal));
+    Field<uint8_t>(pal, kOffOrder) = kOrderStand;
+    Field<uint8_t>(pal, kOffNextOrder) = kOrderNone;
+    tick(1000);
+    Field<uint16_t>(hurt, kOffHp) = 30;
+    mod::RunAutocastPass();
+    CHECK(OrderOf(pal) == kOrderStand, "and the timer is restarted by the urgent cast too (order %u)", OrderOf(pal));
+
+    // Exorcism breaks the cooldown only when the mana on hand finishes the target.
+    for (int i = 0; i < kSpellCount; ++i) config::g.spell[i] = i == kSpellExorcism;
+    const int cost = At<uint16_t>(kRvaManaCostByOrder)[0x29];
+    ResetWorld();
+    autocast::OnNewMap();
+    Unit* pal2 = paladin(255);
+    AddUnit(kSkeleton, 1, 22, 20, 30, 0, kOrderStand);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(pal2) == 0x29, "the first exorcism must go out (order %u)", OrderOf(pal2));
+    Field<uint8_t>(pal2, kOffOrder) = kOrderStand;
+    Field<uint8_t>(pal2, kOffNextOrder) = kOrderNone;
+    tick(1000);
+    Field<uint8_t>(pal2, kOffMana) = static_cast<uint8_t>(30 * cost - 1);  // one mana short of finishing it
+    mod::RunAutocastPass();
+    CHECK(OrderOf(pal2) == kOrderStand, "an exorcism that cannot finish the target must wait (order %u)", OrderOf(pal2));
+    Field<uint8_t>(pal2, kOffMana) = static_cast<uint8_t>(30 * cost);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(pal2) == 0x29 && LogContains(dir, "(urgent, 30 hp for "),
+          "an exorcism that finishes the target must break the cooldown (order %u)", OrderOf(pal2));
+
+    // Either spell restarts the shared timer.
+    for (int i = 0; i < kSpellCount; ++i) config::g.spell[i] = i == kSpellHeal || i == kSpellExorcism;
+    ResetWorld();
+    autocast::OnNewMap();
+    Unit* pal3 = paladin(255);
+    AddUnit(kSkeleton, 1, 22, 20, 30, 0, kOrderStand);
+    Unit* hurt3 = AddUnit(kFootman, 0, 21, 22, 30, 0, kOrderStand);
+    mod::RunAutocastPass();
+    const uint8_t firstOrder = OrderOf(pal3);
+    CHECK(firstOrder == 0x27 || firstOrder == 0x29, "one of the two spells must go out (order %u)", firstOrder);
+    Field<uint8_t>(pal3, kOffOrder) = kOrderStand;
+    Field<uint8_t>(pal3, kOffNextOrder) = kOrderNone;
+    // Not enough mana to finish the skeleton either, so neither spell has an excuse to break the timer.
+    Field<uint8_t>(pal3, kOffMana) = static_cast<uint8_t>(30 * cost - 1);
+    tick(2000);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(pal3) == kOrderStand, "the other spell must wait on the same timer (order %u)", OrderOf(pal3));
+    (void)hurt3;
+
+    // cooldown_seconds = 0 is the behaviour of every version before this one.
+    config::g.healCooldownSeconds = 0;
+    ResetWorld();
+    autocast::OnNewMap();
+    Unit* pal4 = paladin(255);
+    AddUnit(kFootman, 0, 22, 20, 30, 0, kOrderStand);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(pal4) == 0x27, "cooldown 0: the first heal (order %u)", OrderOf(pal4));
+    Field<uint8_t>(pal4, kOffOrder) = kOrderStand;
+    Field<uint8_t>(pal4, kOffNextOrder) = kOrderNone;
+    mod::RunAutocastPass();
+    CHECK(OrderOf(pal4) == 0x27, "cooldown 0 must heal again at once (order %u)", OrderOf(pal4));
+
+    // The reader.
+    WriteFileText(ini, "[heal]\ncooldown_seconds = 601\nurgent_below_percent = 25\nbogus = 1\n");
+    CHECK(config::Init(dir), "[heal] cooldown config rejected");
+    CHECK(config::g.healCooldownSeconds == 600 && config::g.healUrgentBelowPercent == 25 &&
+              LogContains(dir, "unknown key [heal] bogus"),
+          "[heal] cooldown_seconds clamps to 600 and urgent_below_percent reads (%d %d)", config::g.healCooldownSeconds,
+          config::g.healUrgentBelowPercent);
+    DeleteFileW(ini);
+    CHECK(config::Init(dir), "the default config did not come back");
+    CHECK(config::g.healCooldownSeconds == 0 && config::g.healUrgentBelowPercent == 10,
+          "the shipped defaults are cooldown 0 and urgent 10 %%");
+
+    maxHp[kFootman] = savedFootmanHp;
+    maxHp[kSkeleton] = savedSkeletonHp;
+    config::g.healCooldownSeconds = savedCooldown;
+    config::g.healUrgentBelowPercent = savedUrgent;
+    config::g.healMinMissingHp = savedMissing;
+    memcpy(config::g.spell, savedSpells, sizeof(savedSpells));
+    config::g.logCasts = savedLog;
+    ResetWorld();
+    autocast::OnNewMap();
+    EnableEverythingForTests();
+}
+
 // ---- weapon / armor types and the damage hooks (src/damagetypes.cpp, docs/research/damage.md) ----
 static int g_stubDamage = 0;
 static Unit* g_stubAttacker = nullptr;
@@ -5130,6 +5261,7 @@ int wmain(int argc, wchar_t** argv) {
     SpellNumberTests(dir, ini);
     UpgradeTests(dir, ini);
     DamageTypeTests(dir, ini);
+    HealCooldownTests(dir, ini);
     ProductionTests(dir, ini);
 
     // TOML config: a custom file is honoured, typos and bad values are survivable, a syntax error keeps old settings.

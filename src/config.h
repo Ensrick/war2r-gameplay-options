@@ -199,7 +199,9 @@ struct Config {
 
     // [heal]
     int healMinMissingHp = 10;    // a scratch is not worth a paladin's attention
-    int healBelowPct = 100;       // optional extra gate, 100 = off
+    int healBelowPct = 100;
+    int healCooldownSeconds = 0;   // shared by Heal and Exorcism, per caster, 0 = no cooldown
+    int healUrgentBelowPercent = 10;  // a heal target at or below this share of its maximum hit points cannot wait       // optional extra gate, 100 = off
 
     // [polymorph] targets: rank by unit type, 1 = first choice, 0 = never
     uint8_t polymorphRank[256] = {};

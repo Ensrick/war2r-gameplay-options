@@ -12,6 +12,7 @@
 #include "spells.h"
 #include "trees.h"
 #include "tweaks.h"
+#include "autocast.h"
 #include "units.h"
 #include "upgrades.h"
 #include "world.h"
@@ -155,6 +156,7 @@ void OnNewMapTablesLoaded() {
         return;
     }
     tweaks::OnNewMap();
+    autocast::OnNewMap();
     trees::OnNewMap();
     aiwatch::OnNewMap();
     production::OnNewMap();  // the water / oil profile is counted again on the first pass of the new map
