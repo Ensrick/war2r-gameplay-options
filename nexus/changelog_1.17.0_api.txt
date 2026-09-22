@@ -1,0 +1,1 @@
+New [heal] cooldown_seconds (0 = off): seconds a paladin waits after a Heal or an Exorcism before autocasting either again, one timer per paladin. Two things break the wait: a heal target at or below urgent_below_percent (10) of its hit points, and an exorcism the paladin's mana can finish outright. With log_casts the cast line says why the wait was broken.

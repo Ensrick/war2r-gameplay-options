@@ -1,3 +1,8 @@
+[size=4][b]1.17.0[/b][/size]
+[list]
+[*]New [heal] cooldown_seconds (0 = off): seconds a paladin waits after a Heal or an Exorcism before autocasting either again, one timer per paladin. Two things break the wait: a heal target at or below urgent_below_percent (10) of its hit points, and an exorcism the paladin's mana can finish outright. With log_casts the cast line says why the wait was broken.
+[/list]
+
 [size=4][b]1.16.2[/b][/size]
 [list]
 [*]Fixed a crash: a paladin given Heal by autocast while it still had an attack-move to carry out (Remastered resumes such orders after a cast) crashed the game inside the Heal action; Flame Shield had the same hole. Every order the mod gives now clears the pending attack-move or patrol first, exactly as your own clicks do. A caster that autocasts therefore no longer resumes its attack-move afterwards; it stands and fights where it is.

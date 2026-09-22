@@ -15,6 +15,19 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.17.0 (2026-09-22, UNTESTED in game, NOT released)
+
+- Author: "Both the AI and my autocast heal and exorcise too frequently. Add a cooldown between heal/exorcism casting
+  option and they should only break this cooldown if the target for heal is below 10% health or if the target for
+  excorcism can be killed with the remaining mana." Part 1 of issue #30: the autocast side. The killable test reads
+  the LIVE per-HP cost from the game's cost table, so his price route counts. 9 mutations, 9 caught.
+- Found while going through his numbers: with [spell_damage] all = 2.0 the price route halves his [spell_cost] heal
+  and exorcism values (6 / 4 in the file were 3 / 2 in the log), so the 1.6.x "nerf" never took effect, and the
+  computer pays the same reduced prices (global table). That is part of the frequency he sees. His config now:
+  exorcism 2 (= 1 mana per HP, vanilla parity against his x4 health), heal 4 (= 2 per HP) with cap 80 (= 160).
+- The computer's paladins (part 2), resuming the attack-move after a cast (part 3) and the cost text (part 4) are
+  still with the agent.
+
 ## 1.16.2 (2026-09-21, crash fix)
 
 - Author: "I had a crash" (22:31, first human-campaign session with paladins on 1.16.1). Crash.txt: ACCESS_VIOLATION
