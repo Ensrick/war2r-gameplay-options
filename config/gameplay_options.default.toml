@@ -526,16 +526,25 @@ siege_damage   = -1   # catapults and ballistas: basic damage per level (15)
 # and "land_units"; a unit named on its own beats a group. A unit has one weapon type and one armor type. Anything you
 # leave out is x1.0, spells are never affected, splash is scaled per victim, and the computer's units follow the same
 # types. Up to 32 weapon types and 32 armor types, multipliers 0.0 to 10.0. Single player only.
+# Two examples, both switched off. Remove the # signs to try one, or write your own. The tutorial has more.
 [weapon_types]
-# siege = ["ballista", "catapult", "human_cannon_tower", "orc_cannon_tower"]
+# siege  = ["ballista", "catapult", "human_cannon_tower", "orc_cannon_tower", "ships"]   # every ship too
+# pierce = ["archer", "ranger", "axethrower", "berserker"]
 
 [armor_types]
-# structure = ["structures"]
-# ship      = ["ships"]
+# structure  = ["structures"]
+# heavy_hull = ["elven_destroyer", "troll_destroyer", "battleship", "juggernaught"]
+# light_hull = ["gnomish_submarine", "giant_turtle", "human_transport", "orc_transport", "human_tanker", "orc_tanker"]
+# unarmored  = ["peasant", "peon", "mage", "death_knight"]
 
-# [damage_bonus.siege]     # one table per weapon type: armor type = multiplier
-# structure = 2.0
-# ship      = 1.5
+# [damage_bonus.siege]      # one table per weapon type: armor type = multiplier, 1.0 for every pair you leave out
+# structure  = 2.0          # siege weapons and ships hit buildings twice as hard
+# heavy_hull = 1.5          # and warships half again
+# light_hull = 1.0
+
+# [damage_bonus.pierce]
+# unarmored  = 1.5          # arrows and axes against workers and casters
+# structure  = 0.5          # but half against buildings
 
 # ==============================================================================================================
 #  11. AUTO-PRODUCTION

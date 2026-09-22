@@ -15,6 +15,14 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.16.1 (2026-09-21)
+
+- Author: "Make sure to do it and include examples in the version we put on the Nexus. I'll setup my own armor and
+  weapon types when it's ready." His question before that: whether the ready-made groups (ships, structures) are the
+  only way to give a unit an armor type. They are shortcuts; a list takes unit names too, and a named unit beats a
+  group. The shipped config now shows both in two commented examples (the ship split into heavy and light hull is
+  the one I wrote for him in chat).
+
 ## 1.16.0 (2026-09-21, UNTESTED in game, NOT released)
 
 - Author, after reading that the engine has no armor types: "being able to create a system where we can assign units

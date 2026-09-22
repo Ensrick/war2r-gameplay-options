@@ -1,0 +1,1 @@
+The shipped config carries two worked examples of weapon and armor types, switched off: siege weapons and every ship against buildings and two kinds of hull, and arrows against workers and buildings. Remove the # signs to try one. Every rule is in the tutorial under "Your own weapon and armor types".

@@ -7,6 +7,12 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.16.1 - 2026-09-21
+
+- The shipped config carries two worked examples of weapon and armor types, switched off: siege weapons and every
+  ship against buildings and two kinds of hull, and arrows against workers and buildings. Remove the # signs to try
+  one. Every rule is in the tutorial under "Your own weapon and armor types".
+
 ## 1.16.0 - 2026-09-21
 
 - New: weapon types and armor types you define yourself. `[weapon_types]` and `[armor_types]` map names you invent to

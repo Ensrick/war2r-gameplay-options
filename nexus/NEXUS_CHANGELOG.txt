@@ -1,3 +1,8 @@
+[size=4][b]1.16.1[/b][/size]
+[list]
+[*]The shipped config carries two worked examples of weapon and armor types, switched off: siege weapons and every ship against buildings and two kinds of hull, and arrows against workers and buildings. Remove the # signs to try one. Every rule is in the tutorial under "Your own weapon and armor types".
+[/list]
+
 [size=4][b]1.16.0[/b][/size]
 [list]
 [*]New: weapon types and armor types you define yourself. [weapon_types] and [armor_types] map names you invent to lists of units and buildings (or the ready-made groups structures, ships, air_units, land_units), and [damage_bonus.<weapon type>] gives each pair a multiplier from 0.0 to 10.0. Example in the file: siege weapons at x2 against structures and x1.5 against ships. Everything you leave out stays x1.0 and the sections ship empty.
