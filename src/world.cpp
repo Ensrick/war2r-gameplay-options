@@ -37,6 +37,14 @@ void IssueOrder(Unit* unit, int16_t x, int16_t y, Unit* target, uint32_t handler
             return;
         }
     }
+    // Remastered keeps a "resume order" per unit (+0x8D: 10 attack-move, 5 patrol, set by the player's command path) and
+    // SetOrder(unit, Stop) re-issues that order on the spot when the unit is still 2+ tiles from its destination
+    // (0x4EF130..0x4EF1CB), through IssueOrder with a NULL target, which wipes +0x88. The Heal and Flame Shield actions
+    // call exactly that SetOrder and then read the target again (0x4E2244 / 0x4E224A): a paladin healing while an
+    // attack-move was pending crashed the game on target->hp (2026-09-21, image 0x680000 + 0xE2257). The player's own
+    // command path clears the resume byte before every new order (FUN_004dcc60); every order of the mod stands in for
+    // a click, so it does the same. The worker code did this already; now nothing can forget it.
+    if (*At<uint32_t>(kRvaRuleset) != 0) Field<uint8_t>(unit, kOffResumeOrder) = kOrderNone;
     using OrderHandlerFn = void(__cdecl*)(Unit*);
     using IssueOrderFn = void(__cdecl*)(Unit*, int16_t, int16_t, Unit*, OrderHandlerFn);
     reinterpret_cast<IssueOrderFn>(g_base + kRvaIssueOrder)(unit, x, y, target,

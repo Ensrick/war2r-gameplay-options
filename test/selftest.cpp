@@ -4254,6 +4254,33 @@ int wmain(int argc, wchar_t** argv) {
         Idle(walker);
         game::IssueOrder(walker, -5, -5, peon, kRvaRepairHandler);  // a unit target: the tile is not used
         CHECK(OrderOf(walker) == kOrderRepair, "a targeted order is not subject to the tile check (order %u)", OrderOf(walker));
+
+        // Crash 2026-09-21 (image 0x680000 + 0xE2257): a paladin with a pending Remastered attack-move (resume byte 10)
+        // was given Heal; the heal action's own SetOrder(Stop) resumed the attack-move on the spot, which wiped the
+        // order target, and the action then read target->hp through NULL. Every order the mod issues must first clear
+        // the resume byte, exactly like the player's command path does (FUN_004dcc60).
+        {
+            const uint32_t savedRuleset = *At<uint32_t>(kRvaRuleset);
+            *At<uint32_t>(kRvaRuleset) = 1;  // Remastered rules: the resume byte exists
+            Idle(walker);
+            Field<uint8_t>(walker, kOffResumeOrder) = kOrderAttackArea;
+            game::IssueOrder(walker, 0, 0, peon, kRvaSpellOrderHandler);
+            CHECK(Field<uint8_t>(walker, kOffResumeOrder) == kOrderNone,
+                  "a spell order must clear a pending attack-move resume (resume byte %u)", Field<uint8_t>(walker, kOffResumeOrder));
+            Idle(walker);
+            Field<uint8_t>(walker, kOffResumeOrder) = kOrderPatrol;
+            game::IssueOrder(walker, 12, 12, nullptr, kRvaMoveHandler);
+            CHECK(Field<uint8_t>(walker, kOffResumeOrder) == kOrderNone,
+                  "a positional order must clear a pending patrol resume (resume byte %u)", Field<uint8_t>(walker, kOffResumeOrder));
+            *At<uint32_t>(kRvaRuleset) = 0;  // classic rules: the byte is not part of the unit, leave it alone
+            Idle(walker);
+            Field<uint8_t>(walker, kOffResumeOrder) = kOrderAttackArea;
+            game::IssueOrder(walker, 0, 0, peon, kRvaSpellOrderHandler);
+            CHECK(Field<uint8_t>(walker, kOffResumeOrder) == kOrderAttackArea,
+                  "without the Remastered ruleset the byte is not touched (%u)", Field<uint8_t>(walker, kOffResumeOrder));
+            Field<uint8_t>(walker, kOffResumeOrder) = kOrderNone;
+            *At<uint32_t>(kRvaRuleset) = savedRuleset;
+        }
     }
     config::g.workerAutoHarvest = config::g.workerAutoRepair = false;
 

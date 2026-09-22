@@ -24,6 +24,10 @@ Ensrick/war2r-gameplay-options (public since 2026-09-18).
 - Tree regrowth (`src/trees.cpp`) writes terrain directly. The one state the game cannot survive is a forest region
   word (0xFFFE) over a tile id outside the tree range (unchecked table read in `FUN_004eb400`): keep the tile-id-first
   write order, the state 1..24 guard and the table byte-match. Evidence: docs/research/tree_regrowth.md.
+- Every order the mod issues goes through `game::IssueOrder`, which clears the Remastered resume-order byte (+0x8D)
+  first, as the player's command path does. Without that, the Heal / Flame Shield actions' own SetOrder(Stop)
+  resumes a pending attack-move mid-cast, wipes the target and crashes on NULL (crash 2026-09-21, `0x4E2257`).
+  Never call the engine's IssueOrder or SetOrder directly.
 - A positional order (target NULL) must be ON the map: the handlers index the unit grids with the order tile before
   any check (crash 2026-09-19, `0x4D80BF`). `game::IssueOrder` refuses off-map tiles; keep that guard, and never let a
   search treat off-map tiles as anything but "nothing".

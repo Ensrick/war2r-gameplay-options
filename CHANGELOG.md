@@ -7,6 +7,13 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.16.2 - 2026-09-21
+
+- Fixed a crash: a paladin given Heal by autocast while it still had an attack-move to carry out (Remastered
+  resumes such orders after a cast) crashed the game inside the Heal action; Flame Shield had the same hole. Every
+  order the mod gives now clears the pending attack-move or patrol first, exactly as your own clicks do. A caster
+  that autocasts therefore no longer resumes its attack-move afterwards; it stands and fights where it is.
+
 ## 1.16.1 - 2026-09-21
 
 - The shipped config carries two worked examples of weapon and armor types, switched off: siege weapons and every

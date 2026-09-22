@@ -15,6 +15,25 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.16.2 (2026-09-21, crash fix)
+
+- Author: "I had a crash" (22:31, first human-campaign session with paladins on 1.16.1). Crash.txt: ACCESS_VIOLATION
+  reading 0x22 at image + 0xE2257 = 0x4E2257 in the Heal action FUN_004e2220. The minidump's exception context:
+  eax 0, the crashing unit a paladin (type 0xC) with order 0x27 heal, NEXT order 0x0A attack-area to 30,24 and order
+  target NULL. The log: three heals issued by autocast in that same pass, the third from this paladin.
+- Mechanism, read from the exe: the Heal action checks its target, calls SetOrder(unit, Stop) at 0x4E2244, then
+  reads the target AGAIN at 0x4E224A and its hp at 0x4E2257. SetOrder under the Remastered ruleset (0x4EF0D2..)
+  looks at the unit's resume-order byte +0x8D: with 10 (attack-move) pending and the unit 2+ tiles from the stored
+  destination (+0x90) it re-issues the attack-move on the spot (0x4EF1CB) through IssueOrder with a NULL target,
+  which wipes +0x88. Heal then dereferences NULL. A scan of all 19 spell actions: Heal and Flame Shield (0x4E2130)
+  re-read the target after that SetOrder, the others do not.
+- Why the mod and not the game: the player's command path FUN_004dcc60 clears the resume byte before every new
+  order, and the computer never has one. The mod's worker orders already mirrored that (workers.cpp); autocast, the
+  eye and the channel watchdog issued orders without it. Fix: game::IssueOrder clears the byte for every order the
+  mod issues. Behaviour change: a caster no longer resumes its attack-move after an autocast (it did before, when it
+  did not crash). Re-issuing the attack-move after the cast is a possible follow-up, tracked in the issue.
+- Regression test in the off-map-order block; removing the fix fails two checks.
+
 ## 1.16.1 (2026-09-21)
 
 - Author: "Make sure to do it and include examples in the version we put on the Nexus. I'll setup my own armor and
