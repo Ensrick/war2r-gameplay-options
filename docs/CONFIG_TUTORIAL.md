@@ -918,6 +918,22 @@ Rules, all of them:
 - The mod writes one line to the log when it reads the config, so you can check what it understood:
   `damage types: weapon siege (4 units), armor structure (43), ship (14); 2 bonuses`.
 
+### The computer's paladins keep to the same timer
+
+The game's own paladin AI heals **any** allied unit that is missing a single hit point, as often as its mana allows,
+which is why a computer paladin looks like it never does anything else - and why it drains itself dry in a fight.
+The cooldown you set for your own casters is given to the computer's paladins as well:
+
+```toml
+[heal]
+cooldown_seconds = 8
+cooldown_for_computer = true    # the default; false leaves the computer's paladins exactly as the game plays them
+```
+
+It is the same timer with the same exception: a friend at or below `urgent_below_percent` is healed at once, while
+Exorcism always waits for the timer. Nothing else about the computer's AI is touched, and none of this happens in a
+network game. With `log_casts` on, one line per 30 seconds of play says how many casts have been held back.
+
 ### Casters go back to what they were doing
 
 A spell order replaces whatever the unit was doing, and in the Remastered ruleset it also has to clear the "resume"
@@ -1032,6 +1048,7 @@ makes the log long.
 | heal | min_missing_hp | 10 | Heal only units missing at least this many HP |
 | heal | cooldown_seconds | 0 | Seconds a paladin waits between Heal / Exorcism casts (0 to 600, 0 = off) |
 | heal | urgent_below_percent | 10 | A heal target at or below this share of its health ignores the cooldown (0 to 100) |
+| heal | cooldown_for_computer | true | The computer's paladins keep to cooldown_seconds as well |
 | heal | below_percent | 100 | Also require HP at or below this percent. 100 = off |
 | polymorph | targets | flyers, casters, big ground units | Valid targets in priority order |
 | haste | flyers_only | true | Haste only your air units |

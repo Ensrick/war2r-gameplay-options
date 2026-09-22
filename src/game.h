@@ -14,6 +14,15 @@ constexpr uint32_t kRvaTickCallee = 0xCA440;     // original target of that call
 constexpr uint32_t kRvaMapLoadCallSite = 0xD2C46; // `call 0x4c4ba0` on the NEW-map path only (the savegame path calls it from 0x4C4602)
 constexpr uint32_t kRvaFinalizeTables = 0xC4BA0;  // turns raw sight ranges into reveal-function pointers, last step of a data load
 constexpr uint32_t kRvaRangeBonusInsn = 0xEE689;  // `inc al` (FE C0) in GetAttackRange FUN_004ee660: the Longbow / Lighter Axes +1
+// The computer's paladin think function FUN_004cb2f0 (dispatcher FUN_004ca4a0, unit types 0x0C and 0x2C). Its three
+// spell attempts are three `call rel32` of their own, so the cooldown hooks reach paladins and nothing else. Order of
+// arguments on the stack at each callee's entry is in docs/research/autocast_all_spells.md 3a.
+constexpr uint32_t kRvaAiPaladinExorcismRandomSite = 0xCB309;  // call FUN_004cb030: exorcism while invisible, caster at [esp+4]
+constexpr uint32_t kRvaAiPaladinHealSite = 0xCB323;            // call FUN_004cb0e0: heal, caster at [esp+4]
+constexpr uint32_t kRvaAiPaladinExorcismScanSite = 0xCB35E;    // call FUN_004cb3e0: exorcism target scan, caster at [esp+8]
+constexpr uint32_t kRvaAiRandomTenCast = 0xCB030;  // (caster, upgradeMask, order, filter): ten random units must pass, then casts
+constexpr uint32_t kRvaAiCastIfFound = 0xCB0E0;    // (caster, upgradeMask, order, filter): scans the 31x31 box, casts, returns the target
+constexpr uint32_t kRvaAiScanBox = 0xCB3E0;        // (filter, caster): the 31x31 ground-grid scan itself, returns the first match
 constexpr uint32_t kRvaIssueOrder = 0xEF210;     // void __cdecl (Unit*, int16 x, int16 y, Unit* target, void (__cdecl*)(Unit*))
 constexpr uint32_t kRvaSpellOrderHandler = 0xE2970;  // handler passed to IssueOrder for every spell cast
 constexpr uint32_t kRvaMoveHandler = 0xD8690;        // order 3 entry of the handler table at 0x8C1498; x,y MUST be on the map

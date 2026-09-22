@@ -18,6 +18,14 @@ void OnNewMap();
 unsigned RaiseDeadNoteCount();   // lines written so far (tests, diagnostics)
 const char* LastRaiseDeadNote();  // the reason of the last one
 
+// The computer's paladins, from the three call sites of the game's paladin AI (src/hook.cpp). `caster` is the game's
+// unit pointer; the two Allowed calls answer "may it cast now", NoteComputerCast starts the timer after a cast.
+bool ComputerHealAllowed(void* caster);
+bool ComputerExorcismAllowed(void* caster);
+void NoteComputerCast(void* caster);
+unsigned ComputerBlockedCount();     // casts held back since the map started (tests)
+unsigned ComputerBlockedLogCount();  // throttled log lines written about them (tests)
+
 // Tests: what the mod has done, so a pass that must do nothing can be proved to have done nothing.
 unsigned CastCount();     // spells cast since load
 unsigned ChannelCount();  // Blizzard / Death and Decay channels the watchdog is following

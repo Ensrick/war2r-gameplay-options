@@ -884,6 +884,84 @@ static void SpellNumberTests(const wchar_t* dir, const wchar_t* ini) {
     CHECK(AllSitesAreGame() && CostsAreGame(), "the test must leave the image as the game made it");
 }
 
+// ---- [heal] cooldown_for_computer: the computer's paladins keep to the same timer (src/hook.cpp) ----
+static void ComputerPaladinTests(const wchar_t* dir) {
+    // The hooks are three call sites inside the game's paladin AI. If a game patch moves any of them the mod must
+    // notice here, not in someone's game: Install() hooks all three or none.
+    const int savedCooldown = config::g.healCooldownSeconds, savedUrgent = config::g.healUrgentBelowPercent;
+    const bool savedForComputer = config::g.healCooldownForComputer, savedLog = config::g.logCasts;
+    ResetWorld();
+    autocast::OnNewMap();
+    Unit* pal = AddUnit(kTypePaladin, 1, 20, 20, 90, 255, kOrderStand);  // owner 1 is a computer player
+    Unit* friendly = AddUnit(kFootman, 1, 21, 20, 55, 0, kOrderStand);   // 55 of 60: worth healing, not urgent
+    Field<uint32_t>(pal, kOffSerial) = 4242;
+    At<uint16_t>(kRvaMaxHpByType)[kFootman] = 60;  // the data-table tests leave their own numbers behind
+    At<uint16_t>(kRvaMaxHpByType)[kTypePaladin] = 90;
+    config::g.logCasts = true;
+    config::g.healUrgentBelowPercent = 10;
+
+    config::g.healCooldownSeconds = 0;
+    CHECK(autocast::ComputerHealAllowed(pal), "without a cooldown the computer is never held back");
+    config::g.healCooldownSeconds = 5;
+    config::g.healCooldownForComputer = true;
+    CHECK(autocast::ComputerHealAllowed(pal) && autocast::ComputerExorcismAllowed(pal), "the first cast is allowed");
+
+    const unsigned blocked = autocast::ComputerBlockedCount();
+    autocast::NoteComputerCast(pal);
+    CHECK(!autocast::ComputerHealAllowed(pal) && !autocast::ComputerExorcismAllowed(pal),
+          "heal and exorcism share one timer");
+    CHECK(autocast::ComputerBlockedCount() == blocked + 2, "held-back casts are counted (%u)",
+          autocast::ComputerBlockedCount());
+
+    // A friend about to die is the player's own exception, and it is the computer's too. Exorcism has none.
+    Field<uint16_t>(friendly, kOffHp) = 5;  // 5 of 60
+    CHECK(autocast::ComputerHealAllowed(pal), "a nearly dead friend cannot wait for the timer");
+    CHECK(!autocast::ComputerExorcismAllowed(pal), "exorcism is never urgent");
+    Field<uint16_t>(friendly, kOffHp) = 55;
+    CHECK(!autocast::ComputerHealAllowed(pal), "a scratch waits for the timer");
+
+    autocast::AddPlayTime(5000);
+    CHECK(autocast::ComputerHealAllowed(pal), "the timer must run out");
+
+    // The paladin dies and its slot is reused: the new unit starts with a clean timer.
+    autocast::NoteComputerCast(pal);
+    CHECK(!autocast::ComputerHealAllowed(pal), "the timer is running again");
+    Field<uint32_t>(pal, kOffSerial) = 4243;
+    CHECK(autocast::ComputerHealAllowed(pal), "another unit in the same slot must not inherit the timer");
+    Field<uint32_t>(pal, kOffSerial) = 4242;
+
+    // Switched off, and never in a network game.
+    config::g.healCooldownForComputer = false;
+    CHECK(autocast::ComputerHealAllowed(pal), "cooldown_for_computer = false leaves the computer alone");
+    config::g.healCooldownForComputer = true;
+    CHECK(!autocast::ComputerHealAllowed(pal), "and true puts it back");
+    *At<uint32_t>(kRvaNetGame) = 1;
+    CHECK(autocast::ComputerHealAllowed(pal), "a network game runs the AI on every machine and must not be touched");
+    const unsigned held = autocast::ComputerBlockedCount();
+    autocast::NoteComputerCast(pal);
+    *At<uint32_t>(kRvaNetGame) = 0;
+    CHECK(autocast::ComputerBlockedCount() == held, "nothing is counted in a network game");
+
+    // The log line is throttled to one per 30 s of play.
+    const unsigned lines = autocast::ComputerBlockedLogCount();
+    for (int i = 0; i < 5; ++i) autocast::ComputerHealAllowed(pal);
+    CHECK(autocast::ComputerBlockedLogCount() == lines, "the log line must not repeat within 30 s (%u)",
+          autocast::ComputerBlockedLogCount());
+    autocast::AddPlayTime(30000);
+    autocast::NoteComputerCast(pal);
+    autocast::ComputerHealAllowed(pal);
+    CHECK(autocast::ComputerBlockedLogCount() == lines + 1 && LogContains(dir, "computer paladins kept to the heal cooldown"),
+          "one line per 30 s of play, and it says what it is");
+
+    config::g.healCooldownSeconds = savedCooldown;
+    config::g.healUrgentBelowPercent = savedUrgent;
+    config::g.healCooldownForComputer = savedForComputer;
+    config::g.logCasts = savedLog;
+    ResetWorld();
+    autocast::OnNewMap();
+    EnableEverythingForTests();
+}
+
 // ---- [autocast] resume_orders: give the attack-move back after the cast (src/resume.cpp) ----
 static void ResumeOrderTests(const wchar_t* dir) {
     const bool savedResume = config::g.resumeOrders, savedLog = config::g.logCasts;
@@ -2804,7 +2882,11 @@ int wmain(int argc, wchar_t** argv) {
     mod::SetModuleBase(g_base, dir);
 
     // 1. Hook install against the real bytes.
+    for (int i = 0; i < 3; ++i)
+        CHECK(hook::AiPaladinSiteMatches(g_base, i), "paladin AI call site %d moved (FUN_004cb2f0, see game.h)", i);
     CHECK(hook::Install(g_base), "hook::Install rejected the supported exe");
+    for (int i = 0; i < 3; ++i)
+        CHECK(!hook::AiPaladinSiteMatches(g_base, i), "Install left paladin AI call site %d unhooked", i);
     const auto* site = reinterpret_cast<const uint8_t*>(g_base + kRvaTickCallSite);
     int32_t rel;
     memcpy(&rel, site + 1, 4);
@@ -5468,6 +5550,7 @@ int wmain(int argc, wchar_t** argv) {
     DamageTypeTests(dir, ini);
     HealCooldownTests(dir, ini);
     ResumeOrderTests(dir);
+    ComputerPaladinTests(dir);
     ProductionTests(dir, ini);
 
     // TOML config: a custom file is honoured, typos and bad values are survivable, a syntax error keeps old settings.

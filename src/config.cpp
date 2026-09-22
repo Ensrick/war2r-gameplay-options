@@ -756,6 +756,7 @@ static bool Load() {
     ReadInt(root, "heal", "below_percent", 1, 100, c.healBelowPct);
     ReadInt(root, "heal", "cooldown_seconds", 0, 600, c.healCooldownSeconds);
     ReadInt(root, "heal", "urgent_below_percent", 0, 100, c.healUrgentBelowPercent);
+    ReadBool(root, "heal", "cooldown_for_computer", c.healCooldownForComputer);
     ReadPolymorphTargets(root, c);
     ReadBool(root, "haste", "flyers_only", c.hasteFlyersOnly);
     ReadBool(root, "eye_of_kilrogg", "cast", c.eyeCast);
