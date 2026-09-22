@@ -866,6 +866,17 @@ static void SpellNumberTests(const wchar_t* dir, const wchar_t* ini) {
         config::g.spellCost[kCostBlizzard] = -1;
         spells::Sync(false);
     }
+    // What the panel prints as "Range" is the same table [unit.NAME] range writes, but a unit picking its own
+    // target searches with a react range the mod does not touch (docs/research/data_tables.md 5a).
+    {
+        uint32_t table;
+        memcpy(&table, At<uint8_t>(0xA8EB8), sizeof(table));
+        CHECK(table == g_base + kRvaReactRangeComputer, "the computer react-range read at 0x4A8EB8 moved");
+        memcpy(&table, At<uint8_t>(0xA8ECB), sizeof(table));
+        CHECK(table == g_base + kRvaReactRangeHuman, "the player react-range read at 0x4A8ECB moved");
+        memcpy(&table, At<uint8_t>(0xE5FAF), sizeof(table));
+        CHECK(table == g_base + kRvaAttackRangeByType, "the panel no longer prints the attack range table");
+    }
     CHECK(AllSitesAreGame() && CostsAreGame(), "the test must leave the image as the game made it");
 }
 

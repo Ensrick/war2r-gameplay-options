@@ -559,6 +559,12 @@ That also means the most it can do is x5 for heal and x4 for exorcism (1 mana pe
 The values are clamped to what the game can hold and the log says so; the log also lists every changed cost and damage
 number when a map starts.
 
+**`range` changes how far a unit can shoot, not when it starts.** The panel shows the number you set and the unit
+really does fire from that distance when you order the attack yourself, but a unit left to pick its own targets
+notices enemies at a separate "react" distance the game keeps in another table, which this mod does not change yet.
+So a juggernaught with `range = 7` still waits for something to come inside its old reaction distance and then
+shoots from there.
+
 **Why the button says 2 and the cast drains 60.** Heal and Exorcism are priced **per hit point**: the game divides
 the caster's mana by the number in the table and heals (or burns) that many hit points, up to the cap. So the cost
 you set for them, and the cost the button and the panel show, is the price of **one hit point**, not of one cast: at

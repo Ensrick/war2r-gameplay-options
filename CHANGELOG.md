@@ -7,6 +7,13 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.17.0 - 2026-09-22
+
+- New `[heal] cooldown_seconds` (0 = off): seconds a paladin waits after a Heal or an Exorcism before autocasting
+  either again, one timer per paladin. Two things break the wait: a heal target at or below `urgent_below_percent`
+  (10) of its hit points, and an exorcism the paladin's mana can finish outright. With `log_casts` the cast line says
+  why the wait was broken.
+
 ## 1.16.2 - 2026-09-21
 
 - Fixed a crash: a paladin given Heal by autocast while it still had an attack-move to carry out (Remastered
