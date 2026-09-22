@@ -15,6 +15,21 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.18.0 (2026-09-22, UNTESTED in game, NOT released)
+
+- Author, on the 1.16.2 crash fix: "healing disrupts the attack command ... it seems like they don't get back to what
+  they were doing." He was right; that fix drops the pending attack-move before every autocast order.
+- src/resume.cpp (agent): game::IssueOrder files {unit, serial, resume order, destination, +0x8E} before clearing
+  the byte; a pass after the casts gives the order back once the caster is idle, through the handler the engine's
+  own resume uses (attack-move: table entry 10 = 0x4D82E0; patrol: the immediate SetOrder pushes at 0x4EF10A =
+  0x4D8BD0, which is NOT table entry 5), then writes +0x8D / +0x8E and the destination back as SetOrder does at
+  0x4EF1CB. Dropped on any player order, on a resume byte the mod did not write, on death, after 30 s; never the eye.
+- My review: the game.h comment called 0x4D8BD0 "entry 5"; corrected, and both handlers are now pinned to the exe in
+  the selftest (table entry 10, and the push immediate at 0x4EF10A). 10 of 11 mutations caught; the eleventh (the
+  re-entry guard) is unobservable by construction and kept as a cheap guard.
+- The 1.16.2 guarantee stands: the resume byte is clear while the spell order runs; it comes back only when the
+  caster is idle again.
+
 ## 1.17.1 (2026-09-22, docs + test, NOT released)
 
 - Author: "the cost the text says it has doesn't match what it actually costs." Research (docs/research/spells.md): both

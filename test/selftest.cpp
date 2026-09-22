@@ -2858,7 +2858,15 @@ int wmain(int argc, wchar_t** argv) {
         CHECK(handlers[kOrderReturnGoods] == g_base + kRvaReturnHandler, "return handler is not table entry 24");
         CHECK(handlers[kOrderRepair] == g_base + kRvaRepairHandler, "repair handler is not table entry 27");
         CHECK(handlers[kOrderSpellEye] == g_base + kRvaSpellOrderHandler, "spell handler is not table entry 0x30");
-        CHECK(handlers[kOrderStop] == g_base + kRvaStopHandler, "stop handler is not table entry 2");
+        CHECK(handlers[kOrderStop] == g_base + kRvaStopHandler, "stop handler is not table entry 2");
+        CHECK(handlers[kOrderAttackArea] == g_base + kRvaAttackMoveHandler, "attack-move handler is not table entry 10");
+        // The patrol RESUME handler is not a table entry: SetOrder pushes it as an immediate when it resumes a patrol.
+        {
+            const uint8_t* push = reinterpret_cast<const uint8_t*>(g_base + 0xEF10A);
+            uint32_t imm;
+            memcpy(&imm, push + 1, sizeof imm);
+            CHECK(push[0] == 0x68 && imm == g_base + kRvaPatrolHandler, "SetOrder's patrol resume does not push kRvaPatrolHandler (%02X %08X)", push[0], imm);
+        }
         const uint8_t later[] = {kOrderHolyVision, kOrderFlameShield, kOrderFireball, kOrderInvisibility,
                                  kOrderBlizzard,   kOrderWhirlwind,   kOrderRunes,    kOrderDeathAndDecay};
         for (uint8_t o : later) CHECK(handlers[o] == g_base + kRvaSpellOrderHandler, "order 0x%02X does not use the spell handler", o);

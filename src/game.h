@@ -18,7 +18,9 @@ constexpr uint32_t kRvaIssueOrder = 0xEF210;     // void __cdecl (Unit*, int16 x
 constexpr uint32_t kRvaSpellOrderHandler = 0xE2970;  // handler passed to IssueOrder for every spell cast
 constexpr uint32_t kRvaMoveHandler = 0xD8690;        // order 3 entry of the handler table at 0x8C1498; x,y MUST be on the map
 constexpr uint32_t kRvaAttackMoveHandler = 0xD82E0;  // entry 10: SetOrder(unit, 10); the resume the player's attack-move leaves
-constexpr uint32_t kRvaPatrolHandler = 0xD8BD0;      // entry 5: clears +0x88 / +0x70, copies +0x90 to +0x6C, SetOrder(unit, 5)
+constexpr uint32_t kRvaPatrolHandler = 0xD8BD0;      // NOT table entry 5 (that is 0x4D8860, a fresh patrol command): this is the
+                                                     // handler SetOrder itself passes when it RESUMES a patrol (push 0x4d8bd0 at
+                                                     // 0x4EF10A): clears +0x88 / +0x70, copies +0x90 to +0x6C, SetOrder(unit, 5)
 constexpr uint32_t kRvaHarvestHandler = 0xD85E0;     // order 23: target = gold mine, or target null and x,y = a forest tile
 constexpr uint32_t kRvaReturnHandler = 0xD8960;      // order 24: null target = the game finds the depot itself
 constexpr uint32_t kRvaRepairHandler = 0xD8920;      // order 27: target = building

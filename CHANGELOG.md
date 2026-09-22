@@ -7,6 +7,13 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.18.0 - 2026-09-22
+
+- New `[autocast] resume_orders` (on): a caster that was on an attack-move or a patrol when the mod cast a spell for
+  it gets that order back once the spell is over, with the same destination, the way your own click would restore it.
+  Since 1.16.2 the order had to be dropped before the cast (that was the crash); now it is only paused. A new order
+  from you in the meantime wins, and nothing is given back after 30 seconds.
+
 ## 1.17.1 - 2026-09-22
 
 - Checked after a report that the spell button shows a different cost than the cast drains: the button reads the

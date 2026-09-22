@@ -110,6 +110,9 @@ combat_radius = 6
 own_units_only = true
 # true = casters may interrupt their own attack to cast.
 cast_while_attacking = true
+# A caster loses its attack-move or patrol to a spell order (the game would otherwise crash resuming it mid-cast).
+# true = give it back once the spell is over, so the caster carries on to where you sent it.
+resume_orders = true
 # Blizzard and Death and Decay keep casting wave after wave. The mod stops the ones it started when a friendly walks
 # in, when no enemy is left, or when the caster's mana drops below this (0 = let them run until the game stops them).
 channel_mana_reserve = 0

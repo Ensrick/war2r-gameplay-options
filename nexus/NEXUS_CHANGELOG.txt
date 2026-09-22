@@ -1,3 +1,8 @@
+[size=4][b]1.18.0[/b][/size]
+[list]
+[*]New [autocast] resume_orders (on): a caster that was on an attack-move or a patrol when the mod cast a spell for it gets that order back once the spell is over, with the same destination, the way your own click would restore it. Since 1.16.2 the order had to be dropped before the cast (that was the crash); now it is only paused. A new order from you in the meantime wins, and nothing is given back after 30 seconds.
+[/list]
+
 [size=4][b]1.17.1[/b][/size]
 [list]
 [*]Checked after a report that the spell button shows a different cost than the cast drains: the button reads the same table the game charges from, so it always shows the mod's price. For Heal and Exorcism that price is PER HIT POINT (the game's rule): the button says what one hit point costs, and a heal that mends 30 hit points at heal = 2 drains 60 mana. The config comment and the tutorial say so now.
