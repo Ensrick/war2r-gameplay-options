@@ -7,6 +7,13 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.20.0 - 2026-09-22
+
+- New `[heal] cooldown_for_computer` (on): the computer's paladins keep to the same Heal / Exorcism cooldown as yours,
+  with the same urgent-heal exception. The game's own rule heals any unit missing a single hit point on every think
+  step, so with a cheaper Heal they never stopped. Set it to false to play them exactly as the game does. Single
+  player only; nothing changes in a network game.
+
 ## 1.19.0 - 2026-09-22
 
 - New `react_range` in `[unit.NAME]` / `[building.NAME]` (0 to 20, -1 = the game's): how far a unit looks for a target

@@ -7,6 +7,7 @@ Steps (each one only when the file still needs it):
   1.1.0  adds "amount = 1.0" to [gold_mines] and [oil_platforms]
   1.2.0  adds the [food] block after [oil_platforms]
   1.3.0  adds the [trees] block after [food]
+  1.20.0 adds [heal] cooldown_for_computer = true after urgent_below_percent
   1.18.0 adds [autocast] resume_orders = true after cast_while_attacking
   1.17.0 adds [heal] cooldown_seconds = 0 and urgent_below_percent = 10
   1.16.0 adds the empty [weapon_types] / [armor_types] sections with two commented examples after [upgrades]
@@ -53,6 +54,7 @@ FOOD_BLOCK = ['[food]', '# true = every Town Hall / Great Hall, Keep / Stronghol
 TREES_BLOCK = ['[trees]', "# EXPERIMENTAL. true = felled forest grows back, so lumber never runs out for good (the computer's too). Every stump", '# waits its own time between regrow_min_minutes and regrow_max_minutes of play, so a felled patch fills back in bit', '# by bit. A tree never grows back close to a building, a wall or a ground unit, never where it would close a', '# passage, and only where a forest stood before. Flyers do not hold it up.', 'regrow = false', 'regrow_min_minutes = 10', 'regrow_max_minutes = 20', '# No regrowth within this many tiles of a building or wall / of a ground unit of any player.', 'building_distance = 3', 'unit_distance = 3']
 UNIT_REGEN_BLOCK = ['[unit_regen]', '# true = every unit regenerates hit points while you play: land units, flyers and ships, never a structure. A hurt', '# unit is then worth keeping instead of being a waste of food. Heroes follow [heroes] regen while that is on.', 'enabled = false', 'hp_per_second = 1', '# "all" = every unit on the map (the enemy\'s too), "mine" = only your own.', 'regen_for = "all"']
 SPELLS_NEW = ['# Area spells hurt YOUR units and buildings too. They are only cast with no friendly unit, building or wall in the', '# blast area, and a Blizzard / Death and Decay the mod started is stopped when a friendly walks in (see [autocast]).', 'fireball = false', 'blizzard = false', 'death_and_decay = false', 'whirlwind = false', 'flame_shield = false', 'runes = false', 'invisibility = false', '# Holy Vision: an idle paladin at full mana looks at the least explored part of the map. It may move the camera to', '# its target for your own paladins (not tested in game yet).', 'holy_vision = false']
+AI_COOLDOWN_1200 = ["# The computer's paladins keep to the same cooldown (the game's own rule heals any unit missing a single hit point,", '# every think step, so with a cheap Heal they never stop). false plays them exactly as the game does.', 'cooldown_for_computer = true']
 RESUME_1180 = ['# A caster loses its attack-move or patrol to a spell order (the game would otherwise crash resuming it mid-cast).', '# true = give it back once the spell is over, so the caster carries on to where you sent it.', 'resume_orders = true']
 COOLDOWN_1170 = ['# Seconds a paladin waits after a Heal or an Exorcism before casting either again. 0 = no waiting, up to 600.', '# One timer per paladin, so several paladins still cover each other.', 'cooldown_seconds = 0', '# Two things cannot wait: a heal target at or below this share of its maximum hit points, and an exorcism whose', "# target the paladin's mana can finish outright (hit points x the mana cost per hit point from [spell_cost]).", 'urgent_below_percent = 10']
 TYPES_1160 = ["# Warcraft II has no armor types: damage is basic minus the target's armor, plus piercing, which ignores armor. These", '# three sections add the system the game is missing. Invent the names, list who carries them, then give each pair a', '# multiplier. Lists take the [unit.NAME] / [building.NAME] names plus the groups "structures", "ships", "air_units"', '# and "land_units"; a unit named on its own beats a group. A unit has one weapon type and one armor type. Anything you', "# leave out is x1.0, spells are never affected, splash is scaled per victim, and the computer's units follow the same", '# types. Up to 32 weapon types and 32 armor types, multipliers 0.0 to 10.0. Single player only.', '# Two examples, both switched off. Remove the # signs to try one, or write your own. The tutorial has more.', '[weapon_types]', '# siege  = ["ballista", "catapult", "human_cannon_tower", "orc_cannon_tower", "ships"]   # every ship too', '# pierce = ["archer", "ranger", "axethrower", "berserker"]', '', '[armor_types]', '# structure  = ["structures"]', '# heavy_hull = ["elven_destroyer", "troll_destroyer", "battleship", "juggernaught"]', '# light_hull = ["gnomish_submarine", "giant_turtle", "human_transport", "orc_transport", "human_tanker", "orc_tanker"]', '# unarmored  = ["peasant", "peon", "mage", "death_knight"]', '', '# [damage_bonus.siege]      # one table per weapon type: armor type = multiplier, 1.0 for every pair you leave out', '# structure  = 2.0          # siege weapons and ships hit buildings twice as hard', '# heavy_hull = 1.5          # and warships half again', '# light_hull = 1.0', '', '# [damage_bonus.pierce]', '# unarmored  = 1.5          # arrows and axes against workers and casters', '# structure  = 0.5          # but half against buildings']
@@ -233,6 +235,11 @@ def insert_after_key(lines, tree, section, after_key, block, notes):
             notes.append(f'[{section}] gained {key}')
             return
     append_missing(lines, tree, section, block, notes)
+
+
+def ai_cooldown_1200(lines, tree, notes):
+    if 'heal' in tree:
+        insert_after_key(lines, tree, 'heal', 'urgent_below_percent', AI_COOLDOWN_1200, notes)
 
 
 def resume_1180(lines, tree, notes):
@@ -510,6 +517,7 @@ def main():
     types_1160(lines, tomllib.loads(LF.join(lines)), notes)
     cooldown_1170(lines, before, notes)
     resume_1180(lines, before, notes)
+    ai_cooldown_1200(lines, tomllib.loads(LF.join(lines)), notes)
     auto_production_180(lines, now, notes)
     save_up_1120(lines, now, notes)
     plenty_1140(lines, now, notes, 'auto_production' in before)
@@ -534,7 +542,7 @@ def main():
     allowed = {('oil_platforms', 'unlimited'), ('oil_platforms', 'amount'), ('gold_mines', 'amount'), ('food', 'hall_food'),
                ('food', 'hall_food_amount'), ('heroes', 'regen'), ('unit_regen', 'enabled'), ('unit_regen', 'hp_per_second'),
                ('unit_regen', 'regen_for')} | {('spells', l.split('=')[0].strip()) for l in SPELLS_NEW if not l.startswith('#')} | {
-               ('autocast', l.split('=')[0].strip()) for l in AUTOCAST_NEW if not l.startswith('#')} | {('autocast', 'area_building_value'), ('general', 'log_ai'), ('auto_production', 'save_up_seconds'), ('upgrades', 'missile_damage'), ('upgrades', 'melee_damage'), ('upgrades', 'shields'), ('upgrades', 'ship_damage'), ('upgrades', 'ship_armor'), ('upgrades', 'siege_damage'), ('auto_production', 'plenty_units'), ('autocast', 'area_friendly_clearance'), ('heal', 'cooldown_seconds'), ('heal', 'urgent_below_percent'), ('autocast', 'resume_orders')} | {('priority', k) for k in ('paladin', 'mage', 'ogre_mage', 'death_knight', 'save_mana')} | {
+               ('autocast', l.split('=')[0].strip()) for l in AUTOCAST_NEW if not l.startswith('#')} | {('autocast', 'area_building_value'), ('general', 'log_ai'), ('auto_production', 'save_up_seconds'), ('upgrades', 'missile_damage'), ('upgrades', 'melee_damage'), ('upgrades', 'shields'), ('upgrades', 'ship_damage'), ('upgrades', 'ship_armor'), ('upgrades', 'siege_damage'), ('auto_production', 'plenty_units'), ('autocast', 'area_friendly_clearance'), ('heal', 'cooldown_seconds'), ('heal', 'urgent_below_percent'), ('autocast', 'resume_orders'), ('heal', 'cooldown_for_computer')} | {('priority', k) for k in ('paladin', 'mage', 'ogre_mage', 'death_knight', 'save_mana')} | {
                (sec, l.split('=')[0].strip()) for sec in ('spell_damage', 'spell_cost', 'mana') for l in SPELL_POWER
                if l and not l.startswith(('#', '['))} | {
                k for k in AUTO_PRODUCTION_KEYS | {('auto_production', 'no_enemy_navy_cap', c) for c in

@@ -156,6 +156,9 @@ cooldown_seconds = 0
 # Two things cannot wait: a heal target at or below this share of its maximum hit points, and an exorcism whose
 # target the paladin's mana can finish outright (hit points x the mana cost per hit point from [spell_cost]).
 urgent_below_percent = 10
+# The computer's paladins keep to the same cooldown (the game's own rule heals any unit missing a single hit point,
+# every think step, so with a cheap Heal they never stop). false plays them exactly as the game does.
+cooldown_for_computer = true
 
 [polymorph]
 # Valid Polymorph targets in priority order: the first type in this list that is in range gets sheeped,

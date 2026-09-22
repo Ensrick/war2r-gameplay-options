@@ -15,6 +15,22 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.20.0 (2026-09-22, UNTESTED in game, NOT released)
+
+- Part 2 of #30, the computer's paladins ("Both the AI and my autocast heal and exorcise too frequently"). Research:
+  the paladin AI is FUN_004cb2f0; its heal filter FUN_004ca7c0 wants only an allied fleshy target with hp below max,
+  no threshold, no timer, and the mana gate is the price of ONE hit point, so with a cheap Heal it casts nearly every
+  think step. Exorcism is the same shape against the undead (FUN_004caae0). That is the whole of "why they never
+  stop", and his cheaper prices reach the computer through the global cost table.
+- Hook: the three `call rel32` inside that one function (0x4CB309 exorcism-while-invisible, 0x4CB323 heal, 0x4CB35E
+  exorcism scan); each stub either returns 0 (the AI reads "found nothing") or calls the game's function and starts
+  the timer. I checked all three sites and that the game tests EAX right after each against the exe before merging.
+  All three or none, single player only. Exorcism is never urgent for the computer: its target is only known inside
+  the game's own scan. 10 mutations, 10 caught.
+- This is the first thing in the mod that changes how the computer PLAYS (everything else it gets is a table it
+  shares). He asked for it explicitly; the switch defaults on and the tutorial says so. He wanted AI tweaks as a
+  separate mod earlier: this one is bound to the cooldown setting and off when that is 0, which is the line I drew.
+
 ## 1.19.0 (2026-09-22, UNTESTED in game, NOT released)
 
 - Author: "Whatever I did for Juggernauts and Battleships also didn't give them 7 range." Two of his tables were
