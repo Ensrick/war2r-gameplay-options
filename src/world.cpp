@@ -1,6 +1,7 @@
 #include "world.h"
 
 #include "log.h"
+#include "resume.h"
 
 namespace game {
 
@@ -44,6 +45,7 @@ void IssueOrder(Unit* unit, int16_t x, int16_t y, Unit* target, uint32_t handler
     // attack-move was pending crashed the game on target->hp (2026-09-21, image 0x680000 + 0xE2257). The player's own
     // command path clears the resume byte before every new order (FUN_004dcc60); every order of the mod stands in for
     // a click, so it does the same. The worker code did this already; now nothing can forget it.
+    resume::Remember(unit);  // what the unit was on, so it can be given back once the spell is over
     if (*At<uint32_t>(kRvaRuleset) != 0) Field<uint8_t>(unit, kOffResumeOrder) = kOrderNone;
     using OrderHandlerFn = void(__cdecl*)(Unit*);
     using IssueOrderFn = void(__cdecl*)(Unit*, int16_t, int16_t, Unit*, OrderHandlerFn);

@@ -506,6 +506,41 @@ Proposed caster order (the AI's, minus its invisible-caster branches, which the 
 - paladin: heal, exorcism, holy vision
 - ogre-mage: bloodlust, runes (eye stays in `eye.cpp`)
 
+## 4a. The resume order, and how to give it back
+
+The player's command path `FUN_004dcc60` walks the selection, asks a per-type function what a click on that tile
+means (`0x8C5D90[0x918460[type]]`, 0x3C = nothing), and then:
+
+```c
+if (remastered /* 0x91C178 */) unit->+0x8D = 0x3C;      // clear the resume order first
+FUN_004dfa30(unit, &x, &y);                             // snap the destination
+FUN_004ed8c0(unit, x, y, target, 0x8C1498[order]);      // issue through the order handler table
+```
+
+`FUN_004ed8c0` is a thin wrapper that clears a flag for some types and calls the engine's IssueOrder
+(`FUN_004ef210`), the same function `game::IssueOrder` wraps.
+
+What the resume order is, read from `SetOrder` `FUN_004ef080` (`0x4EF0D2..0x4EF1CB`):
+
+| Field | Meaning |
+|---|---|
+| `+0x8D` | the order to resume after a stop: `0x3C` none, `10` attack-move, `5` patrol |
+| `+0x8E` | state beside it; the resume only fires while this is 0, and the engine writes `0x14` after resuming an attack-move and `0x28` after a patrol |
+| `+0x90` / `+0x92` | the attack-move destination (`SetOrder` reads the dword at `+0x90` as x in the low half, y in the high half) |
+| `+0x94` / `+0x96` | the patrol destination |
+
+On `SetOrder(unit, Stop)` with a resume order pending and `+0x8E == 0`, the engine re-issues it itself: patrol
+through `FUN_004d8bd0` (entry 5 of the handler table, which clears `+0x88` and `+0x70`, copies `+0x90` to `+0x6C`
+and calls `SetOrder(unit, 5)`), attack-move through `FUN_004d82e0` (entry 10, `SetOrder(unit, 10)`) but only when the
+unit is still more than a tile from the stored destination; then it writes the word `0x140A` at `+0x8D`.
+
+`src/resume.cpp` mirrors that: `game::IssueOrder` files {unit, serial, order, destination, `+0x8E`} before it clears
+the byte, and one pass per tick gives the order back through the same two handlers once the caster is idle, writing
+`+0x8D`, `+0x8E` and the destination afterwards exactly as the engine does. The record is dropped when the player
+gives the unit anything of their own, when a resume byte appears that the mod did not write, when the unit dies or
+leaves the array, and after 30 seconds. The eye of Kilrogg is never filed, and a re-entry guard keeps the hand-back
+itself from being filed as a new record.
+
 ## 5. Crash and corruption review
 
 | Item | Finding | Evidence |

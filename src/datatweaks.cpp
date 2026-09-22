@@ -9,6 +9,7 @@
 #include "log.h"
 #include "mod.h"
 #include "production.h"
+#include "resume.h"
 #include "spells.h"
 #include "trees.h"
 #include "tweaks.h"
@@ -157,6 +158,7 @@ void OnNewMapTablesLoaded() {
     }
     tweaks::OnNewMap();
     autocast::OnNewMap();
+    resume::OnNewMap();
     trees::OnNewMap();
     aiwatch::OnNewMap();
     production::OnNewMap();  // the water / oil profile is counted again on the first pass of the new map
