@@ -1,3 +1,8 @@
+[size=4][b]1.20.1[/b][/size]
+[list]
+[*]Fixed: [heal] cooldown_for_computer was read correctly but reported in the log as an unknown key. The react range log line now names the unit and both numbers.
+[/list]
+
 [size=4][b]1.20.0[/b][/size]
 [list]
 [*]New [heal] cooldown_for_computer (on): the computer's paladins keep to the same Heal / Exorcism cooldown as yours, with the same urgent-heal exception. The game's own rule heals any unit missing a single hit point on every think step, so with a cheaper Heal they never stopped. Set it to false to play them exactly as the game does. Single player only; nothing changes in a network game.

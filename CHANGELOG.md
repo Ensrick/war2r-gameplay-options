@@ -7,6 +7,11 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.20.1 - 2026-09-22
+
+- Fixed: `[heal] cooldown_for_computer` was read correctly but reported in the log as an unknown key. The react
+  range log line now names the unit and both numbers.
+
 ## 1.20.0 - 2026-09-22
 
 - New `[heal] cooldown_for_computer` (on): the computer's paladins keep to the same Heal / Exorcism cooldown as yours,

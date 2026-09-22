@@ -1,0 +1,1 @@
+Fixed: [heal] cooldown_for_computer was read correctly but reported in the log as an unknown key. The react range log line now names the unit and both numbers.

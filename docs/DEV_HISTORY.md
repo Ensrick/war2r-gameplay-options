@@ -15,6 +15,13 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.20.1 (2026-09-22)
+
+- The agent re-read my spec against what shipped and found its own bug: cooldown_for_computer was missing from the
+  known-key list, so the mod obeyed the key and then called it a typo in the log. Fixed, with a test that pins the
+  rule "a key the reader accepts is never reported unknown" (also for react_range in a [unit.*] table). The react
+  range raise now logs the unit name and both old -> new numbers instead of a count.
+
 ## 1.20.0 (2026-09-22, UNTESTED in game, NOT released)
 
 - Part 2 of #30, the computer's paladins ("Both the AI and my autocast heal and exorcise too frequently"). Research:
