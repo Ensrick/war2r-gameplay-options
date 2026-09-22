@@ -452,6 +452,32 @@ Notes for parity: every AI friendly-fire check reads the ground grid only (own f
 targets flyers with these scans, and the AI's own "claims" are writes into the target (+0x4E, +0x46, +0x4C marks);
 the mod must keep using its own claim list instead of writing unit fields.
 
+## 3a. The computer's paladin, and where the mod's cooldown goes in
+
+`FUN_004cb2f0(caster)` is the whole paladin AI. The dispatcher `FUN_004ca4a0` calls it for unit types 0x0C (paladin)
+and 0x2C (Turalyon), so these call sites are paladins and nothing else. It tries, in order:
+
+| # | Attempt | Gate | Where it casts |
+|---|---|---|---|
+| 1 | exorcism while invisible (`+0x44 != 0`) | upgrade bit 8 of `0x919250[owner]`, mana `+0x26` >= `0x8C5EB8[0x29]` | `FUN_004cb030` at `0x4CB309`: ten random unit slots in a row must pass `FUN_004caae0`, then order 0x29 at the tenth one's tile |
+| 2 | **heal** | upgrade bit 2, mana >= `0x8C5EB8[0x27]` (which is the price of ONE hit point) | `FUN_004cb0e0` at `0x4CB323`: 31x31 ground-grid scan `FUN_004cb3e0`, first match wins, order 0x27, target marked `+0x4C \|= 0x10` |
+| 3 | exorcism | upgrade bit 8, mana >= `[0x8C5F0A]` (the per-hit-point byte, not the cost word) | scan `FUN_004cb3e0` at `0x4CB35E`, then `FUN_004ef210` inline at `0x4CB3B8`, target marked `+0x4C \|= 8` |
+| 4 | holy vision | mana exactly 255 | `FUN_004cb030` at `0x4CB382`, order 0x26 |
+
+The heal filter `FUN_004ca7c0(caster, target)` is the answer to "when does a computer paladin heal": the caster is not
+invisible, `0x919578[caster.owner * 16 + target.owner] != 0` (allied, its own units included), the target's type has
+flag `0x8000000` (fleshy), `target->hp < GetMaxHp(target)` - **any** missing hit point, a scratch is enough - and the
+target is not already marked `+0x4C & 0x10` by another paladin this pass. The exorcism filter `FUN_004caae0` is the
+same shape: not allied, type flag `0x8000` (undead), not marked `+0x4C & 8`.
+
+So the AI has no cooldown and no wound threshold at all, and with a cheap `[spell_cost] heal` it will cast on every
+think step it can afford. `[heal] cooldown_for_computer` hooks the three `call rel32` of attempts 1 to 3 (never 4):
+each stub asks `autocast::ComputerHealAllowed` / `ComputerExorcismAllowed` and either returns 0 in EAX without
+calling the game's function - which the AI reads as "found nothing" and follows with its next attempt - or calls it
+and starts the timer when it reports a cast. Only EAX carries a result at all three sites (the game re-tests it right
+after each call), the arguments are left where the game put them, and the caster is the first stack argument at the
+first two sites and the second at `0x4CB35E`, whose callee takes the filter first.
+
 ## 4. Proposed safe autocast rules (human caster, single player)
 
 Shared rules for all eight (in addition to the existing research, mana, invisible-caster and
