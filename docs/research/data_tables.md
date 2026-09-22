@@ -458,10 +458,32 @@ if (explicit == 0) {
 ```
 
 So `[unit.NAME] range` decides how far a unit **can shoot**, and the panel shows that number, while how far it
-**notices** an enemy on its own comes from the react ranges, which the mod does not touch. Raise a juggernaught's
-range to 7 and it will still wait until something is inside its unchanged react range, then fire from there: in play
-that looks exactly like the setting having no effect. Giving `range` a companion write into both react tables (or a
-`react_range` key) is the fix; it is not implemented yet.
+**notices** an enemy on its own comes from the react ranges.
+
+### The game's own three numbers, and what the mod does with them
+
+`Data\Rez\unitdata.dat` is column-major: 110 entries per column in the same order as the tables in `.data` (which
+pad each row to 112). The range column starts at file offset 3326, checked by two columns whose values are known
+independently: armor at +3 columns (footman 2, knight 4) and basic damage at +6 (ballista 80, archer 3).
+
+| Type | range | react (computer) | react (yours) |
+|---|---|---|---|
+| footman / grunt | 1 | 6 | 4 |
+| archer / axethrower | 4 | 7 | 5 |
+| ranger / berserker | 4 | 9 | 6 |
+| ballista / catapult | 8 | 11 | 9 |
+| mage / death knight | 2 / 3 | 11 | 9 |
+| elven destroyer / troll destroyer | 4 | 10 | 8 |
+| battleship / juggernaught | 6 | 10 | 8 |
+| gryphon rider / dragon | 4 | 8 | 6 |
+| guard tower | 6 | 6 | 6 |
+| cannon tower | 7 | 7 | 7 |
+| tankers and transports | 1 | 0 | 0 |
+
+So for most units the react ranges already sit above the attack range and a modest `range` is used as set; for a
+**tower** all three numbers are equal, so a raised `range` alone would have changed nothing about when it opens fire.
+`ApplyUnitStats` therefore raises both react entries to the new `range` when they are below it - never lowers them,
+and never touches a type whose `[unit.NAME] react_range` (0..20, both tables at once) is set by hand.
 
 ## 6. Regeneration pacing and game speed
 

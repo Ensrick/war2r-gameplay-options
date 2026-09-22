@@ -80,7 +80,7 @@ struct DamageTypes {
 // Keys of a [unit.<name>] table, same order as config::kStatKeys.
 enum UnitStat {
     kStatHitPoints, kStatArmor, kStatBasicDamage, kStatPiercingDamage, kStatRange, kStatSight,
-    kStatGold, kStatLumber, kStatOil, kStatBuildTime, kStatCount
+    kStatGold, kStatLumber, kStatOil, kStatBuildTime, kStatReactRange, kStatCount
 };
 
 // [spell_cost] keys, in the game's order-id order (0x26..0x38 without the unused slot 0x28).

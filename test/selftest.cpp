@@ -4816,13 +4816,16 @@ int wmain(int argc, wchar_t** argv) {
             uint8_t* armorT = At<uint8_t>(kRvaArmorByType);
             uint8_t* basicT = At<uint8_t>(kRvaBasicDamageByType);
             uint8_t* pierceT = At<uint8_t>(kRvaPiercingDamageByType);
+            uint8_t* reactC = At<uint8_t>(kRvaReactRangeComputer);
+            uint8_t* reactH = At<uint8_t>(kRvaReactRangeHuman);
             auto vanillaDestroyer = [&](uint8_t t) {
                 hpT[t] = 100; armorT[t] = 10; basicT[t] = 35; pierceT[t] = 0; rangeT[t] = 4; sightT[t] = 8;
                 goldT[t] = 70; lumberT[t] = 35; oilT[t] = 70; buildT[t] = 90;
+                reactC[t] = 10; reactH[t] = 8;  // Data\\Rez\\unitdata.dat: the destroyer notices from 10 / 8
             };
             resetTables(); resetConfig();
             vanillaDestroyer(0x1E); vanillaDestroyer(0x1F);
-            const int example[kStatCount] = {105, 11, 37, 2, 5, 9, 600, 300, 500, 80};
+            const int example[kStatCount] = {105, 11, 37, 2, 5, 9, 600, 300, 500, 80, 12};
             for (int i = 0; i < kStatCount; ++i) config::g.unitStat[0x1E][i] = example[i];
             config::g.unitStat[0x1F][kStatPiercingDamage] = 0;  // 0 is a real value, not "default"
             config::g.unitStat[0x1F][kStatArmor] = -1;
@@ -4833,6 +4836,8 @@ int wmain(int argc, wchar_t** argv) {
                   "elven destroyer example (hp %u armor %u basic %u pierce %u range %u sight %u gold %u lumber %u oil %u time %u)", hpT[0x1E],
                   armorT[0x1E], basicT[0x1E], pierceT[0x1E], rangeT[0x1E], sightT[0x1E], goldT[0x1E], lumberT[0x1E], oilT[0x1E], buildT[0x1E]);
             CHECK(pierceT[0x1F] == 0 && armorT[0x1F] == 10 && hpT[0x1F] == 100, "0 must be written, -1 and missing keys must leave the game's value");
+            CHECK(reactC[0x1E] == 12 && reactH[0x1E] == 12, "react_range writes both react tables (%u / %u)", reactC[0x1E], reactH[0x1E]);
+            CHECK(reactC[0x1F] == 10 && reactH[0x1F] == 8, "a type without react_range keeps the game's react ranges");
 
             vanillaDestroyer(0x1E);
             config::g.health.all = 2.0;
@@ -4840,6 +4845,34 @@ int wmain(int argc, wchar_t** argv) {
             datatweaks::OnNewMapTablesLoaded();
             CHECK(hpT[0x1E] == 210 && goldT[0x1E] == 30 && oilT[0x1E] == 25, "multipliers apply on top of the player's base stats (hp %u gold %u oil %u)",
                   hpT[0x1E], goldT[0x1E], oilT[0x1E]);
+
+            // The range table alone does not decide when a unit opens fire: a raised range is followed into both
+            // react tables, but only upwards, and never against an explicit react_range.
+            resetTables(); resetConfig();
+            vanillaDestroyer(0x1E); vanillaDestroyer(0x1F);
+            config::g.unitStat[0x1E][kStatRange] = 12;   // above both react ranges: both follow
+            config::g.unitStat[0x1F][kStatRange] = 6;    // still below them: they stay as the game made them
+            datatweaks::OnNewMapTablesLoaded();
+            CHECK(rangeT[0x1E] == 12 && reactC[0x1E] == 12 && reactH[0x1E] == 12,
+                  "a range above the react ranges must raise both (range %u react %u / %u)", rangeT[0x1E], reactC[0x1E], reactH[0x1E]);
+            CHECK(rangeT[0x1F] == 6 && reactC[0x1F] == 10 && reactH[0x1F] == 8,
+                  "a range below them must leave them alone (react %u / %u)", reactC[0x1F], reactH[0x1F]);
+
+            resetTables(); resetConfig();
+            vanillaDestroyer(0x1E);
+            config::g.unitStat[0x1E][kStatRange] = 12;
+            config::g.unitStat[0x1E][kStatReactRange] = 5;  // the player's own number wins, even below the range
+            datatweaks::OnNewMapTablesLoaded();
+            CHECK(reactC[0x1E] == 5 && reactH[0x1E] == 5, "react_range must not be lifted by range (%u / %u)", reactC[0x1E], reactH[0x1E]);
+
+            // A tower is the case that made this necessary: the game gives it the same number in all three tables.
+            resetTables(); resetConfig();
+            rangeT[kGuardTower] = 6; reactC[kGuardTower] = 6; reactH[kGuardTower] = 6;
+            config::g.unitStat[kGuardTower][kStatRange] = 9;
+            datatweaks::OnNewMapTablesLoaded();
+            CHECK(rangeT[kGuardTower] == 9 && reactC[kGuardTower] == 9 && reactH[kGuardTower] == 9,
+                  "a tower given more range must also notice from further (range %u react %u / %u)", rangeT[kGuardTower],
+                  reactC[kGuardTower], reactH[kGuardTower]);
         }
 
         // [building.<name>] tables use the same stats; a name in the wrong section is refused, not misapplied.
@@ -4849,8 +4882,9 @@ int wmain(int argc, wchar_t** argv) {
             resetTables(); resetConfig();
             hpT[kGuardTower] = 130; armorT[kGuardTower] = 20; pierceT[kGuardTower] = 12; sightT[kGuardTower] = 9;
             WriteFileText(ini,
-                          "[building.human_guard_tower]\nhit_points = 200\npiercing_damage = 14\nrange = 7\ngold = 450\nbuild_time = -1\n"
+                          "[building.human_guard_tower]\nhit_points = 200\npiercing_damage = 14\nrange = 7\nreact_range = 9\ngold = 450\nbuild_time = -1\n"
                           "[building.farm]\nhit_points = 40000\n"
+                          "[unit.ballista]\nreact_range = 21\n"
                           "[unit.keep]\nhit_points = 9\n"
                           "[building.footman]\nhit_points = 9\n"
                           "[health]\nunits = 1.25\nstructures = 1.5\n[health.orc]\nbuildings = 2.0\nstructures = 3.0\n[costs]\nstructures = 0.5\nunits = 0.25\n[oil_platforms]\nunlimited = true\n");
@@ -4858,9 +4892,11 @@ int wmain(int argc, wchar_t** argv) {
             const uint8_t tower = 0x60;
             CHECK(config::g.unitStat[tower][kStatHitPoints] == 200 && config::g.unitStat[tower][kStatPiercingDamage] == 14 &&
                       config::g.unitStat[tower][kStatRange] == 7 && config::g.unitStat[tower][kStatGold] == 450 &&
-                      config::g.unitStat[tower][kStatBuildTime] == -1,
+                      config::g.unitStat[tower][kStatBuildTime] == -1 && config::g.unitStat[tower][kStatReactRange] == 9,
                   "[building.human_guard_tower] did not load");
             CHECK(config::g.unitStat[kFarmT][kStatHitPoints] == -1, "structure hit_points above 32767 must be refused");
+            CHECK(config::g.unitStat[4][kStatReactRange] == -1, "react_range above 20 must be refused (%d)",
+                  config::g.unitStat[4][kStatReactRange]);
             CHECK(config::g.unitStat[kKeep][kStatHitPoints] == -1 && config::g.unitStat[kFootman][kStatHitPoints] == -1,
                   "a building under [unit.*] or a unit under [building.*] must be refused");
             CHECK(config::g.health.race[kOrc].structure[kBuildings] == 2.0 && config::g.health.structures == 1.5 &&

@@ -21,7 +21,8 @@ const char* const kSpellKeys[kSpellCount] = {"heal",         "exorcism",     "sl
                                              "whirlwind",    "runes"};
 
 const char* const kStatKeys[kStatCount] = {"hit_points", "armor", "basic_damage", "piercing_damage", "range",
-                                           "sight",      "gold",  "lumber",       "oil",             "build_time"};
+                                           "sight",      "gold",  "lumber",       "oil",             "build_time",
+                                           "react_range"};
 
 const char* const kSpellCostKeys[kSpellCostCount] = {
     "holy_vision", "heal", "exorcism", "flame_shield", "fireball", "slow", "invisibility", "polymorph", "blizzard",
@@ -213,8 +214,8 @@ static void ReadSpells(const toml::table& root, Config& c) {
 // value where it makes sense. Both sections fill the same per-type table: the ids do not overlap.
 static void ReadStatTables(const toml::table& root, const char* section, bool buildings, Config& c) {
     // Structure health stays below 32768: the construction progress maths (FUN_004ed4e0) works in signed 16 bits.
-    const int kMax[kStatCount] = {buildings ? 32767 : 65535, 255, 255, 255, 20, 9, 2550, 2550, 2550, 255};
-    static const int kMin[kStatCount] = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    const int kMax[kStatCount] = {buildings ? 32767 : 65535, 255, 255, 255, 20, 9, 2550, 2550, 2550, 255, 20};
+    static const int kMin[kStatCount] = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     const toml::table* all = root[section].as_table();
     if (!all) return;
     for (const auto& [unitKey, unitNode] : *all) {
