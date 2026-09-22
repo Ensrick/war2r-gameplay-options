@@ -429,6 +429,40 @@ Findings:
 - Heroes cannot be recognised from the flags table: bit 0x00800000 is set only for 0x31-0x35 (Cho'gall, Lothar,
   Gul'dan, Uther, Zuljin). Use the explicit id list in `src/units.h`.
 
+## 5a. Which table the fight reads, and which one the panel prints
+
+Every reference below comes from a scan of `.text` for the table's absolute address.
+
+| Stat | The fight reads | The panel prints | Same? |
+|---|---|---|---|
+| attack range | `0x917E40` through `GetAttackRange` `FUN_004ee660` (`0x4EE685` / `0x4EE692`), its two callers `0x4A8E65` (target search) and `0x4D9455`, AI `0x4CA763` / `0x4CAB65` | `0x917E40`: classic `0x4E5FAF`, Remastered `0x52DD6C` | **yes** |
+| armor | `0x917F90`: `0x4BD79C`, `0x4BD9C4`, `0x4BDC49` | `0x917F90`: `0x4E50DA`, `0x4E514F`, `0x4E53FD`, `0x4E5A93`, Remastered `0x52BC0A`.. | **yes** |
+| basic damage | `0x9180E0`: `0x4BDAB0`, `0x4BDB18` (AI `0x4CBCC3`) | `0x9180E0`: `0x4E50C3`, `0x4E51D6`, `0x4E53E6`, `0x4E5684`, `0x4E5A7C`, `0x4E6620`, Remastered `0x52D11C` | **yes** |
+| piercing damage | `0x918150`: `0x4BDA59` (AI `0x4CBCCA`) | `0x918150`: `0x4E50BB`, `0x4E51CE`, `0x4E53DE`, `0x4E567C`, `0x4E5A74`, `0x4E6618`, Remastered `0x52D123` | **yes** |
+| sight | `0x917608`, but `FinalizeTables` turns each entry into a reveal-function pointer at load (`0x4C4BC1`, `0x4C4C20`); the movement / reveal code uses the converted entries (`0x4EEB75`, `0x4EF3F4`, `0x4EF450`) | `0x917608` read at `0x4E61A9` | same address, different meaning after the conversion `[unverified what the panel makes of it]` |
+| react range | `0x917EB0` (computer, `0x4A8EB8`; AI `0x4CC762`, `0x4CD74F`) and `0x917F20` (human, `0x4A8ECB`) | **nothing prints them** | no |
+
+### Why a bigger `range` does not make a ship open fire sooner
+
+`FUN_004a8e00(unit, explicit)` builds the box it searches for a target from `GetAttackRange`, but when `explicit`
+is 0 it first replaces that distance:
+
+```c
+DAT_00918bd4 = FUN_004ee660(unit);                     // the attack range, 0x917E40 (+1 for an upgraded ranger)
+range = DAT_00918bd4;
+if (explicit == 0) {
+    if (0x918CAC[unit->owner] == 1) range = 0x917EB0[type];          // a computer player: react range (computer)
+    else if ((0x8C16C8[unit->order] & 0x404) == 4) range = 0x917F20[type];  // the player's, on a guard-ish order
+}
+// the search box is built from `range`, and the attack itself uses DAT_00918bd4
+```
+
+So `[unit.NAME] range` decides how far a unit **can shoot**, and the panel shows that number, while how far it
+**notices** an enemy on its own comes from the react ranges, which the mod does not touch. Raise a juggernaught's
+range to 7 and it will still wait until something is inside its unchanged react range, then fire from there: in play
+that looks exactly like the setting having no effect. Giving `range` a companion write into both react tables (or a
+`react_range` key) is the fix; it is not implemented yet.
+
 ## 6. Regeneration pacing and game speed
 
 `FUN_004ef480` runs once per simulation step for every live unit (`FUN_004c4e80` / `FUN_004c5190` -> `FUN_004eea80`

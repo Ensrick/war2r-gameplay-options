@@ -87,7 +87,13 @@ constexpr uint32_t kRvaPlayerLumber = 0x5190E8;      // int32[16]
 constexpr uint32_t kRvaRuleset = 0x51C178;           // uint32, nonzero enables the Remastered resume-order byte (+0x8D)
 constexpr uint32_t kRvaSightByType = 0x517608;       // uint32[110]: range 0..9 until FinalizeTables, a function pointer after
 constexpr uint32_t kRvaBuildTimeByType = 0x517910;   // uint8[110], doubled into the production timer
-constexpr uint32_t kRvaAttackRangeByType = 0x517E40; // uint8[110], tiles
+constexpr uint32_t kRvaAttackRangeByType = 0x517E40; // uint8[110], tiles; GetAttackRange 0x4EE660 and both panels
+// How far a unit that was NOT ordered to attack looks for a target: the acquisition function FUN_004a8e00 replaces
+// the attack range with one of these when the current order's flag word 0x8C16C8[order] says so (0x4A8EB8 for a
+// computer-owned unit, 0x4A8ECB for the player's). Nothing prints them. A bigger attack range alone therefore does
+// not make a unit open fire sooner. Evidence: docs/research/data_tables.md.
+constexpr uint32_t kRvaReactRangeComputer = 0x517EB0;  // uint8[110]
+constexpr uint32_t kRvaReactRangeHuman = 0x517F20;     // uint8[110]
 constexpr uint32_t kRvaArmorByType = 0x517F90;       // uint8[110]
 constexpr uint32_t kRvaBasicDamageByType = 0x5180E0; // uint8[110]
 constexpr uint32_t kRvaPiercingDamageByType = 0x518150;  // uint8[110]
