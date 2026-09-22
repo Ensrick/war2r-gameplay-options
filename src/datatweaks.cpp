@@ -143,16 +143,28 @@ int ApplyUnitStats() {
     // room above the attack range for most units (archer 4 / 7 / 5, juggernaught 6 / 10 / 8) but not for towers
     // (guard tower 6 / 6 / 6), so a raised `range` alone can leave a tower firing at its old distance. Lift the
     // react ranges to match; never lower them, and never touch a type that sets react_range itself.
-    int lifted = 0;
     for (int t = 0; t < units::kTypeCount; ++t) {
         const int range = config::g.unitStat[t][kStatRange];
         if (range <= 0 || config::g.unitStat[t][kStatReactRange] >= 0) continue;
-        const bool raise = reactComputer[t] < range || reactHuman[t] < range;
-        if (reactComputer[t] < range) reactComputer[t] = static_cast<uint8_t>(range);
-        if (reactHuman[t] < range) reactHuman[t] = static_cast<uint8_t>(range);
-        lifted += raise;
+        char detail[96] = "";
+        if (reactComputer[t] < range) {
+            sprintf_s(detail, "computer %d -> %d", static_cast<int>(reactComputer[t]), range);
+            reactComputer[t] = static_cast<uint8_t>(range);
+        }
+        if (reactHuman[t] < range) {
+            char yours[48];
+            sprintf_s(yours, "%syours %d -> %d", *detail ? " and " : "", static_cast<int>(reactHuman[t]), range);
+            strcat_s(detail, yours);
+            reactHuman[t] = static_cast<uint8_t>(range);
+        }
+        if (!*detail) continue;  // the game already looks at least that far: nothing to raise, nothing to say
+        const units::Entry* unit = units::FindById(static_cast<uint8_t>(t));
+        const units::Building* building = unit ? nullptr : units::FindBuildingById(static_cast<uint8_t>(t));
+        char fallback[16];
+        sprintf_s(fallback, "%d", t);
+        logx::Write("%s %s: react range %s to match range %d", unit ? "unit" : (building ? "building" : "type"),
+                    unit ? unit->name : (building ? building->name : fallback), detail, range);
     }
-    if (lifted > 0) logx::Write("map load: %d type(s) notice an enemy from further, to match the range they were given", lifted);
     return changed;
 }
 

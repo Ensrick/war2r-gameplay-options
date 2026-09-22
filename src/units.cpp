@@ -47,6 +47,12 @@ const Building* FindBuildingByName(const char* name) {
     return nullptr;
 }
 
+const Building* FindBuildingById(uint8_t id) {
+    for (const Building& b : kBuildingNames)
+        if (b.id == id) return &b;
+    return nullptr;
+}
+
 const Entry* FindById(uint8_t id) {
     for (const Entry& e : kUnits)
         if (e.id == id) return &e;

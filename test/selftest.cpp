@@ -1195,16 +1195,21 @@ static void HealCooldownTests(const wchar_t* dir, const wchar_t* ini) {
     CHECK(OrderOf(pal4) == 0x27, "cooldown 0 must heal again at once (order %u)", OrderOf(pal4));
 
     // The reader.
-    WriteFileText(ini, "[heal]\ncooldown_seconds = 601\nurgent_below_percent = 25\nbogus = 1\n");
+    WriteFileText(ini, "[heal]\ncooldown_seconds = 601\nurgent_below_percent = 25\nbogus = 1\n"
+                       "cooldown_for_computer = false\n[unit.ballista]\nreact_range = 11\n");
     CHECK(config::Init(dir), "[heal] cooldown config rejected");
     CHECK(config::g.healCooldownSeconds == 600 && config::g.healUrgentBelowPercent == 25 &&
               LogContains(dir, "unknown key [heal] bogus"),
           "[heal] cooldown_seconds clamps to 600 and urgent_below_percent reads (%d %d)", config::g.healCooldownSeconds,
           config::g.healUrgentBelowPercent);
+    CHECK(!config::g.healCooldownForComputer && config::g.unitStat[4][kStatReactRange] == 11 &&
+              !LogContains(dir, "unknown key [heal] cooldown_for_computer") &&
+              !LogContains(dir, "unknown key [unit.ballista] react_range"),
+          "every key the reader accepts must be in the known-key list, or the player is told it is a typo");
     DeleteFileW(ini);
     CHECK(config::Init(dir), "the default config did not come back");
-    CHECK(config::g.healCooldownSeconds == 0 && config::g.healUrgentBelowPercent == 10,
-          "the shipped defaults are cooldown 0 and urgent 10 %%");
+    CHECK(config::g.healCooldownSeconds == 0 && config::g.healUrgentBelowPercent == 10 && config::g.healCooldownForComputer,
+          "the shipped defaults are cooldown 0, urgent 10 %% and the computer on the same timer");
 
     maxHp[kFootman] = savedFootmanHp;
     maxHp[kSkeleton] = savedSkeletonHp;
@@ -4939,6 +4944,9 @@ int wmain(int argc, wchar_t** argv) {
                   "a range above the react ranges must raise both (range %u react %u / %u)", rangeT[0x1E], reactC[0x1E], reactH[0x1E]);
             CHECK(rangeT[0x1F] == 6 && reactC[0x1F] == 10 && reactH[0x1F] == 8,
                   "a range below them must leave them alone (react %u / %u)", reactC[0x1F], reactH[0x1F]);
+            CHECK(LogContains(dir, "unit elven_destroyer: react range computer 10 -> 12 and yours 8 -> 12 to match range 12"),
+                  "the raise must name the type and both tables");
+            CHECK(!LogContains(dir, "unit troll_destroyer: react range"), "a type that needed no raise must not be logged");
 
             resetTables(); resetConfig();
             vanillaDestroyer(0x1E);
@@ -4955,6 +4963,18 @@ int wmain(int argc, wchar_t** argv) {
             CHECK(rangeT[kGuardTower] == 9 && reactC[kGuardTower] == 9 && reactH[kGuardTower] == 9,
                   "a tower given more range must also notice from further (range %u react %u / %u)", rangeT[kGuardTower],
                   reactC[kGuardTower], reactH[kGuardTower]);
+            CHECK(LogContains(dir, "building human_guard_tower: react range computer 6 -> 9 and yours 6 -> 9 to match range 9"),
+                  "a structure is named as a building");
+
+            // Only one of the two tables is below the range: only that one is raised, and only that one is logged.
+            resetTables(); resetConfig();
+            vanillaDestroyer(0x1E);
+            config::g.unitStat[0x1E][kStatRange] = 9;  // computer 10 stays, yours 8 follows
+            datatweaks::OnNewMapTablesLoaded();
+            CHECK(reactC[0x1E] == 10 && reactH[0x1E] == 9, "only the table below the range moves (%u / %u)", reactC[0x1E],
+                  reactH[0x1E]);
+            CHECK(LogContains(dir, "unit elven_destroyer: react range yours 8 -> 9 to match range 9"),
+                  "and the line says which table it was");
         }
 
         // [building.<name>] tables use the same stats; a name in the wrong section is refused, not misapplied.

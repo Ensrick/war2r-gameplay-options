@@ -482,8 +482,10 @@ independently: armor at +3 columns (footman 2, knight 4) and basic damage at +6 
 
 So for most units the react ranges already sit above the attack range and a modest `range` is used as set; for a
 **tower** all three numbers are equal, so a raised `range` alone would have changed nothing about when it opens fire.
-`ApplyUnitStats` therefore raises both react entries to the new `range` when they are below it - never lowers them,
-and never touches a type whose `[unit.NAME] react_range` (0..20, both tables at once) is set by hand.
+`ApplyUnitStats` therefore raises each react entry that is below the new `range` to it - the two tables judged
+separately, never lowered, and never for a type whose `[unit.NAME] react_range` (0..20, both tables at once) is set
+by hand. Every raise is logged with the type's own name, so the numbers above can be checked against a real map:
+`unit elven_destroyer: react range computer 10 -> 12 and yours 8 -> 12 to match range 12`.
 
 ## 6. Regeneration pacing and game speed
 
