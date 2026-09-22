@@ -669,7 +669,7 @@ static void WarnUnknownKeys(const toml::table& root) {
                      "area_building_value area_friendly_clearance fireball_min_enemies "},
         {"spells", " heal exorcism slow polymorph bloodlust death_coil haste unholy_armor raise_dead holy_vision flame_shield "
                    "fireball invisibility blizzard death_and_decay whirlwind runes "},
-        {"heal", " min_missing_hp below_percent "},
+        {"heal", " min_missing_hp below_percent cooldown_seconds urgent_below_percent "},
         {"polymorph", " targets "},
         {"haste", " flyers_only "},
         {"heroes", " units regen regen_hp_per_second regen_for "},
@@ -752,6 +752,8 @@ static bool Load() {
     for (int i = 0; i < kSpellCount; ++i) ReadBool(root, "spells", kSpellKeys[i], c.spell[i]);
     ReadInt(root, "heal", "min_missing_hp", 1, 65535, c.healMinMissingHp);
     ReadInt(root, "heal", "below_percent", 1, 100, c.healBelowPct);
+    ReadInt(root, "heal", "cooldown_seconds", 0, 600, c.healCooldownSeconds);
+    ReadInt(root, "heal", "urgent_below_percent", 0, 100, c.healUrgentBelowPercent);
     ReadPolymorphTargets(root, c);
     ReadBool(root, "haste", "flyers_only", c.hasteFlyersOnly);
     ReadBool(root, "eye_of_kilrogg", "cast", c.eyeCast);

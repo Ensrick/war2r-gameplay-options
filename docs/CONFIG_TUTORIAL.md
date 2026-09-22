@@ -898,6 +898,27 @@ Rules, all of them:
 - The mod writes one line to the log when it reads the config, so you can check what it understood:
   `damage types: weapon siege (4 units), armor structure (43), ship (14); 2 bonuses`.
 
+### Heal and Exorcism less often
+
+Paladins heal the moment anything is scratched, which drains their mana and interrupts whatever they were doing.
+`cooldown_seconds` gives every paladin its own timer, shared by both spells: after a Heal or an Exorcism that
+paladin waits before casting either again.
+
+```toml
+[heal]
+cooldown_seconds = 8        # 0 (the default) = no waiting, up to 600
+urgent_below_percent = 10   # a unit at or below this share of its health cannot wait
+```
+
+Two things break the timer, because waiting would be worse than the interruption:
+
+- a **Heal target at or below `urgent_below_percent`** of its maximum health (10 % by default), and
+- an **Exorcism the paladin can finish with the mana it is carrying**: undead hit points times the live mana cost
+  per hit point, so it honours whatever you set in `[spell_cost]`.
+
+Nothing else about who gets healed changes, and with `log_casts` on the cast line says why the timer was broken:
+`cast heal: ... (urgent, 8 %)`.
+
 ### Change or remove the hotkey
 
 `Ctrl` plus this key toggles autocast in game.
@@ -971,6 +992,8 @@ makes the log long.
 | spells | exorcism, polymorph, death_coil, haste, unholy_armor | false | |
 | spells | holy_vision, flame_shield, fireball, invisibility, blizzard, death_and_decay, whirlwind, runes | false | Friendly fire: see "Fireball, Blizzard, ... read this first" |
 | heal | min_missing_hp | 10 | Heal only units missing at least this many HP |
+| heal | cooldown_seconds | 0 | Seconds a paladin waits between Heal / Exorcism casts (0 to 600, 0 = off) |
+| heal | urgent_below_percent | 10 | A heal target at or below this share of its health ignores the cooldown (0 to 100) |
 | heal | below_percent | 100 | Also require HP at or below this percent. 100 = off |
 | polymorph | targets | flyers, casters, big ground units | Valid targets in priority order |
 | haste | flyers_only | true | Haste only your air units |

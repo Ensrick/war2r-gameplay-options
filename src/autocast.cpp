@@ -379,6 +379,60 @@ int ScoreTarget(const World& w, Spell spell, Unit* caster, Unit* t) {
     }
 }
 
+constexpr unsigned kMaxNoteSlots = 2048;  // one diagnostic / cooldown slot per unit array entry
+uint32_t g_playMs = 0;                    // play time in ms, the clock every throttle and cooldown uses
+
+// [heal] cooldown_seconds: one timer per caster, shared by Heal and Exorcism, in play time. A caster may break it
+// for a heal target at or below urgent_below_percent of its maximum hit points, or for an exorcism the caster's
+// mana can finish outright (the live per-hit-point cost from the game's table, so [spell_cost] is honoured).
+struct CastNote {
+    uint32_t serial;
+    uint32_t lastMs;
+    bool used;
+};
+CastNote g_healNotes[kMaxNoteSlots];
+
+unsigned NoteSlot(const World& w, Unit* u) {
+    return static_cast<unsigned>((reinterpret_cast<uintptr_t>(u) - reinterpret_cast<uintptr_t>(w.units)) / kUnitSize);
+}
+
+bool IsHealSpell(Spell spell) { return spell == kSpellHeal || spell == kSpellExorcism; }
+
+// Why this cast is allowed although the timer is still running, or nullptr when it is not.
+const char* UrgentReason(Unit* caster, Spell spell, Unit* target, char* out, size_t outLen) {
+    if (spell == kSpellHeal) {
+        const int hp = Field<uint16_t>(target, kOffHp), max = At<uint16_t>(kRvaMaxHpByType)[TypeOf(target)];
+        if (max <= 0 || hp * 100 > max * config::g.healUrgentBelowPercent) return nullptr;
+        sprintf_s(out, outLen, " (urgent, %d %%)", max > 0 ? hp * 100 / max : 0);
+        return out;
+    }
+    // Exorcism turns mana into damage at a fixed price per hit point (FUN_004e2ac4 divides by the cost table entry).
+    const int cost = At<uint16_t>(kRvaManaCostByOrder)[kSpells[kSpellExorcism].order];
+    const int hp = Field<uint16_t>(target, kOffHp), mana = Field<uint8_t>(caster, kOffMana);
+    if (cost <= 0 || hp * cost > mana) return nullptr;
+    sprintf_s(out, outLen, " (urgent, %d hp for %d mana)", hp, hp * cost);
+    return out;
+}
+
+// True when the caster may cast now. `note` is filled with the log suffix of a cooldown-breaking cast.
+bool CooldownAllows(const World& w, Unit* caster, Spell spell, Unit* target, char* note, size_t noteLen) {
+    *note = 0;
+    if (!IsHealSpell(spell) || config::g.healCooldownSeconds <= 0) return true;
+    const unsigned slot = NoteSlot(w, caster);
+    if (slot >= kMaxNoteSlots) return true;
+    const CastNote& n = g_healNotes[slot];
+    const uint32_t serial = Field<uint32_t>(caster, kOffSerial);
+    if (!n.used || n.serial != serial) return true;
+    if (g_playMs - n.lastMs >= static_cast<uint32_t>(config::g.healCooldownSeconds) * 1000) return true;
+    return UrgentReason(caster, spell, target, note, noteLen) != nullptr;
+}
+
+void StartCooldown(const World& w, Unit* caster, Spell spell) {
+    if (!IsHealSpell(spell) || config::g.healCooldownSeconds <= 0) return;
+    const unsigned slot = NoteSlot(w, caster);
+    if (slot < kMaxNoteSlots) g_healNotes[slot] = {Field<uint32_t>(caster, kOffSerial), g_playMs, true};
+}
+
 bool TryCast(const World& w, Unit* caster, Spell spell) {
     if (!config::g.spell[spell]) return false;
     const SpellDef& def = kSpells[spell];
@@ -398,17 +452,20 @@ bool TryCast(const World& w, Unit* caster, Spell spell) {
         return false;
     });
     if (!best) return false;
+    char urgent[64] = "";
+    if (!CooldownAllows(w, caster, spell, best, urgent, sizeof(urgent))) return false;
     if (g_dryRun) return true;
 
     IssueSpell(caster, def.order, 0, 0, best);
     if (OrderOf(caster) != def.order) return false;  // order was not interruptible
     if (g_claimCount < kMaxClaims) g_claims[g_claimCount++] = {def.order, best, 0, 0};
     ++g_castCount;
+    StartCooldown(w, caster, spell);
     if (config::g.logCasts)
-        logx::Write("cast %s: caster type %u at %d,%d -> target type %u owner %u at %d,%d", config::kSpellKeys[spell],
+        logx::Write("cast %s: caster type %u at %d,%d -> target type %u owner %u at %d,%d%s", config::kSpellKeys[spell],
                     Field<uint8_t>(caster, kOffType), Field<int16_t>(caster, kOffX), Field<int16_t>(caster, kOffY),
                     Field<uint8_t>(best, kOffType), Field<uint8_t>(best, kOffOwner), Field<int16_t>(best, kOffX),
-                    Field<int16_t>(best, kOffY));
+                    Field<int16_t>(best, kOffY), urgent);
     return true;
 }
 
@@ -455,9 +512,7 @@ struct RaiseNote {
     uint32_t lastMs;
     bool logged;
 };
-constexpr unsigned kMaxNoteSlots = 2048;
 RaiseNote g_raiseNotes[kMaxNoteSlots];
-uint32_t g_playMs = 0;
 unsigned g_raiseNoteCount = 0;
 char g_lastRaiseNote[160] = "";
 
@@ -1078,6 +1133,15 @@ void PassImpl(const World& w) {
 void Pass(const game::World& w) { PassImpl(w); }
 
 void AddPlayTime(unsigned ms) { g_playMs += ms; }
+
+void OnNewMap() {
+    g_playMs = 0;
+    memset(g_healNotes, 0, sizeof(g_healNotes));
+    memset(g_raiseNotes, 0, sizeof(g_raiseNotes));
+    memset(g_areaNotes, 0, sizeof(g_areaNotes));
+    memset(g_saveNotes, 0, sizeof(g_saveNotes));
+    g_channelCount = 0;
+}
 unsigned RaiseDeadNoteCount() { return g_raiseNoteCount; }
 unsigned CastCount() { return g_castCount; }
 unsigned ChannelCount() { return static_cast<unsigned>(g_channelCount); }
