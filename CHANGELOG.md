@@ -7,6 +7,12 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.23.0 - 2026-09-24
+
+- Blizzard and Death and Decay waste less: a spot is scored by the damage its targets can still absorb, so a group of
+  nearly dead units scores low, and a running channel stops once every enemy still in the blast would die to the next
+  wave anyway. Units count now, not only buildings. It is an estimate: the waves land at random.
+
 ## 1.22.1 - 2026-09-23
 
 - Fixed: autocast no longer targets enemies you cannot see: a submarine or turtle no detector of yours has in range,

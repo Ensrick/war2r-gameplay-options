@@ -1,0 +1,1 @@
+Blizzard and Death and Decay waste less: a spot is scored by the damage its targets can still absorb, so a group of nearly dead units scores low, and a running channel stops once every enemy still in the blast would die to the next wave anyway. Units count now, not only buildings. It is an estimate: the waves land at random.

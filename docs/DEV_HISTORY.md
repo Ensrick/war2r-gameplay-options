@@ -15,6 +15,14 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.23.0 (2026-09-24, UNTESTED in game, NOT released)
+
+- Author: "avoid overkill where possible so they use it efficiently" (the building-only rule existed since 1.9.0).
+  Agent aoe-aim: expected damage per wave per target from the chain counts (11 blizzard FUN_004ae990, 10 D&D
+  FUN_004aeb30) and the live damage byte, capped at current HP in the score; the watchdog stops a channel when every
+  enemy the pattern still reaches has HP <= that wave's expected damage on it (per target, deliberately not a sum:
+  a sum would stop while a healthy unit is still in the blast). 4 mutations, 4 caught.
+
 ## 1.22.1 (2026-09-23, UNTESTED in game, NOT released)
 
 - Author: "the autocasts are often targeting submarines when they're invisible" / "Sometimes Submarines are visible
