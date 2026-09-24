@@ -7,6 +7,13 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.22.0 - 2026-09-23
+
+- Blizzard and Death and Decay autocast now aim at the spot where the waves hit the most: every tile in casting range
+  is scored by what the 5 x 5 impact pattern covers (enemy units, and the middle of enemy buildings, which is where
+  the splash actually reaches them). No more casts on a building's corner that miss it; a spot with most of its
+  pattern off the map is skipped. With log_casts the cast line says what it covers.
+
 ## 1.21.0 - 2026-09-23
 
 - New `[auto_production.class_upgrade_bias]`: `upgrade_bias` for one class only. Example: `siege = 0.5` makes every

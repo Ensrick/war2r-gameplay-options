@@ -15,6 +15,17 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.22.0 (2026-09-23, UNTESTED in game, NOT released)
+
+- Author: "they sometimes target the corner of a building and most of the blizzard misses it ... try to get the
+  largest number of building squares and/or units with each cast". Agent aoe-aim, two corrections to our earlier
+  model: blizzard's pattern is NOT shifted (0x4AF097: (aim + rand%5)*32 - 0x30 = centres of aim-2..aim+2, same as D&D;
+  I re-read it), and splash distance is measured to a unit's CENTRE (half box = size*16, 0x4EE300), so only the middle
+  of a big building can be hit at all. The 1.20.1 code even aimed a blizzard where no impact could reach the castle.
+- Every tile in reach (<= 961) is scored by expected hits (full 4, quarter 1, buildings x area_building_value); gate,
+  overkill and building HP count only enemies that can take a full hit. 12 mutations, 12 caught; the old code fails 27
+  checks of the new tests.
+
 ## 1.21.0 (2026-09-23, UNTESTED in game, NOT released)
 
 - Author: "adjust my weights for siege somehow so that siege upgrades count for double when increasing the weight of

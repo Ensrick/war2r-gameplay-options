@@ -1,3 +1,8 @@
+[size=4][b]1.22.0[/b][/size]
+[list]
+[*]Blizzard and Death and Decay autocast now aim at the spot where the waves hit the most: every tile in casting range is scored by what the 5 x 5 impact pattern covers (enemy units, and the middle of enemy buildings, which is where the splash actually reaches them). No more casts on a building's corner that miss it; a spot with most of its pattern off the map is skipped. With log_casts the cast line says what it covers.
+[/list]
+
 [size=4][b]1.21.0[/b][/size]
 [list]
 [*]New [auto_production.class_upgrade_bias]: upgrade_bias for one class only. Example: siege = 0.5 makes every ballista / catapult upgrade level raise their share twice as much as the default 0.25 does for the other lines. A class left out uses upgrade_bias; the table ships empty.
