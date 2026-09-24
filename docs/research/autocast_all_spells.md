@@ -337,10 +337,13 @@ castle's middle tiles. Likewise a grunt next to a castle corner made "a building
 Since then every tile within the spell's reach (`search_radius`, never beyond the spell range) of the caster's current
 tile is a candidate aim, scored by what the pattern above would do there:
 
-- value = expected hits in quarter hits: per enemy `3 x full + any` over the 25 impact tiles (a full hit is worth 4
-  quarter hits: 0.75 against 0.1875 x dmg), times `area_building_value` for a building. A unit in the middle of the
-  pattern scores 12, a 3x3 12, a 2x2 or 4x4 16, so `area_building_value` keeps its meaning: a building fully in the
-  blast is worth that many units fully in it, and a building the pattern only grazes counts for what it would take.
+- value = the USEFUL damage one wave is expected to do. Per enemy: `points x impacts x dmg x 3 x (3 x full + any) /
+  400` hit points (5 points, 11 impacts blizzard / 10 death and decay, the live damage byte; full and any counted over
+  the 25 impact tiles, a full hit 0.75 x dmg, a quarter hit 0.1875 x dmg), never more than the hit points it has left
+  (no overkill: a spot of nearly dead units scores low), times `area_building_value` for a building. A unit or 3x3 in
+  the middle of the pattern takes ~49.5 (blizzard) / 45 (death and decay) at dmg 10, a 2x2 or 4x4 ~66 / 60, so
+  `area_building_value` keeps its meaning and a building the pattern only grazes counts for what it would take.
+  The cast line logs the score (tenths rounded) and "about N damage a wave", the unweighted sum.
 - the gate, the overkill rule and the channel's building hit points count an enemy only when some impact can hit it
   at FULL damage (a unit within 2 tiles of the aim, a building whose centre is inside the pattern); a quarter hit
   alone adds value but never makes a spot a target.
@@ -351,7 +354,13 @@ tile is a candidate aim, scored by what the pattern above would do there:
   `FUN_004af9e0` takes `x >> 5` of the point and only bounds-checks the grid reads, so an impact one tile outside still
   splashes the edge tile; one further out is wasted.
 - unchanged: `area_friendly_clearance` around the aim (checked in score order, first clean aim wins), claims, the
-  watchdog, the dry run used by `[priority] save_mana`.
+  dry run used by `[priority] save_mana`, and the watchdog's earlier rules (friendly, no enemy, reserve, the
+  building wave budget).
+- new watchdog rule (any channel, units included): stop once every enemy the pattern still reaches has no more hit
+  points (current) than one wave is expected to take off it: the wave already falling finishes them and the next one
+  would be waste. Judged per target, so a few nearly dead units never end a channel while a healthy one is still in
+  the blast. All of this is an estimate: the rolls (`h + rand() % (h + 1)`), the blizzard shard's landing step and
+  units walking in and out move the real damage either way.
 
 Budget per caster per pass: at most 31 x 31 = 961 aim tiles (`search_radius` <= 15), at most 256 enemies gathered
 from the tiles within reach + 6, each adding to the at most (w + 6) x (h + 6) aims its pattern reaches, and at most

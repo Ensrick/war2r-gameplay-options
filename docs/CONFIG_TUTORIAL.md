@@ -78,7 +78,12 @@ your flying machines, zeppelins, towers or other detectors is close enough to sh
 a unit or building near its CENTRE: a 4x4 castle is only reached by impacts on its middle 2x2 tiles, never by one on
 its outer ring. So the mod tries every tile in range and takes the one where the waves would do the most damage:
 the middle of a castle, between two buildings that stand side by side, the middle of a group. The cast line in the
-log says how much it covers (`covers 16 building tiles, 0 units`).
+log says how much it covers (`covers 16 building tiles, 0 units, about 66 damage a wave`).
+
+**No damage wasted.** A target only counts for the hit points it has left, so three nearly dead grunts are worth less
+than three healthy ones further away. A running blizzard or death and decay is stopped once everything still in it
+would die to the wave already falling. These are estimates from the spell's average damage: a wave can roll higher or
+lower, and units walk in and out, so now and then a channel stops one wave early or runs one wave long.
 
 **Buildings are the better target.** A building cannot walk out of a blizzard, so an enemy building the waves reach
 counts `area_building_value` (3 by default) times what a unit in the same spot would: two buildings and two units

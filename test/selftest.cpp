@@ -3204,6 +3204,11 @@ int wmain(int argc, wchar_t** argv) {
     Field<uint8_t>(sub, kOffSeenMask) = (1 << 1) | (1 << 0);  // a flying machine of the player's came within 6 tiles
     mod::RunAutocastPass();
     CHECK(OrderOf(dk) == 0x33 && TargetOf(dk) == sub, "death coil at a detected submarine (order %u)", OrderOf(dk));
+    Idle(dk);  // the flying machine flies off: the next step's seen mask has only the owner again, so no second coil
+    Field<uint8_t>(sub, kOffSeenMask) = 1 << 1;
+    mod::RunAutocastPass();
+    CHECK(OrderOf(dk) == kOrderStand, "death coil at a submarine that was detected a step ago but no longer is (order %u)",
+          OrderOf(dk));
     ResetWorld();
     dk = AddUnit(kTypeDeathKnight, 0, 10, 10, 60, 255, kOrderStand);
     enemy = AddUnit(kFootman, 1, 13, 12, 60, 0, kOrderAttack);
@@ -3958,16 +3963,25 @@ int wmain(int argc, wchar_t** argv) {
                 run();
                 return LogCount(dir, text) - before;
             };
-            // The value in the cast line is the expected damage in quarter hits: a full hit counts 4, a quarter hit 1,
-            // a building's times area_building_value (3). A lone barracks: 1 full + 8 quarter hits = 12, times 3.
+            // The cast line: (score) and "about N damage a wave", both the expected damage of one wave in hit points:
+            // 5 points x 11 (blizzard) or 10 (death and decay) impacts x dmg x (0.75 x full + 0.1875 x quarter shares)
+            // / 25; the score counts a building area_building_value (3) times. A lone barracks: 1 full + 8 quarter
+            // shares, (3 x 1 + 9) = 12 "shares" of 3/400.
+            const int impacts = ac.order == kOrderBlizzard ? 11 : 10;
+            auto waveTenths = [&](int shares) { return 5 * impacts * At<uint8_t>(dmgRva)[3] * 3 * shares * 10 / 400; };
+            auto castLine = [&](char* out, size_t len, int x, int y, int tenths, int weight, int tiles, int units) {
+                sprintf_s(out, len, "-> tile %d,%d (%d), covers %d building tiles, %d units, about %d damage a wave", x, y,
+                          (weight * tenths + 5) / 10, tiles, units, (tenths + 5) / 10);
+            };
+            char line[160];
             ResetWorld();
             c = caster(ac.casterType, 20, 20);
             fileFootprint(AddUnit(kBarracks, 1, 27, 20, 800, 0, kOrderStand));
+            castLine(line, sizeof(line), 28, 21, waveTenths(12), 3, 9, 0);
             {
-                const int logged = logDelta("-> tile 28,21 (36), covers 9 building tiles, 0 units", [&] { mod::RunAutocastPass(); });
-                CHECK(castAt(c, ac.order, 28, 21) && logged == 1,
-                      "%s at a lone barracks: centre tile, 36 quarter hits, 9 tiles (order %u at %d,%d, log %d)", name,
-                      OrderOf(c), ox(c), oy(c), logged);
+                const int logged = logDelta(line, [&] { mod::RunAutocastPass(); });
+                CHECK(castAt(c, ac.order, 28, 21) && logged == 1, "%s at a lone barracks: centre tile, log '%s' (order %u at %d,%d, log %d)",
+                      name, line, OrderOf(c), ox(c), oy(c), logged);
             }
             // A lone castle, with the caster south-east of it, so that the nearest of the aims that reach its middle
             // would be its corner tile 29,22: the aim still covers the whole footprint. Only impacts on its middle 2x2
@@ -3976,7 +3990,8 @@ int wmain(int argc, wchar_t** argv) {
             c = caster(ac.casterType, 33, 26);
             fileFootprint(AddUnit(kCastle, 1, 26, 19, 1600, 0, kOrderStand));  // tiles 26..29 x 19..22
             {
-                const int covered = logDelta("-> tile 28,21 (48), covers 16 building tiles, 0 units", [&] { mod::RunAutocastPass(); });
+                castLine(line, sizeof(line), 28, 21, waveTenths(16), 3, 16, 0);
+                const int covered = logDelta(line, [&] { mod::RunAutocastPass(); });
                 CHECK(OrderOf(c) == ac.order && ox(c) >= 27 && ox(c) <= 28 && oy(c) >= 20 && oy(c) <= 21 && covered == 1,
                       "%s at a lone 4x4 castle must cover all 16 footprint tiles, never aim at a corner (order %u at %d,%d, "
                       "log %d)",
@@ -4024,6 +4039,30 @@ int wmain(int argc, wchar_t** argv) {
             mod::RunAutocastPass();
             CHECK(castAt(c, ac.order, 1, 1), "%s at a group in the map corner (order %u at %d,%d)", name, OrderOf(c), ox(c),
                   oy(c));
+            // No overkill in the score: a target counts only for the hit points it has left. Three grunts one wave
+            // finishes (2 hp each) near the caster lose to three healthy ones further off; with full hit points the
+            // nearer group would win the tie.
+            ResetWorld();
+            c = caster(ac.casterType, 20, 20);
+            for (int i = 0; i < 3; ++i) AddUnit(kGrunt, 1, 23 + i % 2, 20 + i / 2, 2, 0, kOrderAttack);
+            for (int i = 0; i < 3; ++i) AddUnit(kGrunt, 1, 26 + i % 2, 26 + i / 2, 60, 0, kOrderAttack);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == ac.order && oy(c) >= 25, "%s must prefer three healthy grunts over three nearly dead ones (at %d,%d)",
+                  name, ox(c), oy(c));
+            // The watchdog stops any channel, one on units too, once every enemy in the blast would die to the wave
+            // already falling: each one's hit points <= the expected damage of one wave on it (~49.5 blizzard, 45 d&d).
+            c = areaWorld(20, 20);
+            Field<uint8_t>(c, kOffMana) = 255;
+            mod::RunAutocastPass();
+            CHECK(castAt(c, ac.order, 27, 21), "%s overkill watchdog setup (order %u at %d,%d)", name, OrderOf(c), ox(c), oy(c));
+            Field<uint16_t>(slot(1), kOffHp) = Field<uint16_t>(slot(3), kOffHp) = 10;  // two nearly dead, one healthy
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == ac.order, "%s: the watchdog stopped although a 60 hp grunt outlasts one wave's ~%d (order %u)",
+                  name, waveTenths(12) / 10, OrderOf(c));
+            Field<uint16_t>(slot(2), kOffHp) = static_cast<uint16_t>(waveTenths(12) / 10);  // now every one dies to the wave
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == kOrderStop, "%s: the watchdog kept a channel on units one wave finishes (order %u)", name,
+                  OrderOf(c));
             // A friendly in the blast still refuses, building or no building.
             ResetWorld();
             c = caster(ac.casterType, 20, 20);
