@@ -724,7 +724,7 @@ void NoteArea(const World& w, Unit* caster, Spell spell, const char* fmt, ...) {
 // quarter from its other eight, a unit fully on its own tile and a quarter from the eight around it.
 constexpr int kPatternHalf = 2;           // impacts on aim-2 .. aim+2 in both directions
 constexpr int kPatternMinOnMap = 13;      // more than half of the 25 impact tiles must be on the map
-constexpr int kFullHitWeight = 4;         // a full hit averages 0.75 x dmg, a quarter hit 0.1875 x dmg: 4 to 1
+constexpr int kPointsPerWave = 5;         // FUN_004e19a0 / FUN_004e2530 call the spawner five times a wave
 constexpr int kMaxAreaEnemies = 256;
 constexpr int kMaxAimBox = 2 * 15 + 1;    // search_radius is at most 15, so the aim tiles form at most 31 x 31
 constexpr int kMaxBuildingSize = 4;
@@ -748,9 +748,24 @@ AxisHits HitsOnAxis(int aim, int c2) {
     return h;
 }
 
+// What one wave is expected to take off one target, in TENTHS of a hit point. Each of the 5 points lands on one of the
+// 25 tiles with equal odds and makes 11 (blizzard chain 10..0, FUN_004ae990) or 10 (death and decay pulses,
+// FUN_004aeb30) impacts; a full hit averages 0.75 x the live damage byte, a quarter hit 0.1875 x (2.6a). So per wave:
+//   points x impacts x dmg x (0.75 x full + 0.1875 x quarter-only) / 25 = points x impacts x dmg x 3 x (3 full + any) / 400
+// It is an estimate: the rolls, the blizzard shard's landing step and units walking in and out move it either way.
+int ExpectedTenths(uint8_t order, const AxisHits& hx, const AxisHits& hy) {
+    const int impacts = order == kOrderBlizzard ? 11 : 10;
+    const uint32_t rva = order == kOrderBlizzard ? kRvaBlizzardDamageInsn : kRvaDeathAndDecayDamageInsn;
+    const int dmg = At<uint8_t>(rva)[3];  // the imm8 of `mov byte [reg+0x37], dmg`, live ([spell_damage])
+    const int shares = 3 * hx.full * hy.full + hx.any * hy.any;
+    return kPointsPerWave * impacts * dmg * 3 * shares * 10 / 400;
+}
+
 // What one aim tile would do, summed over every enemy the pattern reaches.
 struct AimCover {
-    int value;       // expected damage in quarter hits, a building's weighted by area_building_value
+    int value;       // useful damage one wave is expected to do, in tenths of a hit point: per target the expected
+                     // damage, never more than the hit points it has left, a building's times area_building_value
+    int damage;      // the same without the building weight, for the log line
     int tiles;       // enemy building footprint tiles inside the 5x5 pattern: the author's "building squares"
     int units;       // enemy units that can take a full hit (their tile is inside the pattern)
     int buildings;   // enemy buildings that can take a full hit (their centre is inside the pattern)
@@ -795,13 +810,13 @@ struct AreaWhy {
 
 struct AreaPick {
     bool found = false;
-    int x = 0, y = 0, value = 0, buildingHp = 0, tiles = 0, units = 0;
+    int x = 0, y = 0, value = 0, buildingHp = 0, tiles = 0, units = 0, damage = 0;
 };
 
 // Blizzard and Death and Decay: every tile in cast range of the caster's current tile is a candidate aim, scored by
 // what the real impact pattern would do there. The friendly clearance, the gate, the overkill rule and the claims are
 // the same as before; they now simply apply to the best-covering aim rather than to one tile per target.
-AreaPick PickCoverageAim(const World& w, Unit* caster, int reach, int clearance, int walls, int wave,
+AreaPick PickCoverageAim(const World& w, Unit* caster, uint8_t order, int reach, int clearance, int walls, int wave,
                          AreaWhy& why) {
     AreaPick pick;
     const uint8_t me = OwnerOf(caster);
@@ -841,8 +856,13 @@ AreaPick PickCoverageAim(const World& w, Unit* caster, int reach, int clearance,
                 const AxisHits hx = HitsOnAxis(ax, c2x);
                 if (!hx.any) continue;
                 AimCover& c = g_cover[(ay - cy + reach) * side + (ax - cx + reach)];
-                const int full = hx.full * hy.full, any = hx.any * hy.any;
-                c.value += weight * ((kFullHitWeight - 1) * full + any);
+                const int full = hx.full * hy.full;
+                // No overkill in the score: a nearly dead target is worth only the hit points it has left, so a spot
+                // full of units one wave already finishes scores low.
+                const int expected = ExpectedTenths(order, hx, hy), left = 10 * Field<uint16_t>(e.unit, kOffHp);
+                const int useful = expected < left ? expected : left;
+                c.value += weight * useful;
+                c.damage += useful;
                 if (!full) continue;  // a quarter hit alone adds a little value, but never makes the spot a target
                 const int dx = 2 * ax + 1 - c2x, dy = 2 * ay + 1 - c2y;
                 c.spread += dx * dx + dy * dy;
@@ -910,7 +930,7 @@ AreaPick PickCoverageAim(const World& w, Unit* caster, int reach, int clearance,
             continue;
         }
         const AimCover& c = g_cover[(a.y - cy + reach) * side + (a.x - cx + reach)];
-        pick = {true, a.x, a.y, a.value, c.buildingHp, c.tiles, c.units};
+        pick = {true, a.x, a.y, (a.value + 5) / 10, c.buildingHp, c.tiles, c.units, (c.damage + 5) / 10};
         break;
     }
     return pick;
@@ -989,7 +1009,7 @@ bool TryAreaSpell(const World& w, Unit* caster, Spell spell) {
     // with an out-of-range spell order; the mod never issues one.
     const int reach = Reach(order);
     AreaWhy why;
-    const AreaPick pick = channel ? PickCoverageAim(w, caster, reach, clearance, walls, WaveDamage(order), why)
+    const AreaPick pick = channel ? PickCoverageAim(w, caster, order, reach, clearance, walls, WaveDamage(order), why)
                                   : PickTargetAim(w, caster, reach, clearance, walls, why);
 
     if (!pick.found) {
@@ -1009,7 +1029,7 @@ bool TryAreaSpell(const World& w, Unit* caster, Spell spell) {
         return false;
     }
     char note[64] = "";
-    if (channel) sprintf_s(note, ", covers %d building tiles, %d units", pick.tiles, pick.units);
+    if (channel) sprintf_s(note, ", covers %d building tiles, %d units, about %d damage a wave", pick.tiles, pick.units, pick.damage);
     if (!CastAtTile(w, caster, spell, pick.x, pick.y, pick.value, note)) return false;
     if (channel && !g_dryRun) RememberChannel(caster, order, pick.x, pick.y, pick.buildingHp);
     return true;
@@ -1111,12 +1131,43 @@ bool InUnitArray(const World& w, Unit* u) {
     return p >= base && p < base + static_cast<uintptr_t>(w.unitCount) * kUnitSize && (p - base) % kUnitSize == 0;
 }
 
+// Every enemy the running channel's pattern can still reach: how many of them, and how many have more hit points left
+// than one wave is expected to take off them (they outlast the wave already falling).
+struct BlastLeft {
+    int targets, survivors;
+};
+BlastLeft WhatIsLeft(const World& w, const Channel& c) {
+    BlastLeft b{0, 0};
+    const Size* sizes = At<Size>(kRvaUnitSizeByType);
+    Unit* seen[kMaxAreaEnemies];
+    int n = 0;
+    ScanTileRaw(w, c.x, c.y, kPatternHalf + 1 + kMaxBuildingSize - 1, [&](Unit* u) {
+        if (!IsTarget(w, w.localPlayer, u)) return false;
+        for (int i = 0; i < n; ++i)
+            if (seen[i] == u) return false;
+        if (n >= kMaxAreaEnemies) return true;
+        seen[n++] = u;
+        const Size s = sizes[TypeOf(u)];
+        const int c2x = 2 * X(u) + (s.w ? s.w : 1), c2y = 2 * Y(u) + (s.h ? s.h : 1);
+        const AxisHits hx = HitsOnAxis(c.x, c2x), hy = HitsOnAxis(c.y, c2y);
+        if (!hx.any || !hy.any) return false;
+        ++b.targets;
+        b.survivors += 10 * Field<uint16_t>(u, kOffHp) > ExpectedTenths(c.order, hx, hy);
+        return false;
+    });
+    return b;
+}
+
 const char* StopReason(const World& w, const Channel& c) {
     if (FriendlyInDanger(w, c.x, c.y, config::g.areaFriendlyClearance, c.caster, -1))
         return "a friendly unit or building is in the area";
     if (CountEnemies(w, w.localPlayer, c.x, c.y, kChannelReach, false) == 0) return "no enemy left in reach";
     if (config::g.channelManaReserve > 0 && Field<uint8_t>(c.caster, kOffMana) < config::g.channelManaReserve)
         return "mana below channel_mana_reserve";
+    // No overkill on anything: once every enemy the pattern reaches, units included, has no more hit points left than
+    // one wave is expected to take off it, the wave already falling finishes the job and the next one would be waste.
+    // Counted per target, so one weak unit never hides a tough one. An estimate (2.6a).
+    if (WhatIsLeft(w, c).survivors == 0) return "everything left in the area dies to the wave already falling";
     // No overkill on buildings. A channel started for buildings runs until the waves it has paid for cover the hit
     // points those buildings had, or until what is left in the blast would die to the damage already falling on it.
     // A channel started for UNITS (buildingHp 0) is never stopped here: units walk in and out, there is nothing to
