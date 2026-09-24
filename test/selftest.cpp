@@ -2142,6 +2142,23 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
         Targets(p, noBias, upgraded);
         CHECK(fabs(upgraded[kProdArchers] - plain[kProdArchers]) < 1e-9, "upgrade_bias 0 must ignore upgrades");
     }
+    // [auto_production.class_upgrade_bias]: one class's upgrades can count more (the author: siege x2) without
+    // touching the others; -1 = the shared upgrade_bias.
+    {
+        Plan p = CorePlan(1);
+        p.levels[kProdSiege] = 2;
+        p.levels[kProdArchers] = 2;
+        AutoProduction shared, siegeDouble;
+        siegeDouble.classUpgradeBias[kProdSiege] = 0.5;
+        double a[kProdClassCount], b[kProdClassCount];
+        Targets(p, shared, a);
+        Targets(p, siegeDouble, b);
+        CHECK(b[kProdSiege] > a[kProdSiege] * 1.1, "class_upgrade_bias siege 0.5 must raise the siege share (%.3f -> %.3f)",
+              a[kProdSiege], b[kProdSiege]);
+        CHECK(fabs(b[kProdArchers] / b[kProdInfantry] - a[kProdArchers] / a[kProdInfantry]) < 1e-9,
+              "the other classes keep their ratios");
+        CHECK(shared.classUpgradeBias[kProdSiege] < 0, "the default is -1: use upgrade_bias");
+    }
 
     // ---- Engine: real passes over the fake world ----
     PatchJump(kRvaStartProduction, &FakeStartProduction);

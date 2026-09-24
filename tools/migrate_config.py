@@ -7,6 +7,7 @@ Steps (each one only when the file still needs it):
   1.1.0  adds "amount = 1.0" to [gold_mines] and [oil_platforms]
   1.2.0  adds the [food] block after [oil_platforms]
   1.3.0  adds the [trees] block after [food]
+  1.21.0 adds the empty [auto_production.class_upgrade_bias] table (example commented out) after bank_multiple
   1.20.0 adds [heal] cooldown_for_computer = true after urgent_below_percent
   1.18.0 adds [autocast] resume_orders = true after cast_while_attacking
   1.17.0 adds [heal] cooldown_seconds = 0 and urgent_below_percent = 10
@@ -54,6 +55,7 @@ FOOD_BLOCK = ['[food]', '# true = every Town Hall / Great Hall, Keep / Stronghol
 TREES_BLOCK = ['[trees]', "# EXPERIMENTAL. true = felled forest grows back, so lumber never runs out for good (the computer's too). Every stump", '# waits its own time between regrow_min_minutes and regrow_max_minutes of play, so a felled patch fills back in bit', '# by bit. A tree never grows back close to a building, a wall or a ground unit, never where it would close a', '# passage, and only where a forest stood before. Flyers do not hold it up.', 'regrow = false', 'regrow_min_minutes = 10', 'regrow_max_minutes = 20', '# No regrowth within this many tiles of a building or wall / of a ground unit of any player.', 'building_distance = 3', 'unit_distance = 3']
 UNIT_REGEN_BLOCK = ['[unit_regen]', '# true = every unit regenerates hit points while you play: land units, flyers and ships, never a structure. A hurt', '# unit is then worth keeping instead of being a waste of food. Heroes follow [heroes] regen while that is on.', 'enabled = false', 'hp_per_second = 1', '# "all" = every unit on the map (the enemy\'s too), "mine" = only your own.', 'regen_for = "all"']
 SPELLS_NEW = ['# Area spells hurt YOUR units and buildings too. They are only cast with no friendly unit, building or wall in the', '# blast area, and a Blizzard / Death and Decay the mod started is stopped when a friendly walks in (see [autocast]).', 'fireball = false', 'blizzard = false', 'death_and_decay = false', 'whirlwind = false', 'flame_shield = false', 'runes = false', 'invisibility = false', '# Holy Vision: an idle paladin at full mana looks at the least explored part of the map. It may move the camera to', '# its target for your own paladins (not tested in game yet).', 'holy_vision = false']
+CLASS_BIAS_1210 = ['[auto_production.class_upgrade_bias]', '# upgrade_bias for one class only (units / names as in [auto_production.units]); a class left out uses upgrade_bias.', '# Example: ballistas and catapults gain twice the share per upgrade level of every other line.', '# siege = 0.5']
 AI_COOLDOWN_1200 = ["# The computer's paladins keep to the same cooldown (the game's own rule heals any unit missing a single hit point,", '# every think step, so with a cheap Heal they never stop). false plays them exactly as the game does.', 'cooldown_for_computer = true']
 RESUME_1180 = ['# A caster loses its attack-move or patrol to a spell order (the game would otherwise crash resuming it mid-cast).', '# true = give it back once the spell is over, so the caster carries on to where you sent it.', 'resume_orders = true']
 COOLDOWN_1170 = ['# Seconds a paladin waits after a Heal or an Exorcism before casting either again. 0 = no waiting, up to 600.', '# One timer per paladin, so several paladins still cover each other.', 'cooldown_seconds = 0', '# Two things cannot wait: a heal target at or below this share of its maximum hit points, and an exorcism whose', "# target the paladin's mana can finish outright (hit points x the mana cost per hit point from [spell_cost]).", 'urgent_below_percent = 10']
@@ -235,6 +237,20 @@ def insert_after_key(lines, tree, section, after_key, block, notes):
             notes.append(f'[{section}] gained {key}')
             return
     append_missing(lines, tree, section, block, notes)
+
+
+def class_bias_1210(lines, tree, notes):
+    prod = tree.get('auto_production')
+    if not isinstance(prod, dict) or 'class_upgrade_bias' in prod or any(l.strip() == CLASS_BIAS_1210[0] for l in lines):
+        return
+    s = span(lines, '[auto_production.bank_multiple]')
+    if s is None:
+        return
+    end = s[1]
+    while end > s[0] + 1 and not lines[end - 1].strip():
+        end -= 1
+    lines[end:end] = [''] + CLASS_BIAS_1210
+    notes.append('added the empty [auto_production.class_upgrade_bias] table')
 
 
 def ai_cooldown_1200(lines, tree, notes):
@@ -518,6 +534,7 @@ def main():
     cooldown_1170(lines, before, notes)
     resume_1180(lines, before, notes)
     ai_cooldown_1200(lines, tomllib.loads(LF.join(lines)), notes)
+    class_bias_1210(lines, tomllib.loads(LF.join(lines)), notes)
     auto_production_180(lines, now, notes)
     save_up_1120(lines, now, notes)
     plenty_1140(lines, now, notes, 'auto_production' in before)

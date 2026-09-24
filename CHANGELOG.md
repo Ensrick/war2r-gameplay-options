@@ -7,6 +7,12 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.21.0 - 2026-09-23
+
+- New `[auto_production.class_upgrade_bias]`: `upgrade_bias` for one class only. Example: `siege = 0.5` makes every
+  ballista / catapult upgrade level raise their share twice as much as the default 0.25 does for the other lines. A
+  class left out uses `upgrade_bias`; the table ships empty.
+
 ## 1.20.1 - 2026-09-22
 
 - Fixed: `[heal] cooldown_for_computer` was read correctly but reported in the log as an unknown key. The react

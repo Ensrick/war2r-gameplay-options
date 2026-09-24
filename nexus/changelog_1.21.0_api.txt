@@ -1,0 +1,1 @@
+New [auto_production.class_upgrade_bias]: upgrade_bias for one class only. Example: siege = 0.5 makes every ballista / catapult upgrade level raise their share twice as much as the default 0.25 does for the other lines. A class left out uses upgrade_bias; the table ships empty.

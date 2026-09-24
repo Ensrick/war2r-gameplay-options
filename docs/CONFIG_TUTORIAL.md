@@ -1083,6 +1083,7 @@ makes the log long.
 | auto_production | food_free_min / food_free_percent | 4 / 10 | Food always left free: the larger of the two |
 | auto_production | reserve_extra | 0.25 | Bank kept for upgrades: the dearest purchasable one + this much of the rest |
 | auto_production | upgrade_bias | 0.25 | Extra share per upgrade level of a class's line |
+| auto_production.class_upgrade_bias | a class name | upgrade_bias | The same for one class only, e.g. `siege = 0.5` doubles it for ballistas and catapults |
 | auto_production | filler_min | 10 | Spare money for this many units before the filler rule builds off-mix (only when the mix has nothing affordable) |
 | auto_production | plenty_units | 10 | Spare money for this many of a class = its full share in the mix; below that its share shrinks in proportion (1 to 100) |
 | auto_production | save_up_seconds | 60 | A building keeps its money for the class furthest behind its share instead of spending that resource on a cheaper one; it gives up after this many seconds without the resource growing (0 to 600, 0 = never save up) |

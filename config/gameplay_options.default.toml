@@ -621,6 +621,11 @@ submarines = true
 all = 4.0
 # knights = 8.0             # or per class, e.g. be twice as rich before each knight. Submarines always want twice.
 
+[auto_production.class_upgrade_bias]
+# upgrade_bias for one class only (units / names as in [auto_production.units]); a class left out uses upgrade_bias.
+# Example: ballistas and catapults gain twice the share per upgrade level of every other line.
+# siege = 0.5
+
 # Army mix per hall tier. These are WEIGHTS, not percentages: only their ratios matter, so 75 / 20 / 5 builds exactly
 # the same army as 15 / 4 / 1, and they need not add up to anything. Land and ships are split by the map first (see
 # navy_weight above), then each group's weights are shared out over what you can actually train; a class you cannot

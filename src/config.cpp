@@ -333,7 +333,7 @@ static void ReadAutoProduction(const toml::table& root, Config& c) {
                          "bank_multiple reserve_extra "
                          "upgrade_bias filler_min save_up_seconds plenty_units navy_weight navy_max workers_ignore_reserve "
                          "tankers_ignore_reserve units "
-                         "no_enemy_navy_cap land_tier1 land_tier2 land_tier3 navy_tier1 navy_tier2 navy_tier3 ");
+                         "no_enemy_navy_cap class_upgrade_bias land_tier1 land_tier2 land_tier3 navy_tier1 navy_tier2 navy_tier3 ");
     const char* const kAllClasses = " workers infantry archers knights casters flyers siege tankers destroyers battleships submarines ";
     const char* const kLandClasses = " infantry archers knights casters flyers siege ";
     const char* const kNavyClasses = " destroyers battleships submarines ";
@@ -342,6 +342,7 @@ static void ReadAutoProduction(const toml::table& root, Config& c) {
     warnUnknown("units", kAllClasses);
     warnUnknown("bank_multiple", withAll);
     warnUnknown("no_enemy_navy_cap", kAllClasses);
+    warnUnknown("class_upgrade_bias", kAllClasses);
     for (int cls = 0; cls < kProdClassCount; ++cls) {
         const char* key = kProductionClassKeys[cls];
         if (const auto node = sec["units"][key]) {
@@ -352,6 +353,11 @@ static void ReadAutoProduction(const toml::table& root, Config& c) {
             const auto v = node.value<double>();
             if (v && *v >= 0.1 && *v <= 1000.0) p.classBankMultiple[cls] = *v;
             else logx::Write("config: [%s.bank_multiple] %s must be a number from 0.1 to 1000", kSec, key);
+        }
+        if (const auto node = sec["class_upgrade_bias"][key]) {
+            const auto v = node.value<double>();
+            if (v && *v >= 0.0 && *v <= 10.0) p.classUpgradeBias[cls] = *v;
+            else logx::Write("config: [%s.class_upgrade_bias] %s must be a number from 0 to 10", kSec, key);
         }
         if (const auto node = sec["no_enemy_navy_cap"][key]) {
             const auto v = node.value<int64_t>();

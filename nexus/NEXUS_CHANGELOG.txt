@@ -1,3 +1,8 @@
+[size=4][b]1.21.0[/b][/size]
+[list]
+[*]New [auto_production.class_upgrade_bias]: upgrade_bias for one class only. Example: siege = 0.5 makes every ballista / catapult upgrade level raise their share twice as much as the default 0.25 does for the other lines. A class left out uses upgrade_bias; the table ships empty.
+[/list]
+
 [size=4][b]1.20.1[/b][/size]
 [list]
 [*]Fixed: [heal] cooldown_for_computer was read correctly but reported in the log as an unknown key. The react range log line now names the unit and both numbers.

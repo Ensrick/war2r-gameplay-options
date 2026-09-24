@@ -120,6 +120,7 @@ struct AutoProduction {
     // one tanker, five destroyers, two battleships, two submarines. Everything else is uncapped.
     int noEnemyNavyCap[kProdClassCount] = {-1, -1, -1, -1, -1, -1, -1, 1, 5, 2, 2};
     double reserveExtra = 0.25;       // bank kept for upgrades: the dearest one + this x all the others
+    double classUpgradeBias[kProdClassCount] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};  // [auto_production.class_upgrade_bias], -1 = upgrade_bias
     double upgradeBias = 0.25;        // each upgrade level of a class's line raises its share by this much
     int fillerMin = 10;               // nothing of the mix affordable here: build what the bank buys this many of
     // Being able to buy this many of a class is "plenty": above it the class is at its full configured share and

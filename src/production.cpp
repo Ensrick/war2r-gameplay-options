@@ -114,7 +114,8 @@ void Targets(const Plan& plan, const AutoProduction& cfg, double target[kProdCla
         if (share <= 0) continue;
         double money = Buys(plan, c) / plenty;
         if (money > 1) money = 1;
-        weight[c] = share * (1.0 + cfg.upgradeBias * plan.levels[c]) * money;
+        const double bias = cfg.classUpgradeBias[c] >= 0 ? cfg.classUpgradeBias[c] : cfg.upgradeBias;
+        weight[c] = share * (1.0 + bias * plan.levels[c]) * money;
         groupTotal[g] += weight[c];
     }
     // Submarines are a garnish: at most a fifth of the fleet, the rest goes to the other ships.

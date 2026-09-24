@@ -15,6 +15,12 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.21.0 (2026-09-23, UNTESTED in game, NOT released)
+
+- Author: "adjust my weights for siege somehow so that siege upgrades count for double when increasing the weight of
+  auto-produced units", "By siege I specifically mean ballistas and catapults" (the siege class is exactly those).
+  One per-class table instead of a special case; his config gets siege = 0.5 (2 x the default 0.25).
+
 ## 1.20.1 (2026-09-22)
 
 - The agent re-read my spec against what shipped and found its own bug: cooldown_for_computer was missing from the
