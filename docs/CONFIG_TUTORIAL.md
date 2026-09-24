@@ -64,7 +64,7 @@ diagonals included):
 | Spell | Cast at | Nothing friendly within |
 |---|---|---|
 | fireball | an enemy, when its burning line (the target tile and about 7 tiles behind it, away from the mage) hits at least `fireball_min_enemies` enemies | 2 tiles of that line (walls: 1) |
-| blizzard, death_and_decay | the most valuable spot within 2 tiles (buildings count `area_building_value` each, units 1), with at least one enemy building or `area_min_enemies` enemy units in it, and only with mana for 3 waves | 4 tiles (walls: 3) |
+| blizzard, death_and_decay | the spot in range where the waves would do the most damage (buildings count `area_building_value` times, units once), with at least one enemy building or `area_min_enemies` enemy units in it, and only with mana for 3 waves | 4 tiles (walls: 3) |
 | whirlwind | the same kind of group; one whirlwind per death knight at a time | 6 tiles, because it wanders |
 | runes | 2 or more enemy ground units, not within 2 tiles of runes already on the ground | 6 tiles, **the ogre-mage included**: a rune hurts whoever steps on it, whoever owns it |
 | flame_shield | one of your melee units in a fight with 2 or more enemies close | 3 tiles, **the mage included**; only the shielded unit is safe |
@@ -72,17 +72,22 @@ diagonals included):
 The mage or death knight that casts a Fireball, Blizzard, Death and Decay or Whirlwind is never hurt by it, so it may
 stand close. A caster looks for a target within `search_radius` and never further than the spell's own range.
 
-**Buildings are the better target.** A building cannot walk out of a blizzard, so each enemy building in the blast
-counts `area_building_value` (3 by default) against one for each enemy unit, and the spot worth the most wins: two
-buildings and two units beat four units. One building is reason enough to cast; without a building it takes
-`area_min_enemies` units, so a building and a unit are a valid target while two lone units are not. A building is
-aimed at the middle of its footprint, so a 4x4 castle takes the wave on its centre and not on one corner.
+**Where the waves land.** Both spells drop each wave on the 5x5 tiles around the aim tile, and a blast only hurts
+a unit or building near its CENTRE: a 4x4 castle is only reached by impacts on its middle 2x2 tiles, never by one on
+its outer ring. So the mod tries every tile in range and takes the one where the waves would do the most damage:
+the middle of a castle, between two buildings that stand side by side, the middle of a group. The cast line in the
+log says how much it covers (`covers 16 building tiles, 0 units`).
 
-**The aim walks around your own units.** The waves do not all land on the aim tile: death and decay scatters its
-clouds 2 tiles either side of it, blizzard its chains from 1.5 tiles before to 2.5 tiles past it. So when your own
-army is in contact with the enemy the mod does not give the cast up, it moves the aim to the far side of the target
-and lets the scatter do the rest: the building or the group is still hit, and nothing of yours is within
-`area_friendly_clearance` tiles of the aim. Only when no such spot is left is the spell held back.
+**Buildings are the better target.** A building cannot walk out of a blizzard, so an enemy building the waves reach
+counts `area_building_value` (3 by default) times what a unit in the same spot would: two buildings and two units
+beat four units. One building is reason enough to cast; without a building it takes `area_min_enemies` units, so a
+building and a unit are a valid target while two lone units are not. A building whose middle the waves cannot reach
+(only a corner is in range) is not a target at all.
+
+**The aim steps around your own units.** Because the waves spread over 5x5 tiles, a spot a tile or two off the
+target still hits it. When your own army is in contact with the enemy, the mod takes the best spot with nothing of
+yours within `area_friendly_clearance` tiles of the aim, instead of giving the cast up. Only when no such spot is left
+is the spell held back.
 
 ```toml
 [autocast]

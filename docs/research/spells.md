@@ -380,7 +380,8 @@ right, the pricing is per hit point.
 
 Action `0x4E19A0`: check / deduct 25, five `FUN_004af040(caster, 10)` (`push 0xa` at `0x4E19D9..0x4E19F9` = chain
 count, not damage), no `SetOrder(2)` (channel). Each shard: `FUN_004aec70` sets type 5, `0x4aecac: c6 47 37 0a  mov
-byte ptr [edi + 0x37], 0xa`, target point = order tile + random 0..4 tiles - 1.5 tiles. `FUN_004ae990` (class 10) on
+byte ptr [edi + 0x37], 0xa`, target point = `(order tile + rand()%5) * 32 - 0x30` = the centre of a random tile of
+the 5x5 around the order tile (autocast_all_spells.md 2.5). `FUN_004ae990` (class 10) on
 arrival: area hit (with flyers), then `if (count) { count--; respawn a shard at the same target point }`: counts
 10..0 = **11 impacts per chain, 5 chains per wave, 10 damage each** (random 5..10 full, 1..2 quarter). Caster
 excluded, everyone else hit.

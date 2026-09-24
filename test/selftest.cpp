@@ -3636,7 +3636,7 @@ int wmain(int argc, wchar_t** argv) {
             CHECK(OrderOf(c) == kOrderStand, "%s started without mana for three waves", name);
             Field<uint8_t>(c, kOffMana) = static_cast<uint8_t>(ac.threeWaves);
             mod::RunAutocastPass();
-            CHECK(castAt(c, ac.order, 27, 20), "%s at the group (order %u at %d,%d)", name, OrderOf(c), ox(c), oy(c));
+            CHECK(castAt(c, ac.order, 27, 21), "%s at the group (order %u at %d,%d)", name, OrderOf(c), ox(c), oy(c));
             // The waves scatter over the tiles around the aim tile, so one friendly on one side does not end the
             // cast: the aim walks off the group until nothing of the player's is within area_friendly_clearance.
             const Blocker areaBlockers[] = {
@@ -3704,10 +3704,10 @@ int wmain(int argc, wchar_t** argv) {
             c = areaWorld(20, 20);  // 5 tiles from every group tile: the straight aim is clean and stays
             AddUnit(kFootman, 0, 27, 15, 60, 0, kOrderStand);
             mod::RunAutocastPass();
-            CHECK(castAt(c, ac.order, 27, 20), "%s moved the aim although the nearest friendly is 5 tiles away", name);
+            CHECK(castAt(c, ac.order, 27, 21), "%s moved the aim although the nearest friendly is 5 tiles away", name);
             c = areaWorld(24, 20);  // the caster is the missile's source and never hurt; a unit next to it is
             mod::RunAutocastPass();
-            CHECK(castAt(c, ac.order, 27, 20), "%s: the caster itself must not count as a friendly in the area", name);
+            CHECK(castAt(c, ac.order, 27, 21), "%s: the caster itself must not count as a friendly in the area", name);
             c = areaWorld(24, 20);
             AddUnit(kFootman, 0, 24, 22, 60, 0, kOrderStand);
             mod::RunAutocastPass();
@@ -3715,10 +3715,10 @@ int wmain(int argc, wchar_t** argv) {
                   "%s with a footman beside the caster: the aim must walk clear (order %u at %d,%d)", name, OrderOf(c), ox(c),
                   oy(c));
             c = areaWorld(20, 20);  // area_friendly_clearance = 0: the player's own units are ignored, centre aim
-            AddUnit(kFootman, 0, 27, 21, 60, 0, kOrderStand);
+            AddUnit(kFootman, 0, 28, 22, 60, 0, kOrderStand);  // inside the pattern, but not on the aim tile itself
             config::g.areaFriendlyClearance = 0;
             mod::RunAutocastPass();
-            CHECK(castAt(c, ac.order, 27, 20), "%s with clearance 0 must take the straight aim (order %u at %d,%d)", name,
+            CHECK(castAt(c, ac.order, 27, 21), "%s with clearance 0 must take the straight aim (order %u at %d,%d)", name,
                   OrderOf(c), ox(c), oy(c));
             config::g.areaFriendlyClearance = 4;
             c = areaWorld(20, 20);
@@ -3751,7 +3751,7 @@ int wmain(int argc, wchar_t** argv) {
             // Watchdog: stops a channel the mod started once it turns unsafe or useless, never one the player gave.
             c = areaWorld(20, 20);
             mod::RunAutocastPass();
-            CHECK(castAt(c, ac.order, 27, 20), "%s watchdog setup", name);
+            CHECK(castAt(c, ac.order, 27, 21), "%s watchdog setup", name);
             AddUnit(ac.spell == kSpellBlizzard ? kFootman : kDragon, 0, 29, 20, 60, 0, kOrderMove);  // walks / flies in
             mod::RunAutocastPass();
             CHECK(OrderOf(c) == kOrderStop, "%s: the watchdog did not stop the channel when a friendly entered (order %u)", name, OrderOf(c));
@@ -3768,7 +3768,7 @@ int wmain(int argc, wchar_t** argv) {
             CHECK(OrderOf(c) == kOrderStand, "%s started with less than channel_mana_reserve + one wave", name);
             Field<uint8_t>(c, kOffMana) = static_cast<uint8_t>(reserveStart);
             mod::RunAutocastPass();
-            CHECK(castAt(c, ac.order, 27, 20), "%s with channel_mana_reserve = 100 and mana %d", name, reserveStart);
+            CHECK(castAt(c, ac.order, 27, 21), "%s with channel_mana_reserve = 100 and mana %d", name, reserveStart);
             Field<uint8_t>(c, kOffMana) = 100;
             mod::RunAutocastPass();
             CHECK(OrderOf(c) == ac.order, "%s stopped at exactly the reserve", name);
@@ -3824,12 +3824,14 @@ int wmain(int argc, wchar_t** argv) {
             mod::RunAutocastPass();
             CHECK(OrderOf(c) == ac.order && ox(c) >= 27, "%s must prefer 2 buildings + 2 units over 4 nearer units (order %u at %d,%d)",
                   name, OrderOf(c), ox(c), oy(c));
-            // area_building_value = 1 makes them worth the same, and then the nearer group wins.
+            // area_building_value = 1 makes a building worth one unit: five near units then beat two buildings and two
+            // units. (Four against four is an exact tie, which now goes to the aim with its targets nearest its middle.)
             config::g.areaBuildingValue = 1;
+            AddUnit(kGrunt, 1, 22, 21, 60, 0, kOrderAttack);
             Field<uint8_t>(c, kOffOrder) = kOrderStand;
             Field<uint8_t>(c, kOffNextOrder) = kOrderNone;
             mod::RunAutocastPass();
-            CHECK(OrderOf(c) == ac.order && ox(c) <= 23, "%s with area_building_value = 1 must take the nearer four units (at %d,%d)",
+            CHECK(OrderOf(c) == ac.order && ox(c) <= 23, "%s with area_building_value = 1 must take the five nearer units (at %d,%d)",
                   name, ox(c), oy(c));
             config::g.areaBuildingValue = 3;
             // A lone building is a target; two units alone are not.
@@ -3869,13 +3871,96 @@ int wmain(int argc, wchar_t** argv) {
             {
                 const int dx = abs(ox(c) - 31), dy = abs(oy(c) - 20);
                 const int away = dx > dy ? dx : dy;
-                const int lo = ac.spell == kSpellBlizzard ? -3 : -2;  // the aim may sit this far off the target tile
-                CHECK(OrderOf(c) == ac.order && away > 4 && ox(c) - 27 >= lo && ox(c) - 27 <= 2 && oy(c) - 20 >= lo &&
-                          oy(c) - 20 <= 2,
+                // The castle's centre is between tiles 27 and 28: only impacts on 27..28 x 20..21 reach it, so the aim
+                // must keep at least one of those inside its pattern.
+                CHECK(OrderOf(c) == ac.order && away > 4 && ox(c) >= 25 && ox(c) <= 30 && oy(c) >= 18 && oy(c) <= 23,
                       "%s with a footman beside a 4x4 building: the aim must walk clear and still cover its centre "
                       "(order %u at %d,%d)",
                       name, OrderOf(c), ox(c), oy(c));
             }
+            // ---- Coverage: the aim is the tile whose impact pattern does the most (docs/research/autocast_all_spells.md
+            // 2.6a). Impacts land on the centres of the 5x5 tiles around the aim, and a building is only hit by impacts
+            // near its centre: a 4x4 by its middle 2x2 tiles, a 3x3 fully by its middle tile. These worlds file every
+            // building on every footprint tile, as the game does (FUN_004b4910), so a building met on many tiles must
+            // still count once.
+            auto fileFootprint = [&](Unit* b) {
+                const Sz sz = sizes[TypeOf(b)];
+                for (int y = 0; y < sz.h; ++y)
+                    for (int x = 0; x < sz.w; ++x) g_grid[(Field<int16_t>(b, kOffY) + y) * kMap + Field<int16_t>(b, kOffX) + x] = b;
+                Field<uint16_t>(b, kOffStateFlags) = kStateComplete;
+                return b;
+            };
+            auto logDelta = [&](const char* text, auto&& run) {
+                const int before = LogCount(dir, text);
+                run();
+                return LogCount(dir, text) - before;
+            };
+            // The value in the cast line is the expected damage in quarter hits: a full hit counts 4, a quarter hit 1,
+            // a building's times area_building_value (3). A lone barracks: 1 full + 8 quarter hits = 12, times 3.
+            ResetWorld();
+            c = caster(ac.casterType, 20, 20);
+            fileFootprint(AddUnit(kBarracks, 1, 27, 20, 800, 0, kOrderStand));
+            {
+                const int logged = logDelta("-> tile 28,21 (36), covers 9 building tiles, 0 units", [&] { mod::RunAutocastPass(); });
+                CHECK(castAt(c, ac.order, 28, 21) && logged == 1,
+                      "%s at a lone barracks: centre tile, 36 quarter hits, 9 tiles (order %u at %d,%d, log %d)", name,
+                      OrderOf(c), ox(c), oy(c), logged);
+            }
+            // A lone castle, with the caster south-east of it, so that the nearest of the aims that reach its middle
+            // would be its corner tile 29,22: the aim still covers the whole footprint. Only impacts on its middle 2x2
+            // tiles reach its centre, all four full hits: 16, times 3.
+            ResetWorld();
+            c = caster(ac.casterType, 33, 26);
+            fileFootprint(AddUnit(kCastle, 1, 26, 19, 1600, 0, kOrderStand));  // tiles 26..29 x 19..22
+            {
+                const int covered = logDelta("-> tile 28,21 (48), covers 16 building tiles, 0 units", [&] { mod::RunAutocastPass(); });
+                CHECK(OrderOf(c) == ac.order && ox(c) >= 27 && ox(c) <= 28 && oy(c) >= 20 && oy(c) <= 21 && covered == 1,
+                      "%s at a lone 4x4 castle must cover all 16 footprint tiles, never aim at a corner (order %u at %d,%d, "
+                      "log %d)",
+                      name, OrderOf(c), ox(c), oy(c), covered);
+            }
+            // Two barracks side by side (centres 25,21 and 28,21): an aim between them reaches both, which is worth more
+            // than the centre of either one (63 against 45 quarter hits at area_building_value 3).
+            ResetWorld();
+            c = caster(ac.casterType, 20, 21);
+            fileFootprint(AddUnit(kBarracks, 1, 24, 20, 800, 0, kOrderStand));
+            fileFootprint(AddUnit(kBarracks, 1, 27, 20, 800, 0, kOrderStand));
+            {
+                const int covered = logDelta("covers 15 building tiles, 0 units", [&] { mod::RunAutocastPass(); });
+                CHECK(OrderOf(c) == ac.order && (ox(c) == 26 || ox(c) == 27) && oy(c) == 21 && covered == 1,
+                      "%s at two adjacent barracks must aim between them (order %u at %d,%d, log %d)", name, OrderOf(c),
+                      ox(c), oy(c), covered);
+            }
+            // A castle whose middle is out of reach: an aim in range only grazes its corner tiles, which the splash never
+            // reaches (48 px from its centre). A grunt beside that corner used to make the spot "a building plus a unit";
+            // three grunts together are worth more than that.
+            ResetWorld();
+            c = caster(ac.casterType, 20, 20);  // reach 8: aims up to x 28, pattern up to x 30
+            fileFootprint(AddUnit(kCastle, 1, 30, 18, 1600, 0, kOrderStand));  // middle tiles 31..32 x 19..20
+            AddUnit(kGrunt, 1, 28, 20, 60, 0, kOrderAttack);
+            for (int i = 0; i < 3; ++i) AddUnit(kGrunt, 1, 20 + i % 2, 25 + i / 2, 60, 0, kOrderAttack);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == ac.order && oy(c) >= 24 && ox(c) <= 22,
+                  "%s must prefer three grunts over a building corner it cannot hurt (order %u at %d,%d)", name, OrderOf(c),
+                  ox(c), oy(c));
+            // The corner alone is no target at all: the castle's middle is out of reach and one grunt is not enough.
+            Field<uint8_t>(slot(3), kOffStateFlags) = kStateDying;
+            Field<uint8_t>(slot(4), kOffStateFlags) = kStateDying;
+            Field<uint8_t>(slot(5), kOffStateFlags) = kStateDying;
+            Idle(c);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == kOrderStand, "%s cast at a building corner the splash cannot reach (order %u at %d,%d)", name,
+                  OrderOf(c), ox(c), oy(c));
+            // A group in the map's corner: the aim that has them nearest its middle (0,0) would throw most of its
+            // impacts off the map, so the aim is the nearest tile whose pattern is mostly on it.
+            ResetWorld();
+            c = caster(ac.casterType, 4, 4);
+            AddUnit(kGrunt, 1, 0, 0, 60, 0, kOrderAttack);
+            AddUnit(kGrunt, 1, 1, 0, 60, 0, kOrderAttack);
+            AddUnit(kGrunt, 1, 0, 1, 60, 0, kOrderAttack);
+            mod::RunAutocastPass();
+            CHECK(castAt(c, ac.order, 1, 1), "%s at a group in the map corner (order %u at %d,%d)", name, OrderOf(c), ox(c),
+                  oy(c));
             // A friendly in the blast still refuses, building or no building.
             ResetWorld();
             c = caster(ac.casterType, 20, 20);
@@ -3939,7 +4024,7 @@ int wmain(int argc, wchar_t** argv) {
             c = areaWorld(20, 20);
             Field<uint8_t>(c, kOffMana) = 255;
             mod::RunAutocastPass();
-            CHECK(castAt(c, ac.order, 27, 20), "%s unit-channel setup", name);
+            CHECK(castAt(c, ac.order, 27, 21), "%s unit-channel setup", name);
             Field<uint8_t>(c, kOffMana) = static_cast<uint8_t>(255 - 9 * cost);
             mod::RunAutocastPass();
             CHECK(OrderOf(c) == ac.order, "%s: a channel on units must not be stopped by the wave budget (order %u)", name, OrderOf(c));
