@@ -216,6 +216,14 @@ constexpr int kOffType = 0x27;          // uint8
 constexpr int kOffOwner = 0x2C;         // uint8
 constexpr int kOffOrder = 0x2E;         // uint8, the order being executed
 constexpr int kOffNextOrder = 0x2F;     // uint8, written by SetOrder (FUN_004ef080); promoted at 0x4ED9C3, then reset to kOrderNone
+// What each player can see of the unit, both rebuilt for every unit every simulation step
+// (docs/research/autocast_all_spells.md 2.10). Bit p belongs to player p (0..7).
+constexpr int kOffFogMask = 0x28;       // uint8, bit p set = every footprint tile is under fog for player p (FUN_004f0600,
+                                        // pass FUN_004f0ab0 right after the AI tick; computer players never have it set)
+constexpr int kOffSeenMask = 0x29;      // uint8, bit p set = player p may see the unit (FUN_004f11c0, run right before the
+                                        // AI tick): 0xFF for a normal unit, the owner and whoever shares vision with them while
+                                        // invisible, and for a submarine the players with a detector within 6 tiles
+                                        // (FUN_004f0200). FUN_004f03b0 is the game's own test.
 constexpr int kOffInvisTimer = 0x44;    // uint16
 constexpr int kOffArmorTimer = 0x46;    // uint16 (unholy armor)
 constexpr int kOffBloodTimer = 0x48;    // uint16
@@ -274,6 +282,8 @@ constexpr uint8_t kTypeCorpse = 0x69;   // what the game AI's raise-dead filter 
 // Unit type flags (PUD UDTA layout; defaults ship in Data\Rez\unitdata.dat at file offset 0x1486).
 constexpr uint32_t kTfFlyer = 0x00000002;
 constexpr uint32_t kTfBuilding = 0x00000020;
+constexpr uint32_t kTfSubmarine = 0x00000040;   // FUN_004f11c0 hands these to the detector scan FUN_004f0200
+constexpr uint32_t kTfDetector = 0x00000080;    // "can see submarines": what FUN_004f0200 looks for (0x4F0283)
 constexpr uint32_t kTfWorker = 0x00000100;
 constexpr uint8_t kTypeOilPatch = 0x5D;         // neutral; a platform built on it takes its oil over (0x4EDCB4)
 constexpr uint32_t kTfOilPlatform = 0x00000800;  // types 0x56 / 0x57; "oil left" lives in kOffResources like a mine's gold
