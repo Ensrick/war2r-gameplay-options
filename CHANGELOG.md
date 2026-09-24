@@ -7,6 +7,12 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.22.1 - 2026-09-23
+
+- Fixed: autocast no longer targets enemies you cannot see: a submarine or turtle no detector of yours has in range,
+  a unit under fog, an invisible unit. It uses the game's own per-unit visibility, the same test your own click goes
+  through, so a sub your flying machine or zeppelin spots is a valid target again at once.
+
 ## 1.22.0 - 2026-09-23
 
 - Blizzard and Death and Decay autocast now aim at the spot where the waves hit the most: every tile in casting range

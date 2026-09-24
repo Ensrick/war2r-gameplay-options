@@ -15,6 +15,15 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.22.1 (2026-09-23, UNTESTED in game, NOT released)
+
+- Author: "the autocasts are often targeting submarines when they're invisible" / "Sometimes Submarines are visible
+  when the aircraft sees them, but I've seen them autotarget enemy submarines that should be invisible". IsTarget only
+  checked the Invisibility timer. The game keeps a per-unit seen mask (+0x29, rebuilt every step by FUN_004f11c0;
+  subs via FUN_004f0200: owner, vision sharers, a flag-0x80 detector within 6 tiles) and a fog mask (+0x28). The
+  player's own picking uses both; FUN_004f03b0 is the seen test (I re-read it: it returns 1 = HIDDEN). PlayerSees
+  copies it and now gates every autocast target. 5 mutations, 5 caught; the EnemyNear use is untested.
+
 ## 1.22.0 (2026-09-23, UNTESTED in game, NOT released)
 
 - Author: "they sometimes target the corner of a building and most of the blizzard misses it ... try to get the

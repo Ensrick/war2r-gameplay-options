@@ -1,3 +1,8 @@
+[size=4][b]1.22.1[/b][/size]
+[list]
+[*]Fixed: autocast no longer targets enemies you cannot see: a submarine or turtle no detector of yours has in range, a unit under fog, an invisible unit. It uses the game's own per-unit visibility, the same test your own click goes through, so a sub your flying machine or zeppelin spots is a valid target again at once.
+[/list]
+
 [size=4][b]1.22.0[/b][/size]
 [list]
 [*]Blizzard and Death and Decay autocast now aim at the spot where the waves hit the most: every tile in casting range is scored by what the 5 x 5 impact pattern covers (enemy units, and the middle of enemy buildings, which is where the splash actually reaches them). No more casts on a building's corner that miss it; a spot with most of its pattern off the map is skipped. With log_casts the cast line says what it covers.

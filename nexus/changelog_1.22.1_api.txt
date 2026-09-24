@@ -1,0 +1,1 @@
+Fixed: autocast no longer targets enemies you cannot see: a submarine or turtle no detector of yours has in range, a unit under fog, an invisible unit. It uses the game's own per-unit visibility, the same test your own click goes through, so a sub your flying machine or zeppelin spots is a valid target again at once.
