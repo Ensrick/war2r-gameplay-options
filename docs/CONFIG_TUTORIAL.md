@@ -70,7 +70,9 @@ diagonals included):
 | flame_shield | one of your melee units in a fight with 2 or more enemies close | 3 tiles, **the mage included**; only the shielded unit is safe |
 
 The mage or death knight that casts a Fireball, Blizzard, Death and Decay or Whirlwind is never hurt by it, so it may
-stand close. A caster looks for a target within `search_radius` and never further than the spell's own range.
+stand close. A caster looks for a target within `search_radius` and never further than the spell's own range, and
+only at enemies you could click on yourself: nothing under your fog, and no submarine or giant turtle unless one of
+your flying machines, zeppelins, towers or other detectors is close enough to show it.
 
 **Where the waves land.** Both spells drop each wave on the 5x5 tiles around the aim tile, and a blast only hurts
 a unit or building near its CENTRE: a 4x4 castle is only reached by impacts on its middle 2x2 tiles, never by one on

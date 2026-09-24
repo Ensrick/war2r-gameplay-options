@@ -118,9 +118,22 @@ int Reach(uint8_t order) {
 bool CanBeHurt(Unit* u) { return (Field<uint8_t>(u, kOffStateFlags) & 0x07) == 0; }  // FUN_004bd8f0's first test
 bool IsFriend(const World& w, Unit* u) { return OwnerOf(u) == w.localPlayer || Allied(w, w.localPlayer, OwnerOf(u)); }
 
-// An enemy a spell would really hurt: visible, and not under Unholy Armor (FUN_004bd8f0 skips those).
+// What the player could click on. The game's unit picking loops (0x4F2C75, 0x4F38C9) skip a unit whose fog bit is set
+// for the local player, and their hit test (0x4F3F5D) then asks FUN_004f03b0, which is the seen mask: that is what
+// hides a submarine nobody of the player's has a detector near, and an invisible unit. The same test drops a hidden
+// target from an order (FUN_004d9e40 at the end of IssueOrder) and from a unit's attack (0x4A9554).
+bool PlayerSees(const World& w, Unit* u) {
+    const uint8_t p = w.localPlayer;
+    if (Field<uint8_t>(u, kOffFogMask) & (1u << (p & 7))) return false;
+    const uint8_t seen = Field<uint8_t>(u, kOffSeenMask);
+    if (p >= 8) return *At<uint32_t>(kRvaRuleset) != 0 && seen != 0;  // FUN_004f03b0's branch for players 8 and up
+    return (seen & (1u << p)) != 0;
+}
+
+// An enemy a spell would really hurt: one the player can see, and not under Unholy Armor (FUN_004bd8f0 skips those).
 bool IsTarget(const World& w, uint8_t me, Unit* u) {
-    return IsActive(u) && IsEnemy(w, me, u) && Field<uint16_t>(u, kOffInvisTimer) == 0 && Field<uint16_t>(u, kOffArmorTimer) == 0;
+    return IsActive(u) && IsEnemy(w, me, u) && Field<uint16_t>(u, kOffInvisTimer) == 0 && PlayerSees(w, u) &&
+           Field<uint16_t>(u, kOffArmorTimer) == 0;
 }
 
 // Switch on, researched, mana for it.
@@ -251,7 +264,7 @@ int WaveDamage(uint8_t order) {
 
 bool EnemyNear(const World& w, Unit* unit, uint8_t me, int radius) {
     return ScanGrid(w, unit, radius, [&](Unit* u) {
-        return IsEnemy(w, me, u) && Field<uint16_t>(u, kOffInvisTimer) == 0;
+        return IsEnemy(w, me, u) && Field<uint16_t>(u, kOffInvisTimer) == 0 && PlayerSees(w, u);
     });
 }
 
@@ -307,7 +320,7 @@ int ScoreTarget(const World& w, Spell spell, Unit* caster, Unit* t) {
     if (kSpells[spell].friendly) {
         if (config::g.ownUnitsOnly ? owner != me : !Allied(w, me, owner)) return -1;
     } else {
-        if (!IsEnemy(w, me, t) || Field<uint16_t>(t, kOffInvisTimer) != 0) return -1;
+        if (!IsEnemy(w, me, t) || Field<uint16_t>(t, kOffInvisTimer) != 0 || !PlayerSees(w, t)) return -1;
     }
 
     switch (spell) {

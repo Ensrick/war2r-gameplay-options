@@ -149,7 +149,7 @@ SetOrder(unit, 2); return 1;
 ```
 
 `FUN_004d9b60` (end of `IssueOrder`) also drops a unit target whose byte +0x29 lacks the caster owner's bit
-(`FUN_004d9e40` / `FUN_004f03b0`) [meaning of +0x29 unverified]; own units pass in practice (heal etc. work).
+(`FUN_004d9e40` / `FUN_004f03b0`): +0x29 is the per-player seen mask (section 2.10); own units pass (heal etc. work).
 
 ## 2. Effects
 
@@ -431,6 +431,40 @@ if (0x91C178) fogCountdown_0x91C590 = 150;
   tile * 32 clamped to `mapSize*32 - 0x91CB08 / 0x91CB0C`, then calls the no-op `0x4857C0`); the last call wins, so
   the view ends at (x-6, y-4) [camera meaning inferred; whether the Remastered renderer follows these globals is
   unverified].
+
+### 2.10 What the player can see: submarines and fog (1.21)
+
+The author: "the autocasts are often targeting submarines when they're invisible". The mod only tested the
+invisibility timer (+0x44). The game keeps two per-unit, per-player masks (bit p = player p, 0..7), both rebuilt for
+every unit every simulation step by the game loop (`0x4C4FFC` / `0x4C51A3` call the first right before the AI tick
+`FUN_004e89a0`, `0x4C5040` / `0x4C51E9` the second right after it):
+
+| byte | writer | meaning |
+|---|---|---|
+| +0x29 seen mask | `FUN_004f11c0` | gone / dying / hidden: 0xFF. Invisible (+0x44 != 0): Remastered ruleset = the owner's vision-sharing mask `0x919678[owner]`, classic = `1 << owner` (owner 8 and up: 0). **Submarine** (type flag 0x40, `0x4F1234`): `FUN_004f0200`. Anything else: 0xFF |
+| +0x28 fog mask | `FUN_004f0600` (pass `FUN_004f0ab0`) | starts 0xFF; a computer player's bit is cleared; a human player's bit is cleared unless EVERY footprint tile is fogged for them in the per-tile map `0x91AD64`. With the reveal flag `0x91B270 & 1` it is 0 for every live unit |
+
+`FUN_004f0200(sub)`: player p sees it when p is the owner, when (Remastered) the owner shares vision with p
+(`0x919678[owner] & (1 << p)`), or when a live unit of p's (list `0x934848[p]`, linked by +0x68) with type flag 0x80
+"can see submarines" (`0x4F0283`; Remastered: also complete, `+0x1E & 0x80`) stands within 6 tiles in both directions
+(`0x4F0216..0x4F0243`, `0x4F0295..0x4F02B3`); Remastered then spreads each bit to that player's vision sharers.
+In the stock `unitdata.dat` (flags at 0x1486) flag 0x80 is on types 0x16, 0x23, 0x26, 0x27, 0x28 (flying machine),
+0x29 (zeppelin), 0x2A, 0x2B, 0x2D, 0x38, the scout towers 0x40 / 0x41 and the guard and cannon towers
+0x60..0x63 (names from `src/units.h`); flag 0x40 (submarine) on 0x26 and 0x27 only (both
+0x000800C8, not fleshy, so death coil never wanted them anyway).
+
+`FUN_004f03b0(player, unit)` is the game's own "cannot see" test: ruleset on and player >= 8 -> `+0x29 == 0`, else
+`!(+0x29 & (1 << player))`. It drops a hidden target from every order (`FUN_004d9e40` at the end of IssueOrder), from
+a unit's attack (`0x4A9554`) and from the player's hit test (`0x4F3F5D`, Remastered ruleset). The player's unit
+picking loops (`0x4F2C75`, `0x4F38C9`) skip a unit whose fog bit is set for the local player (`+0x28 &
+0x922F23`, where `0x922F23 = 1 << local player`, written at `0x4D6CEC`) before that hit test.
+
+So the mod's test (`PlayerSees` in `src/autocast.cpp`) is exactly what the player's click allows: not fogged for the
+local player, and the local player's bit in the seen mask. Every autocast target test goes through it: `IsTarget`
+(fireball, blizzard / death and decay coverage, whirlwind, runes, flame shield's enemy count, the channel watchdog),
+the enemy branch of `ScoreTarget` (exorcism, slow, polymorph, death coil) and `EnemyNear` (the "in a fight" test of
+bloodlust, haste, unholy armor, invisibility). The eye (`src/eye.cpp`) is unchanged. The mod's pass runs from the AI
+tick, so it reads a seen mask of this step and a fog mask of the step before.
 
 ## 3. The computer AI (dispatcher `FUN_004ca4a0`, think loop every 0x32 steps, `RE_NOTES.md`)
 

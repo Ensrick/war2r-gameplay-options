@@ -104,6 +104,7 @@ static Unit* AddUnit(uint8_t type, uint8_t owner, int x, int y, int hp, int mana
     Field<uint8_t>(u, kOffOwner) = owner;
     Field<uint8_t>(u, kOffOrder) = order;
     Field<uint8_t>(u, kOffNextOrder) = kOrderNone;
+    Field<uint8_t>(u, kOffSeenMask) = 0xFF;  // what FUN_004f11c0 writes for every visible unit; fog mask 0 = not fogged
     const bool flyer = (At<uint32_t>(kRvaTypeFlags)[type] & kTfFlyer) != 0;  // defType() the type before adding it
     (flyer ? g_airGrid : g_grid)[y * kMap + x] = u;
     *At<uint32_t>(kRvaUnitCount) = g_unitCount;
@@ -3170,6 +3171,33 @@ int wmain(int argc, wchar_t** argv) {
     mod::RunAutocastPass();
     CHECK(OrderOf(dk) == 0x33 && TargetOf(dk) == enemy, "death coil on footman");
 
+    // What the player cannot see is no target (docs/research/autocast_all_spells.md 2.10): a submarine with no detector
+    // of the player's near it has only its owner's bit in the seen mask (FUN_004f0200), a unit under fog has the
+    // player's bit in the fog mask (FUN_004f0600). The sub type is flagged fleshy here only so death coil wants it.
+    constexpr uint8_t kSub = 0x26;
+    const uint32_t savedSubFlags = tf[kSub];
+    const uint16_t savedSubHp = maxHp[kSub];
+    defType(kSub, kTfSubmarine | kTfFleshy | kTfAttacker, 60);
+    ResetWorld();
+    dk = AddUnit(kTypeDeathKnight, 0, 10, 10, 60, 255, kOrderStand);
+    Unit* sub = AddUnit(kSub, 1, 13, 12, 60, 0, kOrderAttack);
+    Field<uint8_t>(sub, kOffSeenMask) = 1 << 1;  // submerged: only its owner sees it
+    mod::RunAutocastPass();
+    CHECK(OrderOf(dk) == kOrderStand, "death coil at a submarine nobody of the player's detects (order %u)", OrderOf(dk));
+    Field<uint8_t>(sub, kOffSeenMask) = (1 << 1) | (1 << 0);  // a flying machine of the player's came within 6 tiles
+    mod::RunAutocastPass();
+    CHECK(OrderOf(dk) == 0x33 && TargetOf(dk) == sub, "death coil at a detected submarine (order %u)", OrderOf(dk));
+    ResetWorld();
+    dk = AddUnit(kTypeDeathKnight, 0, 10, 10, 60, 255, kOrderStand);
+    enemy = AddUnit(kFootman, 1, 13, 12, 60, 0, kOrderAttack);
+    Field<uint8_t>(enemy, kOffFogMask) = 1 << 0;  // under the player's fog
+    mod::RunAutocastPass();
+    CHECK(OrderOf(dk) == kOrderStand, "death coil at a footman under fog (order %u)", OrderOf(dk));
+    Field<uint8_t>(enemy, kOffFogMask) = 1 << 2;  // fogged for some other player only
+    mod::RunAutocastPass();
+    CHECK(OrderOf(dk) == 0x33 && TargetOf(dk) == enemy, "another player's fog must not hide the footman (order %u)",
+          OrderOf(dk));
+
     // Flyers live in the game's AIR grid only (player report: no Bloodlust / Death Coil on air units). AddUnit files
     // them there, so every flyer test in this file now goes through the second layer.
     ResetWorld();
@@ -3591,6 +3619,41 @@ int wmain(int argc, wchar_t** argv) {
         AddUnit(kGrunt, 1, 26, 31, 60, 0, kOrderAttack);
         mod::RunAutocastPass();
         CHECK(OrderOf(mg) == kOrderFireball && OrderOf(mg2) == kOrderStand, "two mages fireballed the same group (%u / %u)", OrderOf(mg), OrderOf(mg2));
+        // Submarines nobody of the player's detects are no target of fireball or the area spells either, not even as
+        // one more enemy in the blast (autocast_all_spells.md 2.10).
+        {
+            ResetWorld();
+            mg = caster(kTypeMage, 20, 30);
+            Unit* s1 = AddUnit(kSub, 1, 26, 30, 60, 0, kOrderAttack);
+            Unit* s2 = AddUnit(kSub, 1, 27, 30, 60, 0, kOrderAttack);
+            Field<uint8_t>(s1, kOffSeenMask) = Field<uint8_t>(s2, kOffSeenMask) = 1 << 1;
+            mod::RunAutocastPass();
+            CHECK(OrderOf(mg) == kOrderStand, "fireball at two undetected submarines (order %u at %d,%d)", OrderOf(mg), ox(mg),
+                  oy(mg));
+            Field<uint8_t>(s1, kOffSeenMask) = Field<uint8_t>(s2, kOffSeenMask) = 0xFF;
+            mod::RunAutocastPass();
+            CHECK(castAt(mg, kOrderFireball, 26, 30), "fireball at two detected submarines (order %u at %d,%d)", OrderOf(mg),
+                  ox(mg), oy(mg));
+            for (int spell : {kSpellBlizzard, kSpellDeathAndDecay}) {
+                only(spell);
+                const uint8_t order = spell == kSpellBlizzard ? kOrderBlizzard : kOrderDeathAndDecay;
+                ResetWorld();
+                Unit* cc = caster(spell == kSpellBlizzard ? kTypeMage : kTypeDeathKnight, 20, 20);
+                AddUnit(kGrunt, 1, 27, 20, 60, 0, kOrderAttack);
+                AddUnit(kGrunt, 1, 28, 21, 60, 0, kOrderAttack);
+                Unit* s3 = AddUnit(kSub, 1, 27, 22, 60, 0, kOrderAttack);
+                Field<uint8_t>(s3, kOffSeenMask) = 1 << 1;
+                mod::RunAutocastPass();
+                CHECK(OrderOf(cc) == kOrderStand, "%s counted an undetected submarine as the third enemy (order %u at %d,%d)",
+                      config::kSpellKeys[spell], OrderOf(cc), ox(cc), oy(cc));
+                Field<uint8_t>(s3, kOffSeenMask) = 0xFF;
+                mod::RunAutocastPass();
+                CHECK(OrderOf(cc) == order, "%s at two grunts and a detected submarine (order %u)", config::kSpellKeys[spell],
+                      OrderOf(cc));
+            }
+            only(kSpellFireball);
+            defType(kSub, savedSubFlags, savedSubHp);
+        }
 
         // Blizzard and Death and Decay: 5 impacts a wave on the 5x5 tiles around the target, channelled.
         struct AreaCase {
