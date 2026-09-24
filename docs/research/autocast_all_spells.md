@@ -273,6 +273,12 @@ FUN_004af040(unit, 10) x5; unit->invis = 0;
 
 - One wave = 5 impact points (game RNG) inside the 5x5 tiles around the order tile, each hit 11 times (chain 10..0),
   dmg 10 per hit. Reach from the order tile: 2 tiles + 42 px = about 3.3 tiles.
+- The five points are tile CENTRES, centred on the order tile: `(x + rand()%5) * 32 - 0x30` at `0x4AF097..0x4AF09D`
+  is `(x - 2 + rand()%5) * 32 + 16`, the same five centres as death and decay. The shard starts 110 px left / 170 px up
+  of that point (jitter `rand()%3 * 11 - 11` per axis, `0x4AECC5..0x4AED0E`), moves 12 px per update (`0x8C0AEC[5]`)
+  and lands when its distance counter (+0x20, `max(|dx|, |dy|)`) goes negative (`0x4AE9D8`), so it may land up to one
+  12 px step past the point, down and to the right [inferred from the step arithmetic; the Bresenham helper
+  `FUN_004ce500` was not traced].
 - Channel: the next cast-animation cycle drops the next wave, until mana < 25 or a new order. From 255 mana: up to 10
   waves.
 
@@ -297,19 +303,60 @@ ignored for these missile types. What reaches one structure depends on where eac
 
 | | points per wave | impacts per point | offsets from the aim tile | full-damage share | mean per wave |
 |---|---|---|---|---|---|
-| Blizzard | 5 chains | 11 | `rand()%5 - 1.5` tiles = -48, -16, +16, +48, +80 px | only +/-16 px: 4 of 25 | ~6.6 x dmg (66 at dmg 10) |
-| Death and decay | 5 clouds | 10 | `rand()%5 - 2` tiles = -64, -32, 0, +32, +64 px | only 0: 1 of 25, plus 8 of 25 at quarter | ~4.5 x dmg (45 at dmg 10) |
+Both spells drop their points on the centres of the 5x5 tiles around the aim tile: -64, -32, 0, +32, +64 px from
+the aim tile's centre per axis (section 2.5 for blizzard, `FUN_004af500` + `FUN_004af7b0` for death and decay, whose
+positional point is `order tile * 32 + 16`). An earlier version of this table put blizzard at `rand()%5 - 1.5` tiles
+= -48 .. +80 px: those numbers are measured from the tile's top-left pixel, not from its centre, and the "half a tile
+past the aim" that followed from them was wrong.
 
-The shares above assume the wave is aimed at the structure's centre, so the mod **aims at the centre tile of a
-building's footprint**, not at the top-left tile the unit is filed under (`X + (w-1)/2, Y + (h-1)/2` from
-`0x8C1... kRvaUnitSizeByType`): a 4x4 keep ordered at its corner throws most of a wave past it. The value, the
-friendly-fire clearance and the watchdog all use that same aim tile.
+The splash measures from a unit's CENTRE: `unit px + half box`, with the half box table `0x91BFC0` filled by
+`FUN_004ee2d0` as `size * 16` per type (`0x4EE300..0x4EE31D`, sizes from `0x917AD0`), and a building's pixel position
+is its top-left tile * 32 (`CreateUnit` masks it to the tile, `0x4EDBA7..0x4EDBC3`). So a w x h building's centre is
+`(2X + w, 2Y + h)` in half tiles. Impact centres sit on odd half tiles, so per axis an impact is 0 or 16 px off (full),
+32 px (quarter) or 48 px and more (nothing):
 
-`src/autocast.cpp` uses **5 x the live damage byte** for both spells (50 at the game's 10, and `[spell_damage]`
-moves it). That single constant sits between the two on purpose, and the number only decides whether to spend one
-more 25 mana wave. It is an average: one wave can roll well above or below it. What is still `[unverified]` is how
-exactly a building's centre PIXEL relates to its footprint centre tile (the splash measures from the unit record's
-centre), so the full-damage shares are the geometry's order of magnitude, not an exact hit table.
+| footprint | impacts that reach its centre | per wave aimed at its middle |
+|---|---|---|
+| 1x1 unit, 3x3 | its middle tile full, the 8 around it a quarter | 1 of 25 full, 8 of 25 quarter |
+| 2x2, 4x4 | its middle 2x2 tiles, all full; a 4x4's outer ring of 12 tiles: **nothing** | 4 of 25 full |
+
+Mean per wave aimed at the middle: blizzard 55 impacts x (1/25 x 0.75 + 8/25 x 0.1875) = ~4.95 x dmg on a 3x3 or a
+unit, 55 x 4/25 x 0.75 = ~6.6 x dmg on a 2x2 or 4x4; death and decay (50 impacts) ~4.5 and ~6.0 x dmg.
+`src/autocast.cpp` uses **5 x the live damage byte** for both spells (50 at the game's 10, and `[spell_damage]` moves
+it); the number only decides whether to spend one more wave, and one wave can roll well above or below it.
+
+### 2.6b How the mod picks the aim (1.21)
+
+The author saw blizzards "target the corner of a building" with most of the wave missing. Two causes in 1.20: when the
+straight aim had a friendly near it, the aim was walked up to 2 tiles off (blizzard 3 tiles before) the target, and
+the spot was then valued by what stood within 2 tiles of it: any footprint tile of a building counted the whole
+building, although the splash only reaches a 4x4 from impacts on its middle 2x2 tiles. The 1.20 selftest shows it: a
+castle at 26..29 x 19..22 with a footman beside it got a blizzard at 24,17, whose 22..26 pattern reaches none of the
+castle's middle tiles. Likewise a grunt next to a castle corner made "a building plus a unit".
+
+Since then every tile within the spell's reach (`search_radius`, never beyond the spell range) of the caster's current
+tile is a candidate aim, scored by what the pattern above would do there:
+
+- value = expected hits in quarter hits: per enemy `3 x full + any` over the 25 impact tiles (a full hit is worth 4
+  quarter hits: 0.75 against 0.1875 x dmg), times `area_building_value` for a building. A unit in the middle of the
+  pattern scores 12, a 3x3 12, a 2x2 or 4x4 16, so `area_building_value` keeps its meaning: a building fully in the
+  blast is worth that many units fully in it, and a building the pattern only grazes counts for what it would take.
+- the gate, the overkill rule and the channel's building hit points count an enemy only when some impact can hit it
+  at FULL damage (a unit within 2 tiles of the aim, a building whose centre is inside the pattern); a quarter hit
+  alone adds value but never makes a spot a target.
+- ties: the most enemy footprint tiles inside the 5x5 (what the cast line reports as "building tiles"), then the aim
+  with the counted enemies nearest its middle, then the aim nearest the caster. A lone castle is thus hit on its middle
+  (16 of 16 tiles) and not on the corner tile nearest the caster, which the splash values the same.
+- an aim with fewer than 13 of its 25 impact tiles on the map is skipped. Impacts off the map are not clipped:
+  `FUN_004af9e0` takes `x >> 5` of the point and only bounds-checks the grid reads, so an impact one tile outside still
+  splashes the edge tile; one further out is wasted.
+- unchanged: `area_friendly_clearance` around the aim (checked in score order, first clean aim wins), claims, the
+  watchdog, the dry run used by `[priority] save_mana`.
+
+Budget per caster per pass: at most 31 x 31 = 961 aim tiles (`search_radius` <= 15), at most 256 enemies gathered
+from the tiles within reach + 6, each adding to the at most (w + 6) x (h + 6) aims its pattern reaches, and at most
+256 friendly-fire checks. Whirlwind keeps the per-target aim: it lands on the aim and then wanders at random, so there
+is no pattern to cover.
 
 ### 2.7 Whirlwind (0x34)
 
@@ -638,6 +685,6 @@ its `0x25` reach, and with `log_casts` a death knight that did not raise the dea
   runtime). The proposed rules test the owner explicitly as well.
 - The UI targeting validator for spells (`FUN_004e9420` path) was not examined; the mod bypasses it.
 - Whether a stop issued during a channel prevents the next wave or lets one more fall.
-- How a multi-tile building's centre PIXEL relates to the centre tile of its footprint (the mod now aims at that tile,
-  section 2.6a); it decides how many blizzard chains and death and decay clouds land full-damage on it.
+- Where exactly a blizzard shard lands relative to its target pixel (up to one 12 px step down-right, section 2.5):
+  it can turn a 16 px full hit into a 26 px quarter hit on one side. The mod scores both spells on the exact centres.
 - A building placed on a live rune tile triggering it (inferred from the grid filing, not traced).
