@@ -7,6 +7,14 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.24.0 - 2026-09-25
+
+- Mages no longer Fireball enemy buildings once Blizzard is researched (and switched on): a Fireball line counts enemy
+  units only then. Clearing space for a Blizzard stays your call.
+- New `[priority] hold_for_blocked_area` (on): when a Blizzard or Death and Decay has something worth hitting in range
+  but only your own units are too close to every spot, the caster waits instead of spending its mana on Slow or
+  Fireball further down its list. Your own buildings and walls do not make it wait. The log says when a caster holds.
+
 ## 1.23.0 - 2026-09-24
 
 - Blizzard and Death and Decay waste less: a spot is scored by the damage its targets can still absorb, so a group of

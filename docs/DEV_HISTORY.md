@@ -15,6 +15,14 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.24.0 (2026-09-25, UNTESTED in game, NOT released)
+
+- Author: "never have them fireball buildings when they have the blizzard spell, even if the path is clear for fireball
+  and not blizzard ... as a player I can move troops away", and "they also seem to prioritize casting slow over
+  blizzard". Cause of the second (agent, CasterThink): a Blizzard blocked by the friendly clearance fails for a reason
+  other than mana, so save_mana's dry run says "would not cast" and the walk goes on to slow / fireball. New
+  hold_for_blocked_area stops the walk when the ONLY blocker is the player's own units. 8 mutations, 8 caught.
+
 ## 1.23.0 (2026-09-24, UNTESTED in game, NOT released)
 
 - Author: "avoid overkill where possible so they use it efficiently" (the building-only rule existed since 1.9.0).

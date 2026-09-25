@@ -104,6 +104,10 @@ death_knight = ["raise_dead", "unholy_armor", "death_coil", "haste", "death_and_
 # up for it. Without this a death knight spends its mana on Death Coil for ever and never reaches what a Death and
 # Decay channel needs (three waves). A spell with no target never holds anything back.
 save_mana = true
+# true = when a Blizzard or Death and Decay has something worth hitting in range but only your own units stand too close
+# to every spot (area_friendly_clearance), the caster casts nothing further down its list and waits for you to pull
+# them back. Your buildings and walls do not count: they cannot move. false = the spells below go ahead meanwhile.
+hold_for_blocked_area = true
 
 [heal]
 # Heal only units missing at least this many hit points.

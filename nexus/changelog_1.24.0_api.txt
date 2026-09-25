@@ -1,0 +1,2 @@
+Mages no longer Fireball enemy buildings once Blizzard is researched (and switched on): a Fireball line counts enemy units only then. Clearing space for a Blizzard stays your call.
+New [priority] hold_for_blocked_area (on): when a Blizzard or Death and Decay has something worth hitting in range but only your own units are too close to every spot, the caster waits instead of spending its mana on Slow or Fireball further down its list. Your own buildings and walls do not make it wait. The log says when a caster holds.
