@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "aijobs.h"
 #include "config.h"
 #include "log.h"
 
@@ -163,11 +164,12 @@ void FormatLine(const World& w, int player, const uint8_t* blob, uint32_t off, u
     const uint16_t* foodFree = At<uint16_t>(kRvaFoodFreeUnits);
     const int used = static_cast<int>(counted[player]) - static_cast<int>(foodFree[player]);
     const int grown = supply[player] > kFoodCap ? kFoodCap : supply[player];
+    const aijobs::Jobs jobs = aijobs::Read(player);  // 65535 or so = a counter a savegame load wrapped
 
     _snprintf_s(out, cap, _TRUNCATE,
                 "ai: player %d script %u pc 0x%04X %s same pc for %um | gold %d lum %d oil %d | food %d/%d | "
                 "force land %u sea %u air %u | foot %u/%u arch %u/%u siege %u/%u knight %u/%u | workers %u/%u | "
-                "buildlist %d/%u",
+                "buildlist %d/%u | jobs gold %u lum %u rep %u",
                 player, At<uint8_t>(kRvaAiScriptId)[player], off, op, sameMs / 60000u,
                 At<int32_t>(kRvaPlayerGold)[player], At<int32_t>(kRvaPlayerLumber)[player],
                 At<int32_t>(kRvaPlayerOil)[player], used, grown,
@@ -178,7 +180,7 @@ void FormatLine(const World& w, int player, const uint8_t* blob, uint32_t off, u
                 At<uint16_t>(kRvaAiSiegeCount)[player], st[kAiOffSiegeTarget],
                 At<uint16_t>(kRvaAiKnightCount)[player], st[kAiOffKnightTarget],
                 At<uint16_t>(kRvaPeasantCount)[player], st[kAiOffPeasantTarget],
-                BuildListIndex(player), st[kAiOffBuildListLen]);
+                BuildListIndex(player), st[kAiOffBuildListLen], jobs.gold, jobs.lumber, jobs.repair);
     (void)w;
 }
 

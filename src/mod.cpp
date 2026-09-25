@@ -2,6 +2,7 @@
 
 #include <windows.h>
 
+#include "aijobs.h"
 #include "aiwatch.h"
 #include "autocast.h"
 #include "config.h"
@@ -119,6 +120,7 @@ void __cdecl OnTick() {
 
     World w;
     if (!BuildWorld(w)) return;
+    aijobs::OnTick(w);  // a game bug: a savegame load leaves the computer's worker-job counters out of step
     tweaks::OnTick(w, elapsedMs);
     workers::OnTick(w, elapsedMs);
     production::OnTick(w, elapsedMs);

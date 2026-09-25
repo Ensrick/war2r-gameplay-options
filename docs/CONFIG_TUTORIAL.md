@@ -1006,6 +1006,32 @@ Every cast is then written to `x86\gameplay_options.log` with the caster, the ta
 knight that could not raise the dead also says why ("not researched", "mana below the cost", "no corpse within 15
 tiles", "all corpses ... are claimed", "switched off"), at most once every 30 seconds of play per death knight.
 
+### The computer keeps cutting wood after you load a savegame
+
+```toml
+[general]
+fix_ai_after_load = true    # the default
+```
+
+This fixes a bug in the game itself, not in the mod. The computer keeps a count of how many of its workers are on
+gold, on lumber and on repairs, and sends an idle worker to the trees while too few are cutting wood. Loading a
+savegame sets those counts to zero but leaves every worker's job as it was, so the first lumber worker that delivers
+takes the count below zero, where it reads as 65535. From then on the computer believes it has plenty of lumber
+workers and sends every worker to gold. Its lumber stops for the rest of the game, it can never afford a keep or a
+castle, and a script that waits for one never attacks again. With more gold in the mines (`[gold_mines] amount`) or
+mines that never run out, the mines near its base do not run dry, and in the game that is the only thing that sends
+the workers back to the trees.
+
+With this setting on, the mod counts the computer's workers again whenever the counts do not match the workers, which
+only happens after a load. The count is written back and one line goes to the log:
+
+```
+ai: recounted workers after load: player 0 gold 0 lumber 65535 repair 0 build 0 -> gold 4 lumber 3 repair 0 build 0
+```
+
+It only corrects those numbers: it gives no orders and changes nothing for your own workers. Like everything that
+changes the game, it is off in multiplayer. `false` leaves the game's bug as it is.
+
 ### See what the computer player is doing
 
 ```toml
@@ -1018,7 +1044,8 @@ units writes one line to `x86\gameplay_options.log`:
 
 ```
 ai: player 3 script 41 pc 0x3058 WAITFOR have_castle same pc for 12m | gold 3750 lum 1000 oil 4700 | food 24/60 |
-force land 13 sea 0 air 0 | foot 6/6 arch 3/3 siege 0/0 knight 4/4 | workers 8/8 | buildlist 9/13
+force land 13 sea 0 air 0 | foot 6/6 arch 3/3 siege 0/0 knight 4/4 | workers 8/8 | buildlist 9/13 |
+jobs gold 4 lum 3 rep 0
 ```
 
 The computer runs a small script per player. `WAITFOR` is the one instruction that can block: it re-checks its
@@ -1030,6 +1057,9 @@ because a castle costs 1200 lumber and it has 1000). After five minutes on the s
 
 A script also sleeps on purpose between its steps. The line then reads `sleeping 9000 steps, then WAITFOR ...`, and
 sleeping never counts as being stuck: the five minutes only run while the script is awake and waiting.
+
+`jobs` is how many of its workers the computer believes are on gold, lumber and repairs. A number far above its worker
+count, such as 65535, is the savegame bug described above, left in place because `fix_ai_after_load` is off.
 
 This setting only reads: it never changes anything, for you or for the computer. Leave it off for normal play, it
 makes the log long.
@@ -1045,6 +1075,7 @@ makes the log long.
 | priority | save_mana | true | A caster keeps its mana for a spell higher in its list instead of casting a cheaper one |
 | priority | paladin, mage, ogre_mage, death_knight | today's order | The order each caster tries its spells in, by `[spells]` name |
 | general | log_ai | false | Write what each computer player's script is waiting for, once a minute (read-only diagnostic) |
+| general | fix_ai_after_load | true | Put the computer's worker counts right after a savegame load, so it keeps cutting wood (a bug in the game) |
 | autocast | search_radius | 8 | Tiles a caster searches for targets (Raise Dead always looks 15 tiles around, like the computer) |
 | autocast | combat_radius | 6 | A unit counts as fighting when an enemy is this close to it |
 | autocast | own_units_only | true | Friendly spells skip allies' units |

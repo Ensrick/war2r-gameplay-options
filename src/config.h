@@ -180,6 +180,7 @@ struct Config {
     int intervalTicks = 10;       // game steps between autocast passes
     bool logCasts = false;
     bool logAi = false;           // read-only diagnostic for the computer players, see src/aiwatch.cpp
+    bool fixAiAfterLoad = true;   // recount the computer's worker-job counters a savegame load wiped, see src/aijobs.cpp
 
     // [autocast]
     int searchRadius = 8;         // tiles around the caster

@@ -1,6 +1,6 @@
 # Why the computer stops cutting lumber (static RE, Warcraft II: Remastered 1.0.2.2818)
 
-Issue #24 follow-up. Static analysis only (Ghidra headless, capstone, the 1.23.0 `log_ai` session log); nothing here was
+Issue #24 follow-up. Fixed by `[general] fix_ai_after_load` (last section). Static analysis only (Ghidra headless, capstone, the 1.23.0 `log_ai` session log); nothing here was
 run in the game. Inferred points are marked `[unverified]`. VA = RVA + 0x400000.
 
 ## Verdict
@@ -107,24 +107,57 @@ Same mission, same config, `[general] log_ai = true`:
 If step 1 also freezes lumber without a load, this verdict is wrong and the next suspect is the forest search (see
 above).
 
-## Proposed fix (not implemented)
+## The fix: `[general] fix_ai_after_load` (src/aijobs.cpp)
 
-**Recount after load.** This is a plain data write, not a new hook. On the first mod tick after a savegame load (the
-identity check that `trees.cpp` already uses, `kRvaGameFromSave` `0x91BFB0`), for each player with
-`0x918CAC[p] == 1`, recompute from the unit array:
+These are plain data writes. The mod adds no hook and gives no order. It runs on every single-player step, after the
+multiplayer gate in `mod.cpp`, and does the following:
 
-- `0x9231B8[p]` = number of units with bit 1 in `+0x20`
-- `0x9231D8[p]` = number with bit 2
-- `0x9231F8[p]` = number with bit 0x20
-- `0x923218[p*0x2F + unit+0x76]` = number with bit 8, plus number with bit 0x10
+1. For every player with `controller 0x918CAC[p] == 1`, it counts the units that the game will still release, bit by
+   bit. That means units owned by p, of a worker type (type flag 0x100), whose state `+0x1E` has none of the bits
+   0x07. For each such unit:
+   - bit 1 counts toward gold, bit 2 toward lumber and bit 0x20 toward repair;
+   - bits 8 and 0x10 each count one toward `builders[p][unit+0x76]`, and only when that index is below 0x2F.
+2. If every count already matches (every fresh map, and every step between loads), it writes nothing. Otherwise it
+   writes the counts back and logs one line with the old and new values:
+   `ai: recounted workers after load: player 3 gold 0 lumber 65535 repair 0 build 65535 -> gold 2 lumber 3 repair 1
+   build 2` (`build` is the sum of the player's row). After 20 recounts in a row with no step in between where
+   everything matched, it stops logging.
 
-Count every occupied slot, including dying units, so that the removal path's later decrement stays balanced. Which
-slot states count as occupied still has to be read from `FUN_004EE380` `[unverified]`. The recount is idempotent.
-Running it again every few seconds would also repair any drift, at the cost of writing AI state more often. It must
-stay off in multiplayer, like every other state write.
+Why these units, with addresses:
 
-Workaround until then: avoid loading a mid-mission save, or restart the mission. Setting `[gold_mines] amount` back to
-1.0 only shortens the stall (it ends when the base mines run dry). It does not remove it.
+- **State bits 0x07, not 0x0F.** `FUN_004EE380` (unit removal) returns at once when `+0x1E & 7` is set. Otherwise it
+  releases the jobs through `0x4EE553 call FUN_004E8840` -> `0x4E88E9 call 0x4DACC0` (thunk of `FUN_004DB420`), and
+  only then marks the unit dying (`|= 2`). So a unit with `& 7` set has already been released or never will be.
+  Workers inside a mine, a hall or a building site carry state bit 0x08 and are still released: `FUN_004ED860` kills
+  the units inside a destroyed building through the same path. That is why the mod's `IsActive` (mask 0x0F) is not
+  used here.
+- **Worker types only.** The manager is reached only for type flag 0x100 (`0x4A8A50`, `0x4C9C7E`), and
+  `FUN_004E8840` releases only for 0x100 (`0x4E88E1`). A non-worker with stale bits is never released, so it is not
+  counted.
+- **Computer players only, human not touched.** The manager is called only when `controller == 1` (`0x4A8A50`,
+  `0x4C9C70`), and so is the removal release (`0x4E884C`). The counters are referenced only by the manager, its
+  helpers `FUN_004DA8B0` / `FUN_004DAA80`, the release `FUN_004DB420` and the reset `FUN_004DAC70` (a full scan for
+  absolute references to `0x9231B0..0x923220`). The human player's words are never read, so they are left alone.
+- **One per bit.** `FUN_004DB420` subtracts once for each of 0x20, 1, 2, 8 and 0x10, and the two builder bits both
+  index the row with the unit's `+0x76` word.
 
-Optional diagnostic: add the three counters to the `log_ai` line (`jobs gold/lumber/repair`). A value above the
-worker count, such as 65535, proves the wrap directly.
+Why it runs on every step instead of "once after a load": `kRvaGameFromSave` (`0x91BFB0`) stays 1 from one load to
+the next, so a second load could not be told apart. A mismatch between the counters and the units is the load's own
+fingerprint, and outside that bug the game keeps the two equal between simulation steps.
+
+`[general] log_ai` now ends each status line with `| jobs gold g lum l rep r`, so a wrapped counter (65535, or just
+below it) shows up directly when `fix_ai_after_load` is off.
+
+Tests (`test/selftest.cpp`, `AiJobsTests`): a fake load with wrapped counters and units carrying every kind of job bit
+(inside a mine, dying, non-worker, builder index past the row, the human's peon) is recounted exactly. A second pass
+changes nothing and logs nothing. Counters that already match are not written. The off switch, a network game through
+`mod::OnTick` and a human slot are all left untouched. A drift that repeats stops logging after 20 lines. Twelve
+mutations were each killed: state mask 0x0F, no worker check, humans recounted, farm bit ignored, off switch ignored,
+log cap 21, cap never reset, builder row not written, owner ignored, not wired into the tick, run before the
+multiplayer gate, `log_ai` columns swapped.
+
+## What the author should see
+
+With the fix on, after loading a mid-mission save the log has one `ai: recounted workers after load:` line whose
+`lumber` goes from 0 (or 65535) to the number of wood cutters. The computers' `lum` values in the `log_ai` lines then
+keep moving, and `WAITFOR have_keep` / `have_castle` clears once the hall upgrade is paid for.
