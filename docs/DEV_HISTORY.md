@@ -15,6 +15,14 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.28.0 (2026-09-25, UNTESTED in game, NOT released)
+
+- Author: "I can't have farms auto-building in the path of my gold mine. Are peasants who are actively working building
+  farms?", "They also shouldn't build until the player has already manually built a town hall", "it's just to make
+  sure there's a clear path to the gold mine and town hall". The AI's own site search picked the first ring site,
+  which could sit in the hall-mine lane; the mod now picks from the same lattice itself (still FUN_004DC210-checked)
+  and rejects mine clearance / the lane; gold miners are never taken. 16 mutations, 16 caught.
+
 ## 1.27.0 (2026-09-25, UNTESTED in game, NOT released)
 
 - Author: "have peasants auto-build farms when food gets down to 10% or 4 available ... using the same placement and

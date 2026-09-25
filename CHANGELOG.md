@@ -7,6 +7,13 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.28.0 - 2026-09-25
+
+- Auto-built farms keep your workers' way clear: never within `mine_clearance` (3) tiles of a gold mine or 2 tiles of
+  the path between your hall and a mine, preferring spots beside other buildings on the side away from the mines. Only
+  once you own a finished hall. New `[farms] workers`: idle workers first, then a wood cutter walking back empty; a
+  gold miner is never taken (`idle_only` and `any` are the other choices).
+
 ## 1.27.0 - 2026-09-25
 
 - New `[farms] auto_build` (off): when your free food drops to `free_min` (4), or to `free_percent` (10 %) of your
