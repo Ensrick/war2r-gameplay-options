@@ -185,6 +185,9 @@ struct Multipliers {
     }
 };
 
+// [farms] workers: which peasants may be sent to build a farm.
+enum class FarmWorkers { IdleOnly, IdleThenLumber, Any };
+
 struct Config {
     // [general]
     bool enabled = true;
@@ -241,6 +244,8 @@ struct Config {
     bool farmsAutoBuild = false;      // a peasant builds a farm when free food runs low, see src/farms.cpp
     int farmsFreeMin = 4;             // build at this much free food or less ...
     int farmsFreePercent = 10;        // ... or this % of the supply (rounded up), whichever is HIGHER
+    int farmsMineClearance = 3;       // free tiles kept between a farm and every gold mine
+    FarmWorkers farmsWorkers = FarmWorkers::IdleThenLumber;  // never a gold miner unless "any"
     double goldMinesAmount = 1.0;     // x the gold in every mine, once, when a new map starts
     double oilAmount = 1.0;           // x the oil in every patch and platform, likewise
 

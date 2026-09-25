@@ -631,6 +631,20 @@ static void ReadRegenFor(const toml::table& root, const char* section, bool& min
     else logx::Write("config: [%s] regen_for must be \"all\" or \"mine\", keeping \"%s\"", section, mineOnly ? "mine" : "all");
 }
 
+static void ReadFarmWorkers(const toml::table& root, FarmWorkers& out) {
+    const auto node = root["farms"]["workers"];
+    if (!node) return;
+    static const char* const kNames[] = {"idle_only", "idle_then_lumber", "any"};
+    const auto s = node.value<std::string>();
+    for (int i = 0; s && i < 3; ++i)
+        if (_stricmp(s->c_str(), kNames[i]) == 0) {
+            out = static_cast<FarmWorkers>(i);
+            return;
+        }
+    logx::Write("config: [farms] workers must be \"idle_only\", \"idle_then_lumber\" or \"any\", keeping \"%s\"",
+                kNames[static_cast<int>(out)]);
+}
+
 static void ReadHeroes(const toml::table& root, Config& c) {
     if (const auto node = root["heroes"]["units"]) {
         if (const toml::array* arr = node.as_array()) {
@@ -707,7 +721,7 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"eye_of_kilrogg", " cast cast_at_mana max_active auto_scout "},
         {"gold_mines", " unlimited amount "},
         {"food", " hall_food hall_food_amount "},
-        {"farms", " auto_build free_min free_percent "},
+        {"farms", " auto_build free_min free_percent mine_clearance workers "},
         {"oil_platforms", " unlimited amount "},
         {"health", nullptr},  // multiplier trees and [range] validate their own keys
         {"costs", nullptr},
@@ -803,6 +817,8 @@ static bool Load() {
     ReadBool(root, "farms", "auto_build", c.farmsAutoBuild);
     ReadInt(root, "farms", "free_min", 0, 200, c.farmsFreeMin);
     ReadInt(root, "farms", "free_percent", 0, 100, c.farmsFreePercent);
+    ReadInt(root, "farms", "mine_clearance", 0, 16, c.farmsMineClearance);
+    ReadFarmWorkers(root, c.farmsWorkers);
     ReadFactor(root, "oil_platforms", "amount", c.oilAmount);
     ReadMultipliers(root, "health", true, c.health);
     ReadMultipliers(root, "costs", false, c.costs);

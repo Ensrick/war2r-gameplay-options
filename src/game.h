@@ -275,6 +275,7 @@ constexpr int kOffResumeOrder = 0x8D;   // uint8, Remastered: order resumed afte
 
 constexpr uint16_t kStateComplete = 0x80;  // building finished (full 16-bit state word at kOffStateFlags)
 constexpr uint8_t kWorkerCarrying = 0x20;
+constexpr uint8_t kWorkerGoldJob = 0x80, kWorkerLumberJob = 0x40, kWorkerChopping = 0x02;  // +0x75, docs/research/workers_and_gold.md
 constexpr uint8_t kTypeGoldMine = 0x5C;
 constexpr uint16_t kRegionTree = 0xFFFE;
 constexpr uint16_t kRegionChopping = 0xFFFC;      // a tree some worker is felling right now (FUN_004eb3b0)
@@ -319,6 +320,7 @@ constexpr uint32_t kTfBuilding = 0x00000020;
 constexpr uint32_t kTfSubmarine = 0x00000040;   // FUN_004f11c0 hands these to the detector scan FUN_004f0200
 constexpr uint32_t kTfDetector = 0x00000080;    // "can see submarines": what FUN_004f0200 looks for (0x4F0283)
 constexpr uint32_t kTfWorker = 0x00000100;
+constexpr uint32_t kTfTownHall = 0x00001000;   // town hall family, the depots FUN_004dbc50 centres the computer's farm search on
 constexpr uint8_t kTypeOilPatch = 0x5D;         // neutral; a platform built on it takes its oil over (0x4EDCB4)
 constexpr uint32_t kTfOilPlatform = 0x00000800;  // types 0x56 / 0x57; "oil left" lives in kOffResources like a mine's gold
 constexpr uint32_t kTfUndead = 0x00008000;
