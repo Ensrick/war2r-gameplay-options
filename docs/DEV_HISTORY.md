@@ -15,6 +15,13 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.26.1 (2026-09-25)
+
+- Author: "append +n at max upgrades to auto production in comments so I can see how much upgrades is improving odds".
+  A tool, not generator text, because the numbers depend on each player's own bias settings. Max levels per class are
+  the ones Levels() in production.cpp can count. Noticed while annotating his file: he had raised upgrade_bias to 0.5
+  himself, so his siege = 0.5 was no longer double; set to 1.0 to keep his "siege upgrades count double".
+
 ## 1.26.0 (2026-09-25, UNTESTED in game, NOT released)
 
 - The AI stall (#24) solved: a savegame load zeroes the computer's gold / lumber / repair job counters (0x4E895A ->

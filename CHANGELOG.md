@@ -7,6 +7,12 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.26.1 - 2026-09-25
+
+- New tool `tools/annotate_upgrades.py`: writes "+N % at max upgrades" comments beside the auto-production mix
+  weights of a config, computed from that file's own `upgrade_bias` and `class_upgrade_bias`, so you can see how much
+  upgrades shift the mix. Only comments change; run it again after changing the bias.
+
 ## 1.26.0 - 2026-09-25
 
 - Fixed a bug in the game itself: after you load a savegame, the computer players lose count of their wood cutters,
