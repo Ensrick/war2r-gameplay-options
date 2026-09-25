@@ -1,0 +1,1 @@
+Fixed in [dodge]: units stepping out of a Blizzard or Death and Decay now leave on the side away from its middle; before, the rule meant to pick that side chose nothing and a unit could step out sideways along the edge.

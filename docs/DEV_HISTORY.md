@@ -15,6 +15,11 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.31.1 (2026-09-25, UNTESTED in game)
+
+- Writing the two missing tests exposed a real bug: "away from the aim" ranked by Chebyshev distance, which is equal on
+  the whole nearest safe ring, so it never chose. Now the direction dot product decides. 3 of 3 mutations caught.
+
 ## 1.31.0 (2026-09-25, UNTESTED in game, NOT released)
 
 - Author: "My units naturally wander into blizzards, if you could have them avoid them, and move out of blizzards and
