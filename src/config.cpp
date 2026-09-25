@@ -666,6 +666,28 @@ static void ReadPolymorphTargets(const toml::table& root, Config& c) {
     SetPolymorphTargets(c, names.data(), names.size());
 }
 
+// [scouts]: enabled, toggle_key, idle_seconds and the unit list. Only mobile units can scout; a structure name or an
+// unknown name is logged and dropped. An empty list switches the feature off in practice.
+static void ReadScouts(const toml::table& root, Config& c) {
+    ReadBool(root, "scouts", "enabled", c.scouts.enabled);
+    ReadToggleKey(root, "scouts", c.scouts.toggleKey);
+    ReadInt(root, "scouts", "idle_seconds", 0, 600, c.scouts.idleSeconds);
+    const auto node = root["scouts"]["units"];
+    if (!node) return;
+    const toml::array* arr = node.as_array();
+    if (!arr) {
+        logx::Write("config: [scouts] units must be a list of unit names, keeping the default list");
+        return;
+    }
+    memset(c.scouts.type, 0, sizeof(c.scouts.type));
+    for (const auto& el : *arr) {
+        const auto s = el.value<std::string>();
+        const units::Entry* e = s ? units::FindByName(s->c_str()) : nullptr;
+        if (e && e->id < units::kFirstBuilding) c.scouts.type[e->id] = true;
+        else logx::Write("config: [scouts] units: \"%s\" is not a unit that can scout, ignored", s ? s->c_str() : "(not text)");
+    }
+}
+
 // Every key the file may contain, so a typo is reported instead of silently doing nothing.
 static void WarnUnknownKeys(const toml::table& root) {
     static const struct {
@@ -700,6 +722,7 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"mana", " regen "},
         {"auto_production", nullptr},  // validates its own keys and sub-tables
         {"priority", " save_mana hold_for_blocked_area paladin mage ogre_mage death_knight "},
+        {"scouts", " enabled units toggle_key idle_seconds "},
         {"upgrades", " missile_damage melee_damage shields ship_damage ship_armor siege_damage "},
         {"weapon_types", nullptr},   // the keys are names the player invents; the reader validates them
         {"armor_types", nullptr},
@@ -815,6 +838,7 @@ static bool Load() {
         ReadInt(root, "upgrades", kUpgradeEffectKeys[i], -1, 100, c.upgradeEffect[i]);
     ReadDamageTypes(root, c);
     ReadPriority(root, c);
+    ReadScouts(root, c);
     ReadAutoProduction(root, c);
     g = c;
 

@@ -108,6 +108,10 @@ constexpr uint32_t kRvaAttackRangeByType = 0x517E40; // uint8[110], tiles; GetAt
 constexpr uint32_t kRvaReactRangeComputer = 0x517EB0;  // uint8[110]
 constexpr uint32_t kRvaReactRangeHuman = 0x517F20;     // uint8[110]
 constexpr uint32_t kRvaArmorByType = 0x517F90;       // uint8[110]
+// What a unit type may attack: FUN_004a9810 (attacker, target) returns this byte & 4 for a target in the air
+// (target +0x1C & 4, 0x4A9825) and & 3 otherwise (0x4A9876). Filled at load, .bss.
+constexpr uint32_t kRvaCanTargetByType = 0x518580;   // uint8[110]
+constexpr uint8_t kCanTargetAir = 0x04;
 constexpr uint32_t kRvaBasicDamageByType = 0x5180E0; // uint8[110]
 constexpr uint32_t kRvaPiercingDamageByType = 0x518150;  // uint8[110]
 constexpr uint32_t kRvaResearchTime = 0x5188A8;      // uint8[52], PUD UGRD order

@@ -47,6 +47,15 @@ struct Priority {
     bool holdForBlockedArea = true;
 };
 
+// [scouts]: the local player's idle flyers of the listed types scout the map by themselves (src/scouts.cpp).
+struct Scouts {
+    bool enabled = false;
+    int toggleKey = 0x7A;  // VK_F11, pressed together with Ctrl
+    int idleSeconds = 5;   // idle this long (after a player's order: again) before the mod sends it
+    bool type[256];        // unit types that scout; default flying machine and zeppelin
+    Scouts() : type{} { type[0x28] = type[0x29] = true; }
+};
+
 // [upgrades] keys: what one level of an upgrade line is worth. The game keeps one byte per upgrade group and
 // the damage code multiplies it by the player's level counter (docs/research/damage.md).
 enum UpgradeEffect {
@@ -284,6 +293,7 @@ struct Config {
     // [auto_production] and its sub-tables: your idle production buildings train by themselves (never the computer's)
     AutoProduction production;
     Priority priority;
+    Scouts scouts;
 
     DamageTypes damageTypes;
 

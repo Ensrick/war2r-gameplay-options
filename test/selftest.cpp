@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstring>
 #include <initializer_list>
+#include <utility>
 
 #include "../src/mod.h"
 #include "../src/autocast.h"
@@ -19,6 +20,7 @@
 #include "../src/log.h"
 #include "../src/production.h"
 #include "../src/resume.h"
+#include "../src/scouts.h"
 #include "../src/spells.h"
 #include "../src/upgrades.h"
 #include "../src/aiwatch.h"
@@ -1721,6 +1723,263 @@ static production::Plan ShipyardCase(int oil) {
 
 static bool g_fakeCtrl = false, g_fakeF10 = false;
 static bool FakeKeys(int vk) { return (vk == VK_CONTROL && g_fakeCtrl) || (vk == VK_F10 && g_fakeF10); }
+
+static bool g_fakeF11 = false;
+static bool FakeKeysF11(int vk) { return (vk == VK_CONTROL && g_fakeCtrl) || (vk == VK_F11 && g_fakeF11); }
+
+// [scouts] (src/scouts.cpp): idle flying machines / zeppelins of the local player fly to unexplored ground, then to the
+// fog that has gone longest unseen; a player's order is left alone until the unit has been idle again for idle_seconds.
+static void ScoutTests(const wchar_t* dir, const wchar_t* ini) {
+    const Scouts defaults;
+    CHECK(!defaults.enabled && defaults.toggleKey == VK_F11 && defaults.idleSeconds == 5 && defaults.type[0x28] &&
+              defaults.type[0x29] && !defaults.type[0x2A] && !defaults.type[kTypeEye],
+          "[scouts] defaults: off, Ctrl+F11, 5 s, flying machine and zeppelin only");
+    // The table the anti-air test reads is the one FUN_004a9810 reads for a target in the air.
+    CHECK(At<uint8_t>(0xA9825)[0] == 0x0F && At<uint8_t>(0xA9825)[1] == 0xB6 && *At<uint32_t>(0xA9828) == g_base + kRvaCanTargetByType &&
+              At<uint8_t>(0xA982D)[0] == 0x83 && At<uint8_t>(0xA982D)[2] == 0x04,
+          "0x4A9825: movzx eax, byte [ecx+0x918580]; and eax, 4");
+
+    constexpr uint8_t kFlyingMachine = 0x28, kZeppelin = 0x29, kGryphon = 0x2A, kGuardTower = 0x60, kArcher = 0x08;
+    uint32_t* tf = At<uint32_t>(kRvaTypeFlags);
+    uint8_t* canTarget = At<uint8_t>(kRvaCanTargetByType);
+    uint8_t* range = At<uint8_t>(kRvaAttackRangeByType);
+    const uint32_t savedTf[5] = {tf[kFlyingMachine], tf[kZeppelin], tf[kGryphon], tf[kGuardTower], tf[kArcher]};
+    const uint8_t savedCan[2] = {canTarget[kGuardTower], canTarget[kArcher]};
+    const uint8_t savedRange[2] = {range[kGuardTower], range[kArcher]};
+    tf[kFlyingMachine] = tf[kZeppelin] = tf[kGryphon] = kTfFlyer;
+    tf[kGuardTower] = kTfBuilding | kTfAttacker;
+    tf[kArcher] = kTfAttacker | kTfFleshy;
+    canTarget[kGuardTower] = canTarget[kArcher] = kCanTargetAir | 3;
+    range[kGuardTower] = 6;
+    range[kArcher] = 4;
+    static uint8_t explored[kMap * kMap], visible[kMap * kMap];
+    uint8_t* const savedExplored = *At<uint8_t*>(kRvaExploredMap);
+    uint8_t* const savedVisible = *At<uint8_t*>(kRvaVisibleMap);
+    *At<uint8_t*>(kRvaExploredMap) = explored;
+    *At<uint8_t*>(kRvaVisibleMap) = visible;
+    const bool savedLog = config::g.logCasts;
+    config::g.logCasts = true;
+    config::g.scouts = defaults;
+    config::g.scouts.enabled = true;
+
+    auto dest = [](Unit* u) { return std::make_pair(static_cast<int>(Field<int16_t>(u, kOffOrderX)), static_cast<int>(Field<int16_t>(u, kOffOrderY))); };
+    auto cheb = [](int ax, int ay, int bx, int by) { return abs(ax - bx) > abs(ay - by) ? abs(ax - bx) : abs(ay - by); };
+    auto tick = [&](unsigned ms) {
+        World w;
+        if (BuildWorld(w)) scouts::OnTick(w, ms);
+    };
+    auto run = [&](unsigned ms) {  // in 250 ms steps, like the game's own clock
+        for (unsigned t = 0; t < ms; t += 250) tick(250);
+    };
+    // Everything explored and in sight, except an unexplored block at 40..59 x 40..59.
+    auto mapWith = [&](int x0, int x1) {
+        memset(explored, 0, sizeof(explored));
+        memset(visible, 0, sizeof(visible));
+        for (int y = 40; y < 60; ++y)
+            for (int x = x0; x < x1; ++x) explored[y * kMap + x] = visible[y * kMap + x] = kTileUnexplored;
+    };
+    auto fresh = [&]() {
+        ResetWorld();
+        scouts::OnNewMap();
+        mapWith(40, 60);
+    };
+
+    // Idle for 5 s first, then off to the unexplored block.
+    fresh();
+    Unit* fm = AddUnit(kFlyingMachine, 0, 10, 10, 150, 0, kOrderStop);
+    Field<uint32_t>(fm, kOffSerial) = 9001;
+    run(4750);
+    CHECK(OrderOf(fm) == kOrderStop, "a scout idle for 4.75 s must not be sent yet (order %u)", OrderOf(fm));
+    run(250);
+    auto [dx, dy] = dest(fm);
+    CHECK(OrderOf(fm) == kOrderMove && dx >= 36 && dx <= 63 && dy >= 36 && dy <= 63 && scouts::OrderCount() == 1,
+          "after 5 s idle the scout must fly to the unexplored block (order %u to %d,%d)", OrderOf(fm), dx, dy);
+    CHECK(LogContains(dir, "(unexplored)"), "the scout's order must be logged");
+    run(2000);  // on its way: nothing new
+    CHECK(scouts::OrderCount() == 1 && dest(fm) == std::make_pair(dx, dy), "a scout on the way must not be re-sent");
+
+    // Arrived: straight on to the next place, no idle wait.
+    Field<int16_t>(fm, kOffX) = static_cast<int16_t>(dx);
+    Field<int16_t>(fm, kOffY) = static_cast<int16_t>(dy);
+    Idle(fm);
+    Field<uint8_t>(fm, kOffOrder) = kOrderStop;
+    run(250);
+    CHECK(OrderOf(fm) == kOrderMove && scouts::OrderCount() == 2, "an arrived scout must go on at once (order %u)", OrderOf(fm));
+
+    // The player takes over: a move of his own is left alone, and after it the scout waits idle_seconds again.
+    Field<uint8_t>(fm, kOffOrder) = kOrderMove;
+    Field<uint8_t>(fm, kOffNextOrder) = kOrderNone;
+    Field<int16_t>(fm, kOffOrderX) = 5;
+    Field<int16_t>(fm, kOffOrderY) = 5;
+    run(1000);
+    CHECK(dest(fm) == std::make_pair(5, 5) && scouts::OrderCount() == 2 && LogContains(dir, "player took over"),
+          "the player's own move must be left alone");
+    Field<int16_t>(fm, kOffX) = 5;
+    Field<int16_t>(fm, kOffY) = 5;
+    Field<uint8_t>(fm, kOffOrder) = kOrderStop;
+    run(4750);
+    CHECK(OrderOf(fm) == kOrderStop && scouts::OrderCount() == 2, "after the player's order the scout must rest 5 s (order %u)",
+          OrderOf(fm));
+    run(250);
+    CHECK(OrderOf(fm) == kOrderMove && scouts::OrderCount() == 3, "then it scouts again (order %u)", OrderOf(fm));
+    // A pending order of the player's (next-order slot) counts as busy too.
+    fresh();
+    fm = AddUnit(kFlyingMachine, 0, 10, 10, 150, 0, kOrderStop);
+    Field<uint32_t>(fm, kOffSerial) = 9002;
+    Field<uint8_t>(fm, kOffNextOrder) = kOrderPatrol;
+    run(6000);
+    CHECK(scouts::OrderCount() == 0, "a scout with an order pending must be left alone");
+
+    // Only the listed types, only the local player's, only while enabled.
+    fresh();
+    Unit* gry = AddUnit(kGryphon, 0, 10, 10, 100, 0, kOrderStop);
+    Unit* enemyFm = AddUnit(kFlyingMachine, 1, 12, 10, 150, 0, kOrderStop);
+    Unit* zep = AddUnit(kZeppelin, 0, 14, 10, 150, 0, kOrderStop);
+    Field<uint32_t>(gry, kOffSerial) = 9003;
+    Field<uint32_t>(enemyFm, kOffSerial) = 9004;
+    Field<uint32_t>(zep, kOffSerial) = 9005;
+    config::g.scouts.enabled = false;
+    run(6000);
+    CHECK(scouts::OrderCount() == 0, "scouting while [scouts] enabled = false");
+    config::g.scouts.enabled = true;
+    run(6000);
+    CHECK(OrderOf(gry) == kOrderStop && OrderOf(enemyFm) == kOrderStop && OrderOf(zep) == kOrderMove,
+          "only the player's zeppelin may scout (gryphon %u, enemy %u, zeppelin %u)", OrderOf(gry), OrderOf(enemyFm), OrderOf(zep));
+
+    // Two scouts never head for the same area; a known guard tower (range 6 + 2) is never a destination.
+    int tooClose = 0, intoTower = 0;
+    for (int round = 0; round < 20; ++round) {
+        fresh();
+        mapWith(30, 64);
+        Unit* a = AddUnit(kFlyingMachine, 0, 10, 10, 150, 0, kOrderStop);
+        Unit* b = AddUnit(kZeppelin, 0, 11, 10, 150, 0, kOrderStop);
+        Unit* tower = AddUnit(kGuardTower, 1, 45, 50, 130, 0, kOrderStand);
+        explored[50 * kMap + 45] = 0;  // the player has seen where it stands
+        Field<uint32_t>(a, kOffSerial) = 9100 + round * 2;
+        Field<uint32_t>(b, kOffSerial) = 9101 + round * 2;
+        (void)tower;
+        run(5000);
+        const auto da = dest(a), db = dest(b);
+        if (OrderOf(a) != kOrderMove || OrderOf(b) != kOrderMove || cheb(da.first, da.second, db.first, db.second) < 10) ++tooClose;
+        if (cheb(da.first, da.second, 45, 50) <= 8 || cheb(db.first, db.second, 45, 50) <= 8) ++intoTower;
+    }
+    CHECK(tooClose == 0, "two scouts sent within 10 tiles of each other in %d of 20 rounds", tooClose);
+    CHECK(intoTower == 0, "a scout sent within reach of a known guard tower in %d of 20 rounds", intoTower);
+    // An archer the player sees counts too; one under his fog does not (he does not know it is there).
+    int nearArcher = 0, moved = 0;
+    for (int round = 0; round < 20; ++round) {
+        fresh();
+        memset(explored, 0, sizeof(explored));
+        for (int y = 0; y < kMap; ++y)
+            for (int x = 30; x < 40; ++x) explored[y * kMap + x] = kTileUnexplored;  // a strip at x 30..39
+        Unit* a = AddUnit(kFlyingMachine, 0, 10, 32, 150, 0, kOrderStop);
+        Field<uint32_t>(a, kOffSerial) = 9200 + round;
+        for (int y = 2; y < kMap; y += 16) AddUnit(kArcher, 1, 35, y, 40, 0, kOrderStand);  // every 16 tiles: reach 6
+        run(5000);
+        const auto da = dest(a);
+        moved += OrderOf(a) == kOrderMove;
+        for (int y = 2; y < kMap; y += 16) nearArcher += OrderOf(a) == kOrderMove && cheb(da.first, da.second, 35, y) <= 6;
+    }
+    CHECK(nearArcher == 0 && moved >= 15, "a scout sent within reach of a seen archer %d time(s) (%d of 20 sent)", nearArcher, moved);
+    // Archers under the player's fog every 12 tiles would close the whole strip if he knew of them; he does not.
+    int sentAnyway = 0, nearFogged = 0;
+    for (int round = 0; round < 20; ++round) {
+        fresh();
+        memset(explored, 0, sizeof(explored));
+        for (int y = 0; y < kMap; ++y)
+            for (int x = 30; x < 40; ++x) explored[y * kMap + x] = kTileUnexplored;
+        Unit* a = AddUnit(kFlyingMachine, 0, 10, 32, 150, 0, kOrderStop);
+        Field<uint32_t>(a, kOffSerial) = 9250 + round;
+        for (int y = 2; y < kMap; y += 12) Field<uint8_t>(AddUnit(kArcher, 1, 35, y, 40, 0, kOrderStand), kOffFogMask) = 1 << 0;
+        run(5000);
+        sentAnyway += OrderOf(a) == kOrderMove;
+        for (int y = 2; y < kMap; y += 12) nearFogged += OrderOf(a) == kOrderMove && cheb(dest(a).first, dest(a).second, 35, y) <= 6;
+    }
+    CHECK(sentAnyway >= 15 && nearFogged > 0, "archers under fog must not keep the scout home (%d of 20 sent, %d near one)", sentAnyway,
+          nearFogged);
+
+    // Everything explored: the scout patrols the fog that has gone longest unseen. The left half was in sight for the
+    // first minute, the right half for the second; now everything is fogged, so the left half is older.
+    fresh();
+    memset(explored, 0, sizeof(explored));
+    Unit* p = AddUnit(kFlyingMachine, 0, 50, 32, 150, 0, kOrderMove);  // busy for now; right side, far from the older fog
+    Field<uint32_t>(p, kOffSerial) = 9300;
+    Field<int16_t>(p, kOffOrderX) = 33;
+    Field<int16_t>(p, kOffOrderY) = 33;
+    auto sightHalf = [&](bool left) {
+        for (int y = 0; y < kMap; ++y)
+            for (int x = 0; x < kMap; ++x) visible[y * kMap + x] = (x < 32) == left ? 0 : kTileUnexplored;
+    };
+    sightHalf(true);
+    run(60000);
+    sightHalf(false);
+    run(60000);
+    memset(visible, kTileUnexplored, sizeof(visible));
+    Field<uint8_t>(p, kOffOrder) = kOrderStop;
+    run(5000);
+    CHECK(OrderOf(p) == kOrderMove && dest(p).first < 32 && LogContains(dir, "(fog, unseen"),
+          "all explored: the scout must fly to the fog unseen longest, the left half (order %u to %d,%d)", OrderOf(p),
+          dest(p).first, dest(p).second);
+    // The same the other way round.
+    scouts::OnNewMap();
+    Idle(p);
+    Field<uint8_t>(p, kOffOrder) = kOrderMove;
+    Field<int16_t>(p, kOffX) = 13;  // now on the left, far from the older (right) fog
+    sightHalf(false);
+    run(60000);
+    sightHalf(true);
+    run(60000);
+    memset(visible, kTileUnexplored, sizeof(visible));
+    Field<uint8_t>(p, kOffOrder) = kOrderStop;
+    run(5000);
+    CHECK(OrderOf(p) == kOrderMove && dest(p).first >= 32, "the right half is older now (order %u to %d,%d)", OrderOf(p),
+          dest(p).first, dest(p).second);
+
+    // Ctrl+F11 flips it with a banner.
+    {
+        const int messages = g_messages;
+        const bool before = config::g.scouts.enabled;
+        mod::SetKeyReaderForTest(&FakeKeysF11);
+        g_fakeCtrl = g_fakeF11 = true;
+        mod::OnTick();
+        CHECK(config::g.scouts.enabled != before && g_messages == messages + 1, "Ctrl+F11 must flip auto-scouting with a banner");
+        g_fakeF11 = false;
+        mod::OnTick();
+        g_fakeF11 = true;
+        mod::OnTick();
+        CHECK(config::g.scouts.enabled == before, "a second press flips it back");
+        g_fakeCtrl = g_fakeF11 = false;
+        mod::SetKeyReaderForTest(nullptr);
+    }
+
+    // The reader.
+    WriteFileText(ini, "[scouts]\nenabled = true\nunits = [\"gryphon_rider\", \"farm\", \"bogus\"]\ntoggle_key = \"F12\"\nidle_seconds = 2\n");
+    CHECK(config::Init(dir), "[scouts] config rejected");
+    CHECK(config::g.scouts.enabled && config::g.scouts.type[kGryphon] && !config::g.scouts.type[kFlyingMachine] &&
+              !config::g.scouts.type[0x3A] && config::g.scouts.toggleKey == VK_F12 && config::g.scouts.idleSeconds == 2,
+          "[scouts] reader: gryphon only, F12, 2 s");
+    CHECK(LogContains(dir, "[scouts] units: \"farm\" is not a unit that can scout") &&
+              LogContains(dir, "[scouts] units: \"bogus\" is not a unit that can scout"),
+          "[scouts] reader must name what it dropped");
+    WriteFileText(ini, "");
+    config::Init(dir);
+
+    config::g.scouts = defaults;
+    config::g.logCasts = savedLog;
+    *At<uint8_t*>(kRvaExploredMap) = savedExplored;
+    *At<uint8_t*>(kRvaVisibleMap) = savedVisible;
+    tf[kFlyingMachine] = savedTf[0];
+    tf[kZeppelin] = savedTf[1];
+    tf[kGryphon] = savedTf[2];
+    tf[kGuardTower] = savedTf[3];
+    tf[kArcher] = savedTf[4];
+    canTarget[kGuardTower] = savedCan[0];
+    canTarget[kArcher] = savedCan[1];
+    range[kGuardTower] = savedRange[0];
+    range[kArcher] = savedRange[1];
+    scouts::OnNewMap();
+    ResetWorld();
+}
 
 static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
     using namespace production;
@@ -5863,6 +6122,7 @@ int wmain(int argc, wchar_t** argv) {
     ResumeOrderTests(dir);
     ComputerPaladinTests(dir);
     ProductionTests(dir, ini);
+    ScoutTests(dir, ini);
 
     // TOML config: a custom file is honoured, typos and bad values are survivable, a syntax error keeps old settings.
     WriteFileText(ini,

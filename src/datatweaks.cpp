@@ -10,6 +10,7 @@
 #include "mod.h"
 #include "production.h"
 #include "resume.h"
+#include "scouts.h"
 #include "spells.h"
 #include "trees.h"
 #include "tweaks.h"
@@ -189,6 +190,7 @@ void OnNewMapTablesLoaded() {
     }
     tweaks::OnNewMap();
     autocast::OnNewMap();
+    scouts::OnNewMap();
     resume::OnNewMap();
     trees::OnNewMap();
     aiwatch::OnNewMap();
