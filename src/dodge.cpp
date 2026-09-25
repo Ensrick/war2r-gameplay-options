@@ -102,14 +102,18 @@ bool InArea(int x, int y, int extra) {
     return false;
 }
 
-int NearestAreaDistance(int x, int y) {
+// The aim of the area nearest to x, y (Chebyshev).
+void NearestAim(int x, int y, int* ax, int* ay) {
     int best = 1 << 30;
     for (int i = 0; i < g_areaCount; ++i) {
         const int dx = abs(x - g_areas[i].cx), dy = abs(y - g_areas[i].cy);
         const int d = dx > dy ? dx : dy;
-        if (d < best) best = d;
+        if (d < best) {
+            best = d;
+            *ax = g_areas[i].cx;
+            *ay = g_areas[i].cy;
+        }
     }
-    return best;
 }
 
 int Cheb(int ax, int ay, int bx, int by) {
@@ -130,25 +134,32 @@ bool Walkable(const World& w, Unit* u, int x, int y) {
     return !(there & (kSqUnpassable | kSqWalls | kSqBuilding));
 }
 
-// The nearest tile clear of every area by one more tile than the danger box, away from the area's aim first, then
-// toward where the unit wants to be (its target or destination), then the first found.
+// The nearest tile clear of every area by one more tile than the danger box. Among those, the one most in line with
+// "away from the aim" (the step from the unit to the tile, dotted with the direction from the nearest aim to the
+// unit: straight away scores highest, sideways 0, back across the area negative), then the one nearest to where the
+// unit wants to be (its target or destination), then the first found.
 bool SafeTile(const World& w, Unit* u, int wantX, int wantY, int16_t* outX, int16_t* outY) {
     const int ux = Field<int16_t>(u, kOffX), uy = Field<int16_t>(u, kOffY);
+    int aimX = ux, aimY = uy;
+    NearestAim(ux, uy, &aimX, &aimY);
+    const int dirX = ux - aimX, dirY = uy - aimY;
     for (int r = 1; r <= kSearch; ++r) {
-        int bestAway = -1, bestWant = 1 << 30;
+        bool found = false;
+        int bestAway = 0, bestWant = 1 << 30;
         for (int y = uy - r; y <= uy + r; ++y)
             for (int x = ux - r; x <= ux + r; ++x) {
                 if (Cheb(x, y, ux, uy) != r || InArea(x, y, kSafeExtra) || !Walkable(w, u, x, y)) continue;
-                const int away = NearestAreaDistance(x, y);
+                const int away = (x - ux) * dirX + (y - uy) * dirY;
                 const int want = wantX >= 0 ? Cheb(x, y, wantX, wantY) : 0;
-                if (away > bestAway || (away == bestAway && want < bestWant)) {
+                if (!found || away > bestAway || (away == bestAway && want < bestWant)) {
+                    found = true;
                     bestAway = away;
                     bestWant = want;
                     *outX = static_cast<int16_t>(x);
                     *outY = static_cast<int16_t>(y);
                 }
             }
-        if (bestAway >= 0) return true;
+        if (found) return true;
     }
     return false;
 }
