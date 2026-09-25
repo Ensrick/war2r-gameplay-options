@@ -414,6 +414,8 @@ of your food is more than 4 (from 41 food up):
 The rules:
 
 - One farm at a time. The next one waits until the first is finished (a farm on its way or being built counts).
+- Only after you have built a town hall yourself: nothing happens until a town hall, great hall, keep, stronghold,
+  castle or fortress of yours is finished, and one still under construction is never used.
 - Only when you can pay for it, never at 200 food, and only in missions that let you build farms.
 - The nearest peasant that `workers` allows goes. A peasant that is repairing, building, fighting, carrying goods,
   chopping or told to stand ground is never taken.

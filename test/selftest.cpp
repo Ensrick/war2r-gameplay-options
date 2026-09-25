@@ -1271,6 +1271,64 @@ static void FarmTests() {
               "the nearest free site is 3 tiles from the hall (site %d,%d)", sx, sy);
     }
 
+    // 9h. Only a FINISHED hall counts: one still under construction neither allows a farm nor anchors one.
+    FarmWorld();
+    {
+        Unit* hall0 = reinterpret_cast<Unit*>(g_units);  // FarmWorld's hall is the first unit
+        Field<uint16_t>(hall0, kOffStateFlags) = 0;      // being built
+        idle = FarmPeasant(30, 30, kOrderStop);
+        FarmPass();
+        CHECK(FarmOrders() == 0, "no farm while the only town hall is still being built");
+        Field<uint16_t>(hall0, kOffStateFlags) = kStateComplete;
+        FarmPass();
+        CHECK(FarmOrders() == 1, "a farm once the hall is finished");
+    }
+
+    // 9i. Fill the base: farm after farm until no site is left. The hall and both mines must still be joined by open
+    //     ground (a walk over tiles without building or unpassable bits), and no farm may touch the bands.
+    memset(band, 0, sizeof band);
+    FarmWorld();
+    addMine(10, 10);
+    addMine(32, 22);
+    idle = FarmPeasant(40, 40, kOrderStop);
+    int built = 0;
+    for (; built < 60; ++built) {
+        Field<uint8_t>(idle, kOffNextOrder) = kOrderNone;
+        FarmPass();
+        if (FarmOrders() == 0) break;
+        int sx = -1, sy = -1;
+        siteOf(idle, sx, sy);
+        CHECK(!nearBand(sx, sy), "farm %d at %d,%d lies within 2 tiles of a hall-mine band", built, sx, sy);
+        Unit* f = AddUnit(kFarmType, 0, sx, sy, 400, 0, 0);
+        Field<uint16_t>(f, kOffStateFlags) = kStateComplete;
+        for (int y = sy; y < sy + 2; ++y)
+            for (int x = sx; x < sx + 2; ++x) g_farmSq[y * kMap + x] |= 0x800;
+    }
+    Field<uint8_t>(idle, kOffNextOrder) = kOrderNone;
+    CHECK(built >= 8, "the base should still take a good number of farms (%d)", built);
+    auto reaches = [&](int mx, int my) {  // flood fill from the tiles around the hall to the tiles around the mine
+        static bool seen[kMap * kMap];
+        memset(seen, 0, sizeof seen);
+        int queue[kMap * kMap], head = 0, tail = 0;
+        auto open = [&](int x, int y) { return x >= 0 && y >= 0 && x < kMap && y < kMap && !(g_farmSq[y * kMap + x] & 0x880); };
+        for (int y = kHallY - 1; y <= kHallY + 4; ++y)
+            for (int x = kHallX - 1; x <= kHallX + 4; ++x)
+                if (open(x, y) && !seen[y * kMap + x]) { seen[y * kMap + x] = true; queue[tail++] = y * kMap + x; }
+        while (head < tail) {
+            const int t = queue[head++], x = t % kMap, y = t / kMap;
+            if (x >= mx - 1 && x <= mx + 3 && y >= my - 1 && y <= my + 3) return true;
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dx = -1; dx <= 1; ++dx)
+                    if (open(x + dx, y + dy) && !seen[(y + dy) * kMap + x + dx]) {
+                        seen[(y + dy) * kMap + x + dx] = true;
+                        queue[tail++] = (y + dy) * kMap + x + dx;
+                    }
+        }
+        return false;
+    };
+    CHECK(reaches(10, 10) && reaches(32, 22), "after %d farms the hall must still reach both mines over open ground", built);
+    printf("farms placed around a hall with two mines before the base was full: %d\n", built);
+
     // 10. Which workers: [farms] workers.
     auto lumberman = [&](int x, int y, uint8_t flags) {
         Unit* u = FarmPeasant(x, y, kOrderHarvest);
