@@ -2744,6 +2744,62 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
     }
 
     // ---- Decision core ----
+    // ---- Navy food ([auto_production] reserve_navy_food) ----
+    {
+        AutoProduction cfg;  // defaults: reserve_navy_food on, food_free 4 / 10 %
+        Plan n = CorePlan(2);
+        n.navyShare = 0.5;
+        n.supply = 40;
+        n.count[kProdInfantry] = 10;
+        n.count[kProdDestroyers] = 1;  // army 11: the navy aims for round(0.5 x 12) = 6, 5 missing
+        n.ownShipyard = n.enemyNavy = true;
+        n.shipFood = 1;
+        int have = -1, want = -1;
+        CHECK(NavyFood(n, cfg, &have, &want) == 5 && have == 1 && want == 6, "navy food: 5 of 6 ships missing (%d, %d of %d)",
+              NavyFood(n, cfg), have, want);
+        n.navyFood = NavyFood(n, cfg);
+        n.used = 31;  // 9 free: enough for the plain rule (4 after the unit), not for 4 + 5 ships
+        CHECK(FoodAllows(n, cfg) && !NavyFoodAllows(n, cfg, kProdInfantry) && !NavyFoodAllows(n, cfg, kProdSiege),
+              "navy food: land is held while the navy is short");
+        CHECK(NavyFoodAllows(n, cfg, kProdDestroyers) && NavyFoodAllows(n, cfg, kProdBattleships) &&
+                  NavyFoodAllows(n, cfg, kProdWorkers) && NavyFoodAllows(n, cfg, kProdTankers),
+              "navy food: ships, workers and tankers are never held by it");
+        n.used = 30;  // 10 free: 10 - 1 - 5 = 4, exactly the keep-free amount
+        CHECK(NavyFoodAllows(n, cfg, kProdInfantry), "navy food: land may start when free food covers keep-free + ships");
+        n.used = 31;
+        {
+            SaveUp st;
+            const Decision d = Decide(n, cfg, kBarracksMask, st, 0);
+            CHECK(d.cls < 0 && d.heldForNavy, "navy food: Decide at a barracks holds the land unit (cls %d)", d.cls);
+            SaveUp st2;
+            const Decision y = Decide(n, cfg, GroupMask(kGroupNavy), st2, 0);
+            CHECK(y.cls >= 0 && GroupOf(y.cls) == kGroupNavy && !y.heldForNavy, "navy food: the shipyard still builds (cls %d)", y.cls);
+        }
+        Plan r = n;  // released: the navy has reached its share
+        r.count[kProdDestroyers] = 11;  // army 21: aims for round(0.5 x 22) = 11
+        CHECK(NavyFood(r, cfg) == 0, "navy food: nothing kept once the navy is at its share");
+        r = n;
+        r.enemyNavy = false;
+        CHECK(NavyFood(r, cfg) == 0, "navy food: nothing kept without an enemy shipyard or warship");
+        r = n;
+        r.ownShipyard = false;
+        CHECK(NavyFood(r, cfg) == 0, "navy food: nothing kept without a finished shipyard of his own");
+        r = n;
+        cfg.reserveNavyFood = false;
+        CHECK(NavyFood(r, cfg) == 0, "navy food: reserve_navy_food = false keeps nothing");
+        cfg.reserveNavyFood = true;
+        r = n;
+        r.trainable[kProdDestroyers] = r.trainable[kProdBattleships] = r.trainable[kProdSubmarines] = false;
+        CHECK(NavyFood(r, cfg) == 0, "navy food: nothing kept when no warship can be trained");
+        r = n;
+        r.shipFood = 2;
+        CHECK(NavyFood(r, cfg) == 10, "navy food: a ship that eats 2 needs 2 each (%d)", NavyFood(r, cfg));
+        r = n;
+        r.supply = 200;
+        r.used = 197;
+        CHECK(NavyFood(r, cfg) == 3, "navy food: never more than is left under 200 (%d)", NavyFood(r, cfg));
+    }
+
     // Food: 4 or 10 % of the supply, whichever is larger, must still be free AFTER the unit; units in training count.
     CHECK(FoodAllows(20, 15, 0, 4, 10) && !FoodAllows(20, 16, 0, 4, 10), "food gate: 4 free after the unit at supply 20");
     CHECK(FoodAllows(20, 14, 1, 4, 10) && !FoodAllows(20, 14, 2, 4, 10), "food gate: units in training are used food");
@@ -3489,6 +3545,44 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
     }
     CHECK(StartsOf(0x1E) + StartsOf(0x20) + StartsOf(0x26) > 9 && LogContains(dir, "an enemy shipyard or warship is on the map"),
           "an enemy shipyard under construction lifts the caps (%d ships)", StartsOf(0x1E) + StartsOf(0x20) + StartsOf(0x26));
+
+    // Navy food: an own shipyard, an enemy one, no oil yet. The barracks may not eat the food the ships still need.
+    {
+        auto navyWorld = [&](bool enemy) {
+            ProdWorld();
+            ProdWaterMap(50, 0);  // tier 1: ships are 60 % of the army
+            AddProd(0x48, 0, 30, 30);
+            AddProd(0x4A, 0, 5, 5);
+            AddProd(0x3C, 0, 8, 5);
+            for (int i = 0; i < 18; ++i) AddProd(0x02, 0, i, 20);
+            if (enemy) AddEnemyShipyard();
+            At<int32_t>(kRvaPlayerOil)[0] = 0;  // the ships wait for oil
+            At<uint16_t>(kRvaFoodSupply)[0] = 40;
+            At<uint16_t>(kRvaUnitsCounted)[0] = 35;  // 5 free: the plain rule lets one more land unit in
+        };
+        navyWorld(true);
+        config::g.logCasts = true;  // the "production: nothing" line names the reason
+        ProdPass(1000);
+        CHECK(StartsOf(0x00) == 0 && production::LastPlan().navyFood == 1 && production::LastPlan().shipFood == 1,
+              "navy food: the barracks waits (%d starts, keeping %d, ship food %d)", StartsOf(0x00),
+              production::LastPlan().navyFood, production::LastPlan().shipFood);
+        CHECK(LogContains(dir, "production: keeping 1 food for ships (navy 0 of 1)"), "navy food: the reserve is logged");
+        CHECK(LogContains(dir, "infantry=navy food"), "navy food: the nothing line names navy food as the reason");
+        config::g.logCasts = false;
+        const int navyLines = LogCount(dir, "production: keeping 1 food for ships");
+        ProdPass(2000);
+        CHECK(LogCount(dir, "production: keeping 1 food for ships") == navyLines, "navy food: logged once, not every pass");
+        At<int32_t>(kRvaPlayerOil)[0] = 100000;  // the oil is in: the shipyard is not held by the reserve
+        ProdPass(3000);
+        CHECK(StartsOf(0x1E) == 1 && StartsOf(0x00) == 0, "navy food: the destroyer starts, the footman still waits");
+        navyWorld(false);
+        ProdPass(1000);
+        CHECK(StartsOf(0x00) == 1 && production::LastPlan().navyFood == 0, "navy food: no enemy navy, no reserve: the footman starts");
+        // The table the food per ship comes from: a destroyer eats, a skeleton does not.
+        CHECK(At<uint32_t>(kRvaCounterByType)[0x1E] != static_cast<uint32_t>(g_base + kRvaFoodFreeUnits) &&
+                  At<uint32_t>(kRvaCounterByType)[0x37] == static_cast<uint32_t>(g_base + kRvaFoodFreeUnits),
+              "the per-type counter table: skeletons are food-free, destroyers are not");
+    }
 
     // A hostile warship with no shipyard at all lifts them too (a mission that hands the enemy a fleet).
     ProdWorld();

@@ -48,6 +48,10 @@ struct Plan {
     // Hard ceiling per class, -1 = none. The engine fills it from [auto_production.no_enemy_navy_cap] while no
     // hostile player owns a shipyard or a warship, and clears it the moment one does.
     int cap[kProdClassCount] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+    bool ownShipyard = false;  // a finished shipyard of the player's
+    bool enemyNavy = false;    // an enemy shipyard or warship on the map (HostileNavy)
+    int shipFood = 1;          // food one warship eats (per-type counter table, 0 for a food-free type)
+    int navyFood = 0;          // food land units must leave free for the navy, NavyFood() of this plan
 };
 
 // Below the class's ceiling (units in training included), or uncapped.
@@ -77,6 +81,15 @@ int WorkerTarget(const Plan&, const AutoProduction&);
 bool WantWorker(const Plan&, const AutoProduction&);
 bool WantTanker(const Plan&, const AutoProduction&, bool ownsOilPlatform);
 bool FoodAllows(const Plan&, const AutoProduction&);
+// [auto_production] reserve_navy_food: with a finished shipyard of his own and an enemy navy on the map, the food
+// the navy still needs to reach its share of the army: (round(navy share x (army + 1)) - warships) x food per ship,
+// never more than is left under the 200 cap. 0 otherwise (setting off, no shipyard, no enemy navy, no warship class
+// trainable). The share is the map's, not the money-weighted Targets(): waiting for oil is exactly when it matters.
+// *have / *want (optional) get the warship count and the navy size it aims for.
+int NavyFood(const Plan&, const AutoProduction&, int* have = nullptr, int* want = nullptr);
+// A LAND class may start only if, after it, free food still covers the normal food_free rule plus plan.navyFood.
+// Everything else (ships, workers, tankers) always passes.
+bool NavyFoodAllows(const Plan&, const AutoProduction&, int cls);
 void Commit(Plan&, int cls);  // book a start: count, bank, food
 
 // ---- Saving up: a cheap class must not eat the resource a dearer one of the same building waits for ----
@@ -96,6 +109,7 @@ struct SaveUp {
 };
 struct Decision {
     int cls = -1;           // what to start at this building, -1 = nothing
+    bool heldForNavy = false;  // a land unit was chosen but NavyFoodAllows said no
     int saveResource = -1;  // -1 = not saving; otherwise the resource, the class waited for and the numbers, for the log
     int saveClass = -1;
     int have = 0, need = 0;

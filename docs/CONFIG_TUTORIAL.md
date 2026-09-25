@@ -720,6 +720,7 @@ plenty_units = 10           # able to buy this many of a unit = rich enough that
 save_up_seconds = 60        # how long a building keeps its money for a unit it cannot pay for yet (below)
 navy_weight = 1.0           # how much of the map's water turns into ships (0 = never build ships)
 navy_max = 80               # ships are never more than this much of the army, in percent
+reserve_navy_food = true    # while the enemy has a navy, land units leave food free for your missing ships (below)
 workers_ignore_reserve = true  # workers only wait for their own price, never for the upgrade reserve
 tankers_ignore_reserve = true  # and the one tanker with them
 
@@ -834,6 +835,21 @@ builds the best thing it can afford, and starts over. `save_up_seconds = 0` turn
 ```
 production: saving oil for battleship (have 2950, need 4120)
 ```
+
+**Food for the ships you still need.** Ships wait for oil, land units usually do not, so while a shipyard saves up
+the barracks would fill every free food slot with ground troops and the fleet would never get its share. With
+`reserve_navy_food = true` (the default), once you own a finished shipyard and an enemy has a shipyard or a warship,
+a land unit is only started if, after it, free food still covers the usual `food_free_min` / `food_free_percent`
+amount **plus** the food your missing ships need: the map's ship share of the army, minus the warships you have (in
+training included), times the food a ship eats, never more than is left under the 200 limit. Ships, workers and the
+tanker are never held by it. When the enemy's last shipyard and warship are gone, or the fleet has reached its share,
+the land units get the food back. The log says when the amount changes:
+
+```
+production: keeping 6 food for ships (navy 3 of 9)
+```
+
+and with `log_casts = true` a waiting barracks shows `infantry=navy food` in the "production: nothing" line.
 
 **When the enemy has no navy, neither do you.** While no hostile player owns a shipyard or a warship anywhere on the
 map, the mod holds at most **1 oil tanker, 5 destroyers, 2 battleships / juggernaughts and 2 submarines** and builds
@@ -1235,6 +1251,7 @@ makes the log long.
 | auto_production | save_up_seconds | 60 | A building keeps its money for the class furthest behind its share instead of spending that resource on a cheaper one; it gives up after this many seconds without the resource growing (0 to 600, 0 = never save up) |
 | auto_production | navy_weight | 1.0 | Scales the ship share the map asks for; 0 = never build ships |
 | auto_production | navy_max | 80 | Ships never take more than this much of the army, in percent |
+| auto_production | reserve_navy_food | true | With your own finished shipyard and an enemy navy on the map, land units leave free the food your missing ships need |
 | auto_production | workers_ignore_reserve | true | Workers wait for their own price only, never for the upgrade reserve or bank_multiple |
 | auto_production | tankers_ignore_reserve | true | The same for the single oil tanker |
 | auto_production.units | workers, infantry, archers, knights, casters, flyers, siege, tankers, destroyers, battleships, submarines | true each | Switch a class off |
