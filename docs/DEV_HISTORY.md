@@ -15,6 +15,14 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.27.0 (2026-09-25, UNTESTED in game, NOT released)
+
+- Author: "have peasants auto-build farms when food gets down to 10% or 4 available ... using the same placement and
+  logic the AI does", then "make it whichever is higher". src/farms.cpp (agent ai-lumber): the site from the AI's own
+  search FUN_004DBC30, checked with the player's placement test FUN_004DC210, the order built like the player's build
+  click FUN_004DC2C0 (walk-to tile FUN_004C3A20, build handler FUN_004D8470). The game charges the price when
+  construction starts, so the mod pays nothing itself. Runs after the multiplayer return. 21 mutations, 21 caught.
+
 ## 1.26.1 (2026-09-25)
 
 - Author: "append +n at max upgrades to auto production in comments so I can see how much upgrades is improving odds".

@@ -7,6 +7,12 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.27.0 - 2026-09-25
+
+- New `[farms] auto_build` (off): when your free food drops to `free_min` (4), or to `free_percent` (10 %) of your
+  supply if that is more, a peasant or peon builds a farm on the spot the computer itself would choose near your hall.
+  One farm at a time, only when you can pay, never at 200 food. Single player only.
+
 ## 1.26.1 - 2026-09-25
 
 - New tool `tools/annotate_upgrades.py`: writes "+N % at max upgrades" comments beside the auto-production mix

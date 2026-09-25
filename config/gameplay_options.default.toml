@@ -173,6 +173,15 @@ units = ["flying_machine", "zeppelin"]
 toggle_key = "F11"
 idle_seconds = 5
 
+[farms]
+# true = when your free food drops to free_min, or to free_percent of your supply if that is more, one of your
+# peasants / peons builds a farm, on the spot the computer itself would pick near your hall. An idle worker goes
+# first, otherwise the nearest one not carrying anything. One farm at a time, only when you can pay for it, never
+# at 200 food, never in a mission that does not allow farms. You pay the normal price when building starts.
+auto_build = false
+free_min = 4
+free_percent = 10
+
 [workers]
 # Idle this long -> repair the nearest damaged building of yours within repair_radius tiles. Needs at least
 # 1 gold and 1 lumber in the bank; buildings still under construction are left alone.

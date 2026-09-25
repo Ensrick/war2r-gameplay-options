@@ -1,3 +1,8 @@
+[size=4][b]1.27.0[/b][/size]
+[list]
+[*]New [farms] auto_build (off): when your free food drops to free_min (4), or to free_percent (10 %) of your supply if that is more, a peasant or peon builds a farm on the spot the computer itself would choose near your hall. One farm at a time, only when you can pay, never at 200 food. Single player only.
+[/list]
+
 [size=4][b]1.26.1[/b][/size]
 [list]
 [*]New tool tools/annotate_upgrades.py: writes "+N % at max upgrades" comments beside the auto-production mix weights of a config, computed from that file's own upgrade_bias and class_upgrade_bias, so you can see how much upgrades shift the mix. Only comments change; run it again after changing the bias.

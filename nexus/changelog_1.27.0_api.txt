@@ -1,0 +1,1 @@
+New [farms] auto_build (off): when your free food drops to free_min (4), or to free_percent (10 %) of your supply if that is more, a peasant or peon builds a farm on the spot the computer itself would choose near your hall. One farm at a time, only when you can pay, never at 200 food. Single player only.
