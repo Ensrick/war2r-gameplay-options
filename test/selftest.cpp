@@ -926,6 +926,10 @@ static void FarmTests() {
 
     const bool savedAuto = config::g.farmsAutoBuild, savedLog = config::g.logCasts;
     const int savedMin = config::g.farmsFreeMin, savedPercent = config::g.farmsFreePercent;
+    const int savedClearance = config::g.farmsMineClearance;
+    const FarmWorkers savedWorkers = config::g.farmsWorkers;
+    config::g.farmsMineClearance = 3;
+    config::g.farmsWorkers = FarmWorkers::IdleThenLumber;
     FarmSaved s = {*At<uint16_t*>(kRvaRegionMap), *At<uint16_t*>(kRvaSquareFlags), *At<uint8_t*>(kRvaExploredMap),
                    *At<uint8_t*>(kRvaTileSeenBits), 0, 0, 0, At<uint32_t>(kRvaUnitsAllowed)[0],
                    *At<uint8_t>(kRvaBuildPlayerMask)};
@@ -1033,12 +1037,13 @@ static void FarmTests() {
     //    already building something else; the nearest of two idle peasants.
     FarmWorld();
     Unit* loaded = FarmPeasant(24, 30, kOrderHarvest);
-    Field<uint8_t>(loaded, kOffWorkerFlags) = kWorkerCarrying;
+    Field<uint8_t>(loaded, kOffWorkerFlags) = kWorkerCarrying | kWorkerLumberJob;
     Unit* repairer = FarmPeasant(25, 30, kOrderRepair);
     Unit* builder = FarmPeasant(26, 30, kOrderBuild);
     Field<uint8_t>(builder, kOffBuildType) = 0x3C;  // a barracks: not a farm, so it does not block
     Field<uint8_t>(builder, kOffNextOrder) = kOrderNone;
     miner = FarmPeasant(40, 40, kOrderHarvest);
+    Field<uint8_t>(miner, kOffWorkerFlags) = kWorkerLumberJob;  // a wood cutter walking back
     FarmPass();
     CHECK(Field<uint8_t>(miner, kOffNextOrder) == kOrderBuild && Field<uint8_t>(loaded, kOffNextOrder) == kOrderNone &&
               Field<uint8_t>(repairer, kOffNextOrder) == kOrderNone,
@@ -1082,6 +1087,232 @@ static void FarmTests() {
     config::g.workerAutoHarvest = savedHarvest;
     config::g.workerAutoRepair = savedRepair;
 
+    // 9. Gold mines. The test's own picture of the band the peasants walk: every tile a straight line from a hall
+    //    tile to a mine tile passes through (sampled), an independent check of the mod's hull.
+    constexpr uint32_t kMineFlags = 0;
+    const uint32_t savedMineFlags = tf[kTypeGoldMine];
+    tf[kTypeGoldMine] = kMineFlags;
+    At<Sz>(kRvaUnitSizeByType)[kTypeGoldMine] = {3, 3};
+    static bool band[kMap * kMap];
+    auto addMine = [&](int mx, int my) {
+        AddUnit(kTypeGoldMine, kNeutralPlayer, mx, my, 25500, 0, 0);
+        for (int y = my; y < my + 3; ++y)
+            for (int x = mx; x < mx + 3; ++x) g_farmSq[y * kMap + x] |= 0x800;
+        for (int hy = kHallY; hy < kHallY + 4; ++hy)
+            for (int hx = kHallX; hx < kHallX + 4; ++hx)
+                for (int ny = my; ny < my + 3; ++ny)
+                    for (int nx = mx; nx < mx + 3; ++nx)
+                        for (int k = 0; k <= 40; ++k) {
+                            const double t = k / 40.0;
+                            const int bx = static_cast<int>(hx + 0.5 + (nx - hx) * t), by = static_cast<int>(hy + 0.5 + (ny - hy) * t);
+                            const bool inHall = bx >= kHallX && bx < kHallX + 4 && by >= kHallY && by < kHallY + 4;
+                            if (!inHall) band[by * kMap + bx] = true;  // nobody walks through the hall itself
+                        }
+    };
+    auto rectGap = [](int ax, int ay, int aw, int ah, int bx, int by, int bw, int bh) {
+        int gx = bx - (ax + aw - 1), gy = by - (ay + ah - 1);
+        if (ax - (bx + bw - 1) > gx) gx = ax - (bx + bw - 1);
+        if (ay - (by + bh - 1) > gy) gy = ay - (by + bh - 1);
+        gx = gx < 0 ? 0 : gx;
+        gy = gy < 0 ? 0 : gy;
+        return gx > gy ? gx : gy;
+    };
+    auto nearBand = [&](int sx, int sy) {  // within 2 tiles of the band
+        for (int y = sy - 2; y <= sy + 3; ++y)
+            for (int x = sx - 2; x <= sx + 3; ++x)
+                if (x >= 0 && y >= 0 && x < kMap && y < kMap && band[y * kMap + x]) return true;
+        return false;
+    };
+    auto siteOf = [](Unit* u, int& sx, int& sy) {
+        const uint32_t site = Field<uint32_t>(u, kOffBuildSite);
+        sx = static_cast<int16_t>(site & 0xFFFF);
+        sy = static_cast<int16_t>(site >> 16);
+    };
+    using FindSiteFn = int(__cdecl*)(Unit*, int16_t*, uint32_t);
+
+    // 9a. A mine up-left of the hall: the computer's own first site lies in the band; ours must not, and must lie on
+    //     the side away from the mine.
+    memset(band, 0, sizeof band);
+    FarmWorld();
+    addMine(10, 10);
+    idle = FarmPeasant(30, 30, kOrderStop);
+    FarmLinkLists();
+    {
+        int16_t ai[2] = {-1, -1};
+        const int found = reinterpret_cast<FindSiteFn>(g_base + kRvaAiFindBuildSite)(idle, ai, kFarmType);
+        CHECK(found && nearBand(ai[0], ai[1]), "test setup: the computer's own first site (%d,%d) should sit in the band",
+              ai[0], ai[1]);
+    }
+    FarmPass();
+    {
+        int sx = -1, sy = -1;
+        siteOf(idle, sx, sy);
+        CHECK(FarmOrders() == 1 && !nearBand(sx, sy) && rectGap(sx, sy, 2, 2, 10, 10, 3, 3) > 3,
+              "the farm must keep out of the hall-mine band and 3 tiles from the mine (site %d,%d, orders %d)", sx, sy,
+              FarmOrders());
+        CHECK((sx + 1 - (kHallX + 2)) + (sy + 1 - (kHallY + 2)) >= 0 && rectGap(sx, sy, 2, 2, kHallX, kHallY, 4, 4) <= 2,
+              "the farm goes on the far side of the hall from the mine, close to it (site %d,%d)", sx, sy);
+        printf("farm site with a mine up-left: %d,%d (the computer's own search would pick 18,18)\n", sx, sy);
+    }
+
+    // 9b. Two mines, left and right, and a farm already standing below the hall: the new one keeps clear of both
+    //     mines and both bands and prefers to touch the farm.
+    memset(band, 0, sizeof band);
+    FarmWorld();
+    addMine(12, 20);
+    addMine(29, 21);
+    Unit* oldFarm = AddUnit(kFarmType, 0, 20, 25, 400, 0, 0);
+    Field<uint16_t>(oldFarm, kOffStateFlags) = kStateComplete;
+    for (int y = 25; y < 27; ++y)
+        for (int x = 20; x < 22; ++x) g_farmSq[y * kMap + x] |= 0x800;
+    idle = FarmPeasant(30, 30, kOrderStop);
+    FarmPass();
+    {
+        int sx = -1, sy = -1;
+        siteOf(idle, sx, sy);
+        CHECK(FarmOrders() == 1 && !nearBand(sx, sy) && rectGap(sx, sy, 2, 2, 12, 20, 3, 3) > 3 &&
+                  rectGap(sx, sy, 2, 2, 29, 21, 3, 3) > 3,
+              "two mines: out of both bands and 3 tiles from both (site %d,%d)", sx, sy);
+        CHECK(rectGap(sx, sy, 2, 2, 20, 25, 2, 2) == 1, "the new farm touches the old one (site %d,%d)", sx, sy);
+    }
+
+    // 9c. Only sites in the band are free: the computer would build there, the mod builds nothing.
+    memset(band, 0, sizeof band);
+    FarmWorld();
+    addMine(10, 10);
+    for (int i = 0; i < kMap * kMap; ++i)
+        if (!band[i]) g_farmSq[i] |= 0x80;
+    idle = FarmPeasant(30, 30, kOrderStop);
+    g_farmSq[30 * kMap + 30] &= ~0x80;
+    FarmLinkLists();
+    {
+        int16_t ai[2] = {-1, -1};
+        CHECK(reinterpret_cast<FindSiteFn>(g_base + kRvaAiFindBuildSite)(idle, ai, kFarmType) != 0,
+              "test setup: the computer's search should still find a site in the band");
+    }
+    FarmPass();
+    CHECK(FarmOrders() == 0, "no site outside the band: no farm at all");
+
+    // 9d. A site whose tile belongs to another region (water, a cliff) is never taken, however close.
+    FarmWorld();
+    for (int y = 16; y < 20; ++y)
+        for (int x = 16; x < 20; ++x) g_farmRegion[y * kMap + x] = 2;
+    idle = FarmPeasant(30, 30, kOrderStop);
+    FarmPass();
+    {
+        int sx = -1, sy = -1;
+        siteOf(idle, sx, sy);
+        CHECK(FarmOrders() == 1 && g_farmRegion[sy * kMap + sx] == 1, "the farm must stand in the peasant's region (site %d,%d)", sx, sy);
+    }
+
+    // 9e. mine_clearance counts free tiles between farm and mine: a mine 15 tiles right of the only open side.
+    auto clearanceWorld = [&]() {
+        memset(band, 0, sizeof band);
+        FarmWorld();
+        AddUnit(kTypeGoldMine, kNeutralPlayer, 40, 20, 25500, 0, 0);  // 17 tiles from the hall: no walking band
+        for (int y = 20; y < 23; ++y)
+            for (int x = 40; x < 43; ++x) g_farmSq[y * kMap + x] |= 0x800;
+        for (int y = 0; y < kMap; ++y)
+            for (int x = 0; x < kMap; ++x)
+                if (x < 24 || y < 14 || y > 29) g_farmSq[y * kMap + x] |= 0x80;  // open: right of the hall, rows 14..29
+        return FarmPeasant(30, 30, kOrderStop);
+    };
+    config::g.farmsMineClearance = 15;
+    Unit* probe = clearanceWorld();
+    FarmPass();
+    { int px = -1, py = -1; siteOf(probe, px, py); CHECK(FarmOrders() == 0, "mine_clearance 15: the nearest open site is 15 tiles from the mine, too close (site %d,%d)", px, py); }
+    config::g.farmsMineClearance = 14;
+    idle = clearanceWorld();
+    FarmPass();
+    {
+        int sx = -1, sy = -1;
+        siteOf(idle, sx, sy);
+        CHECK(FarmOrders() == 1 && rectGap(sx, sy, 2, 2, 40, 20, 3, 3) > 14, "mine_clearance 14: that site is fine (site %d,%d)", sx, sy);
+    }
+    config::g.farmsMineClearance = 3;
+
+    // 9f. A mine up and to the right: the site against the hall's top-left corner, met first in the search and
+    //     clear of the band, still faces the mine; a site on the side away from it wins.
+    memset(band, 0, sizeof band);
+    FarmWorld();
+    addMine(30, 8);
+    auto ownFarm = [&](int fx, int fy) {
+        Unit* u = AddUnit(kFarmType, 0, fx, fy, 400, 0, 0);
+        Field<uint16_t>(u, kOffStateFlags) = kStateComplete;
+        for (int y = fy; y < fy + 2; ++y)
+            for (int x = fx; x < fx + 2; ++x) g_farmSq[y * kMap + x] |= 0x800;
+    };
+    ownFarm(30, 20);  // toward the mine, clear of its band, 7 tiles from the hall
+    ownFarm(6, 30);   // away from the mine, farther out
+    for (int y = 0; y < kMap; ++y)  // open ground only right of x 26 and around the far farm
+        for (int x = 0; x < kMap; ++x)
+            if (x < 26 && !(x >= 2 && x <= 12 && y >= 26 && y <= 36)) g_farmSq[y * kMap + x] |= 0x80;
+    idle = FarmPeasant(40, 40, kOrderStop);
+    FarmPass();
+    {
+        int sx = -1, sy = -1;
+        siteOf(idle, sx, sy);
+        const double towardMine = (sx + 1 - (kHallX + 2)) * 9.5 + (sy + 1 - (kHallY + 2)) * -12.5;
+        CHECK(FarmOrders() == 1 && towardMine < 0 && !nearBand(sx, sy),
+              "a mine up-right: the farm goes on the side away from it (site %d,%d, toward %.1f)", sx, sy, towardMine);
+    }
+
+    // 9g. Nothing free against the hall: the nearest free site wins (3 tiles out), not a farther one.
+    FarmWorld();
+    for (int y = kHallY - 2; y < kHallY + 6; ++y)
+        for (int x = kHallX - 2; x < kHallX + 6; ++x)
+            if (!(x >= kHallX && x < kHallX + 4 && y >= kHallY && y < kHallY + 4)) g_farmSq[y * kMap + x] |= 0x80;
+    idle = FarmPeasant(40, 40, kOrderStop);
+    FarmPass();
+    {
+        int sx = -1, sy = -1;
+        siteOf(idle, sx, sy);
+        CHECK(FarmOrders() == 1 && rectGap(sx, sy, 2, 2, kHallX, kHallY, 4, 4) == 3,
+              "the nearest free site is 3 tiles from the hall (site %d,%d)", sx, sy);
+    }
+
+    // 10. Which workers: [farms] workers.
+    auto lumberman = [&](int x, int y, uint8_t flags) {
+        Unit* u = FarmPeasant(x, y, kOrderHarvest);
+        Field<uint8_t>(u, kOffWorkerFlags) = flags;
+        return u;
+    };
+    // idle_then_lumber (the default): a wood cutter on its way back, never a gold miner or one that is chopping.
+    config::g.farmsWorkers = FarmWorkers::IdleThenLumber;
+    FarmWorld();
+    Unit* goldMiner = lumberman(26, 26, kWorkerGoldJob);
+    Unit* chopper = lumberman(27, 26, kWorkerLumberJob | kWorkerChopping);
+    Unit* walker = lumberman(40, 40, kWorkerLumberJob);
+    FarmPass();
+    CHECK(Field<uint8_t>(walker, kOffNextOrder) == kOrderBuild && Field<uint8_t>(goldMiner, kOffNextOrder) == kOrderNone &&
+              Field<uint8_t>(chopper, kOffNextOrder) == kOrderNone,
+          "idle_then_lumber: the wood cutter walking back builds, not the nearer gold miner or chopper (%u %u %u)",
+          Field<uint8_t>(walker, kOffNextOrder), Field<uint8_t>(goldMiner, kOffNextOrder), Field<uint8_t>(chopper, kOffNextOrder));
+    FarmWorld();
+    goldMiner = lumberman(26, 26, kWorkerGoldJob);
+    lumberman(27, 26, 0);                                     // harvesting, no job bit yet: not known to cut wood
+    lumberman(28, 26, kWorkerGoldJob | kWorkerLumberJob);     // defensive: any gold bit rules a worker out
+    FarmPass();
+    CHECK(FarmOrders() == 0, "idle_then_lumber: a gold miner (or a harvester without the wood-cutting bit) is never taken");
+    // idle_only
+    config::g.farmsWorkers = FarmWorkers::IdleOnly;
+    FarmWorld();
+    walker = lumberman(40, 40, kWorkerLumberJob);
+    FarmPass();
+    CHECK(FarmOrders() == 0, "idle_only: no harvester at all");
+    idle = FarmPeasant(45, 45, kOrderStop);
+    FarmPass();
+    CHECK(Field<uint8_t>(idle, kOffNextOrder) == kOrderBuild && Field<uint8_t>(walker, kOffNextOrder) == kOrderNone,
+          "idle_only: the idle peasant builds");
+    // any: the old behaviour, an empty-handed gold miner too
+    config::g.farmsWorkers = FarmWorkers::Any;
+    FarmWorld();
+    goldMiner = lumberman(26, 26, kWorkerGoldJob);
+    FarmPass();
+    CHECK(Field<uint8_t>(goldMiner, kOffNextOrder) == kOrderBuild, "any: the empty-handed gold miner may build");
+    config::g.farmsWorkers = FarmWorkers::IdleThenLumber;
+    tf[kTypeGoldMine] = savedMineFlags;
+
     *At<uint16_t*>(kRvaRegionMap) = s.region;
     *At<uint16_t*>(kRvaSquareFlags) = s.sq;
     *At<uint8_t*>(kRvaExploredMap) = s.explored;
@@ -1094,6 +1325,8 @@ static void FarmTests() {
     config::g.farmsAutoBuild = savedAuto;
     config::g.farmsFreeMin = savedMin;
     config::g.farmsFreePercent = savedPercent;
+    config::g.farmsMineClearance = savedClearance;
+    config::g.farmsWorkers = savedWorkers;
     config::g.logCasts = savedLog;
     ResetWorld();
 }

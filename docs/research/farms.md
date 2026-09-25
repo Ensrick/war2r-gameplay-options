@@ -20,8 +20,10 @@ of the game's own placement code on the mapped exe image. VA = RVA + 0x400000.
   unit list `0x934848` (kept for every player by `FUN_004ED030`), the region, square-flag, explored and size tables,
   and it writes only scratch globals (`0x923808..0x92381C`, and the placement preview cells `0x923820..0x92382F`,
   which the computer's own searches overwrite all the time).
-- The mod therefore **calls the computer's search** and then **does what the player's click does**. It never pays
-  (the build action does that) and never touches the AI bookkeeping.
+- The mod first **called the computer's search**; it now **chooses the site itself** (next section) from
+  the same candidates, because the computer's first ring site can sit between the hall and a gold mine. It then
+  **does what the player's click does**. It never pays (the build action does that) and never touches the AI
+  bookkeeping.
 
 ## The site search `FUN_004DBC30(Unit* worker, int16 out[2], uint32 type)`, cdecl, returns nonzero if found
 
@@ -63,6 +65,36 @@ The farm type is 0x3A for a peasant (type 2) and 0x3B for a peon (type 3): `0x3A
 | 0x918D47 | `FUN_004EE210` | 0xFF unless a network game sets it from `0x922F5B` |
 | Price | `0x917980` / `0x9179F0` / `0x917A60` | gold / lumber / oil per type, x10 (what `FUN_004AC610` reads) |
 | Food | `0x91B50C` supply, `0x91B38C` counted, `0x91B6AC` food-free, `0x9193F0` in training | as auto-production reads them |
+
+## The mod's own site choice (src/farms.cpp ChooseSite)
+
+The author does not want farms in the path of the gold mines, and the computer's first ring site is often exactly
+there: with a mine up-left of a hall at 20,20, the game's own search returns 18,18, the tile against the hall's corner
+facing the mine (selftest 9a). The rule:
+
+1. Centre: the worker's nearest complete town hall (type flag 0x1000) in its own region, as `FUN_004DBC50` picks it.
+   No such hall: no farm.
+2. Candidates: every top-left tile on the step-2 lattice of the hall's corner (the computer's farm step,
+   `FUN_004DB6D0` -> `FUN_004DBCE0(.., 2)`), within 16 tiles of the hall, footprint on the map, anchor tile in the
+   worker's region.
+3. Rejected when the footprint has `mine_clearance` or fewer tiles of gap to any live gold mine (gap 1 = touching).
+   With the default of 3, that means at least 3 free tiles between the farm and the mine.
+4. Rejected when any tile within 2 of the footprint lies in the band between the hall and a gold mine at most 12 tiles
+   from it. The band is the convex hull of both footprints (tile edges), minus the hall's own tiles, because nobody
+   walks through the hall and a farm against its far side is fine.
+5. Rank: 0 = touches one of the player's buildings (gap 1) and lies on the side away from the mines (centre offset
+   from the hall's centre has a dot product of 0 or less with the sum of hall-to-mine vectors), 1 = away only,
+   2 = touching only, 3 = the rest. Within a rank, the smallest gap to the hall wins, then search order.
+6. The winner must pass the player's placement test `FUN_004DC210` (the computer's own search is no longer called).
+
+No candidate: nothing is built, and `farm: food is low but ...` is logged at most once a minute of play.
+
+## Which workers (`[farms] workers`)
+
+`+0x75` job bits (docs/research/workers_and_gold.md): 0x80 gold, 0x40 lumber, 0x20 carrying, 0x02 chopping. Idle
+(`STOP` with nothing queued) always comes first. `idle_then_lumber` then allows a harvester (order 23) with 0x40 set
+and none of 0x80 / 0x20 / 0x02: a wood cutter walking back to the trees empty-handed, never a gold miner. `idle_only`
+allows no harvester. `any` allows every harvester carrying nothing (the first version's behaviour).
 
 ## Interplay with auto-production
 

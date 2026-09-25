@@ -1,8 +1,9 @@
 #pragma once
 #include "world.h"
 
-// [farms] auto_build: when your free food runs low, one of your peasants builds a farm, placed by the computer
-// player's own site search next to your town hall. Local player only; the caller is behind the multiplayer gate.
+// [farms] auto_build: when your free food runs low, one of your peasants builds a farm next to your town hall, on the
+// computer's candidate sites but never near a gold mine or the path to it. Local player only; the caller is behind
+// the multiplayer gate.
 // Evidence: docs/research/farms.md.
 namespace farms {
 
