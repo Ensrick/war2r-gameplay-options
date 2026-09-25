@@ -282,6 +282,28 @@ longest time, so it patrols instead of parking. What it does:
   off with `Ctrl+F11`.
 - Only your own units, never the computer's, and never in a multiplayer game.
 
+### Units that get out of a Blizzard or Death and Decay
+
+Off by default.
+
+```toml
+[dodge]
+enabled = true
+```
+
+When a Blizzard or Death and Decay is falling - the enemy's or your own - your units standing in it or next to it step
+out to the nearest safe spot, away from its middle and toward what they were fighting, and your units do not walk
+into one on their own: a unit chasing an enemy that stands in it, or walking into it on an attack-move, stops at the
+edge and holds its ground there (it still shoots at whatever comes in range). Once the area is gone for a second, they
+go back to what they were doing: the same attack, the same attack-move or patrol, or back to the spot they stood on.
+
+- A move you give yourself is always obeyed: march them through and they go through. Give a unit an order while it is
+  dodging and it is yours from then on.
+- Left alone: your buildings, a caster in the middle of a spell (the mage channelling your own Blizzard is never hurt
+  by it and stays put), and units under Unholy Armor. Workers do step out, and are left idle afterwards: the mod does
+  not send them back to their mine or tree (`[workers] auto_harvest` does, if it is on).
+- Only your own units, never in a multiplayer game.
+
 ### Idle workers
 
 A worker that is stopped with nothing queued counts as idle. Stand Ground never counts as idle.
@@ -1234,6 +1256,7 @@ makes the log long.
 | eye_of_kilrogg | auto_scout | false | Eyes fly to unexplored ground |
 | scouts | enabled / toggle_key | false / "F11" | Idle flyers of yours scout the map by themselves; Ctrl + key toggles it |
 | scouts | units | ["flying_machine", "zeppelin"] | Which of your units scout |
+| dodge | enabled | false | Your units step out of a falling Blizzard / Death and Decay and do not walk into one |
 | scouts | idle_seconds | 5 | Seconds a scout stands idle (also after an order of yours) before it is sent (0 to 600) |
 | gold_mines | unlimited | false | Mines never run dry (all mines) |
 | gold_mines | amount | 1.0 | Multiplies the gold in every mine when a new map starts (cap 6,553,500 per mine) |

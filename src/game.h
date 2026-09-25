@@ -33,6 +33,10 @@ constexpr uint32_t kRvaPatrolHandler = 0xD8BD0;      // NOT table entry 5 (that 
 constexpr uint32_t kRvaHarvestHandler = 0xD85E0;     // order 23: target = gold mine, or target null and x,y = a forest tile
 constexpr uint32_t kRvaReturnHandler = 0xD8960;      // order 24: null target = the game finds the depot itself
 constexpr uint32_t kRvaRepairHandler = 0xD8920;      // order 27: target = building
+constexpr uint32_t kRvaAttackHandler = 0xD8250;      // entry 8: with a target SetOrder(unit, 9) (attack that unit), without one
+                                                     // attack-ground / attack-wall at x,y
+constexpr uint32_t kRvaStandHandler = 0xD89E0;       // entry 13 (and 15): SetOrder(unit, 13), stand ground; reads nothing
+constexpr uint32_t kRvaPatrolCommandHandler = 0xD8860;  // entry 5: a fresh patrol from where the unit is to x,y
 constexpr uint32_t kRvaStopHandler = 0xD8580;        // order 2 entry of 0x8C1498: SetOrder(unit, 2); reads only the unit's own tile
 // Building placement (docs/research/farms.md). Both are the game's own functions, called the way it calls them.
 constexpr uint32_t kRvaAiFindBuildSite = 0xDBC30;  // int __cdecl (Unit* worker, int16 out[2], uint32 type): the computer's site
@@ -269,6 +273,8 @@ constexpr int kOffJobId = 0x6D;         // uint8: unit type / UGRD index / targe
 constexpr int kOffResources = 0x82;     // uint16, gold mine / oil: what is left, in hundreds
 constexpr int kOffOrderX = 0x84;        // int16, order destination when there is no target unit
 constexpr int kOffOrderY = 0x86;        // int16
+constexpr int kOffAutoTarget = 0x54;    // Unit*: the enemy the unit picked by itself (FUN_004a8e00 writes it at 0x4A92C5; the
+                                        // end of IssueOrder clears it when it turns hidden, FUN_004d9e40)
 constexpr int kOffOrderTarget = 0x88;   // Unit*
 constexpr int kOffBuildType = 0x7F;     // uint8, workers: the building type of a build order (FUN_004dc2c0, 0x4DAFBA)
 constexpr int kOffBuildSite = 0x80;     // int16 x, int16 y: its top-left tile, copied to +0x84 by the build handler

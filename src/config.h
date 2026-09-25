@@ -56,6 +56,11 @@ struct Scouts {
     Scouts() : type{} { type[0x28] = type[0x29] = true; }
 };
 
+// [dodge]: the local player's units step out of Blizzard / Death and Decay and do not walk into one (src/dodge.cpp).
+struct Dodge {
+    bool enabled = false;
+};
+
 // [upgrades] keys: what one level of an upgrade line is worth. The game keeps one byte per upgrade group and
 // the damage code multiplies it by the player's level counter (docs/research/damage.md).
 enum UpgradeEffect {
@@ -310,6 +315,7 @@ struct Config {
     AutoProduction production;
     Priority priority;
     Scouts scouts;
+    Dodge dodge;
 
     DamageTypes damageTypes;
 
