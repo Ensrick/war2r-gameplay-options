@@ -25,6 +25,7 @@
 #include "../src/upgrades.h"
 #include "../src/aijobs.h"
 #include "../src/aiwatch.h"
+#include "../src/farms.h"
 #include "../src/trees.h"
 
 using namespace game;
@@ -54,6 +55,7 @@ static void __cdecl FakeIssueOrder(Unit* caster, int16_t x, int16_t y, Unit* tar
                           : rva == kRvaReturnHandler  ? kOrderReturnGoods
                           : rva == kRvaRepairHandler  ? kOrderRepair
                           : rva == kRvaStopHandler    ? kOrderStop
+                          : rva == kRvaBuildHandler   ? kOrderBuild
                           : rva == kRvaAttackMoveHandler ? kOrderAttackArea
                           : rva == kRvaPatrolHandler     ? kOrderPatrol
                                                       : static_cast<uint8_t>(*At<uint16_t>(kRvaPendingSpellOrder));
@@ -818,6 +820,281 @@ static void AiJobsTests() {
     tf[kGrunt] = savedGrunt;
     aijobs::SetSinkForTests(nullptr);
     config::g.fixAiAfterLoad = savedFix;
+    ResetWorld();
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// [farms] auto_build (src/farms.cpp, docs/research/farms.md). The site comes from the game's OWN code: the computer's
+// search FUN_004dbc30 and the player's placement test FUN_004dc210 run for real on the mapped image, over a small
+// hand-made map. Only IssueOrder is the fake one.
+// ---------------------------------------------------------------------------------------------------------------
+
+constexpr uint32_t kRvaPlayerUnitList = 0x534848;  // Unit*[16], chained through +0x68 (FUN_004ed030); read by FUN_004dbc50
+constexpr uint32_t kRvaTileSeenBits = 0x51AD64;    // uint8*: per-tile player bits read by FUN_004b4a50 for a human's site
+constexpr uint8_t kPeasant = 2, kHall = 0x4A, kFarmType = 0x3A;
+constexpr int kHallX = 20, kHallY = 20;
+
+static uint16_t g_farmRegion[kMap * kMap], g_farmSq[kMap * kMap];
+static uint8_t g_farmExplored[kMap * kMap], g_farmSeen[kMap * kMap];
+
+struct FarmSaved {
+    uint16_t* region; uint16_t* sq; uint8_t* explored; uint8_t* seen;
+    uint32_t tfPeasant, tfHall, tfFarm, allowed;
+    uint8_t mask;
+};
+
+static void FarmFood(int supply, int used) {
+    At<uint16_t>(kRvaFoodSupply)[0] = static_cast<uint16_t>(supply);
+    At<uint16_t>(kRvaUnitsCounted)[0] = static_cast<uint16_t>(used);
+    At<uint16_t>(kRvaFoodFreeUnits)[0] = 0;
+    At<uint16_t>(kRvaUnitsInTraining)[0] = 0;
+}
+
+// Links every unit into its owner's list, as FUN_004ed030 does after a load.
+static void FarmLinkLists() {
+    Unit** heads = At<Unit*>(kRvaPlayerUnitList);
+    memset(heads, 0, 16 * sizeof(Unit*));
+    for (int i = 0; i < g_unitCount; ++i) {
+        Unit* u = reinterpret_cast<Unit*>(g_units + i * kUnitSize);
+        Field<Unit*>(u, 0x68) = heads[OwnerOf(u)];
+        heads[OwnerOf(u)] = u;
+    }
+}
+
+// A hall at 20,20 (4x4, its squares marked as a building) and nothing else; every tile explored, one region.
+static Unit* FarmWorld() {
+    ResetWorld();
+    for (auto& r : g_farmRegion) r = 1;
+    memset(g_farmSq, 0, sizeof g_farmSq);
+    memset(g_farmExplored, 0, sizeof g_farmExplored);
+    memset(g_farmSeen, 0, sizeof g_farmSeen);
+    for (int y = kHallY; y < kHallY + 4; ++y)
+        for (int x = kHallX; x < kHallX + 4; ++x) g_farmSq[y * kMap + x] = 0x800;
+    Unit* hall = AddUnit(kHall, 0, kHallX, kHallY, 1200, 0, 0);
+    Field<uint16_t>(hall, kOffStateFlags) = kStateComplete;
+    At<int32_t>(kRvaPlayerGold)[0] = 2000;
+    At<int32_t>(kRvaPlayerLumber)[0] = 1000;
+    At<int32_t>(kRvaPlayerOil)[0] = 0;
+    FarmFood(20, 18);
+    farms::ResetForTests();
+    return hall;
+}
+
+static Unit* FarmPeasant(int x, int y, uint8_t order) {
+    Unit* u = AddUnit(kPeasant, 0, x, y, 30, 0, order);
+    g_farmSq[y * kMap + x] |= 0x100;
+    return u;
+}
+
+// One pass through the module (it runs once a second of play).
+static void FarmPass() {
+    FarmLinkLists();
+    World w;
+    if (!BuildWorld(w)) {
+        CHECK(false, "farms test: BuildWorld failed");
+        return;
+    }
+    farms::OnTick(w, 1000);
+}
+
+static int FarmOrders() {
+    int n = 0;
+    for (int i = 0; i < g_unitCount; ++i) {
+        Unit* u = reinterpret_cast<Unit*>(g_units + i * kUnitSize);
+        if (Field<uint8_t>(u, kOffNextOrder) == kOrderBuild) ++n;
+    }
+    return n;
+}
+
+static void FarmTests() {
+    // 1. The trigger: the HIGHER of free_min and free_percent of the supply, rounded up.
+    struct { int supply, used; bool want; } kCases[] = {
+        {20, 16, true}, {20, 15, false},    // 10 % of 20 = 2: 4 is higher
+        {30, 26, true}, {30, 25, false},    // 10 % of 30 = 3: 4 is higher
+        {41, 36, true}, {41, 35, false},    // 10 % of 41 = 4.1, rounded up to 5
+        {60, 54, true}, {60, 53, false},    // 10 % of 60 = 6 is higher than 4
+        {150, 135, true}, {150, 134, false},
+        {199, 199, true}, {200, 200, false}, {220, 219, false},  // never at 200 supply
+    };
+    for (const auto& k : kCases)
+        CHECK(farms::ShouldBuild(k.supply, k.used, 0, 4, 10) == k.want, "farm trigger at supply %d used %d must be %d",
+              k.supply, k.used, k.want);
+    CHECK(farms::ShouldBuild(60, 50, 4, 4, 10) && !farms::ShouldBuild(60, 50, 3, 4, 10),
+          "units in training count as used food");
+    CHECK(farms::ShouldBuild(20, 18, 0, 0, 10) && !farms::ShouldBuild(20, 17, 0, 0, 10), "free_min 0: the percent alone");
+    CHECK(farms::ShouldBuild(100, 96, 0, 4, 0) && !farms::ShouldBuild(100, 95, 0, 4, 0), "free_percent 0: free_min alone");
+
+    const bool savedAuto = config::g.farmsAutoBuild, savedLog = config::g.logCasts;
+    const int savedMin = config::g.farmsFreeMin, savedPercent = config::g.farmsFreePercent;
+    FarmSaved s = {*At<uint16_t*>(kRvaRegionMap), *At<uint16_t*>(kRvaSquareFlags), *At<uint8_t*>(kRvaExploredMap),
+                   *At<uint8_t*>(kRvaTileSeenBits), 0, 0, 0, At<uint32_t>(kRvaUnitsAllowed)[0],
+                   *At<uint8_t>(kRvaBuildPlayerMask)};
+    uint32_t* tf = At<uint32_t>(kRvaTypeFlags);
+    s.tfPeasant = tf[kPeasant]; s.tfHall = tf[kHall]; s.tfFarm = tf[kFarmType];
+    tf[kPeasant] = kTfFleshy | kTfWorker;
+    tf[kHall] = kTfBuilding | 0x1000;  // town hall: a depot, what FUN_004dbc50 looks for
+    tf[kFarmType] = kTfBuilding;
+    struct Sz { uint16_t w, h; };
+    At<Sz>(kRvaUnitSizeByType)[kHall] = {4, 4};
+    At<Sz>(kRvaUnitSizeByType)[kFarmType] = {2, 2};
+    At<uint8_t>(kRvaGoldCostByType)[kFarmType] = 50;    // 500 gold
+    At<uint8_t>(kRvaLumberCostByType)[kFarmType] = 25;  // 250 lumber
+    At<uint8_t>(kRvaOilCostByType)[kFarmType] = 0;
+    *At<uint16_t*>(kRvaRegionMap) = g_farmRegion;
+    *At<uint16_t*>(kRvaSquareFlags) = g_farmSq;
+    *At<uint8_t*>(kRvaExploredMap) = g_farmExplored;
+    *At<uint8_t*>(kRvaTileSeenBits) = g_farmSeen;
+    *At<uint16_t>(kRvaMapSize) = kMap;
+    *At<uint8_t>(kRvaLocalPlayer) = 0;
+    At<uint8_t>(kRvaController)[0] = 0;
+    At<uint32_t>(kRvaUnitsAllowed)[0] = s.allowed | kAllowFarm;
+    *At<uint8_t>(kRvaBuildPlayerMask) = 0xFF;
+    config::g.farmsAutoBuild = true;
+    config::g.farmsFreeMin = 4;
+    config::g.farmsFreePercent = 10;
+    config::g.logCasts = false;
+
+    // 2. Food low, an idle peasant: it gets the build order, the site is where the game itself allows it, next to
+    //    the hall, not on it, and on the map.
+    FarmWorld();
+    Unit* idle = FarmPeasant(30, 30, kOrderStop);
+    Unit* miner = FarmPeasant(12, 12, kOrderHarvest);
+    FarmPass();
+    CHECK(Field<uint8_t>(idle, kOffNextOrder) == kOrderBuild && Field<uint8_t>(idle, kOffBuildType) == kFarmType,
+          "an idle peasant must get the farm order (next order %u, type 0x%02X)", Field<uint8_t>(idle, kOffNextOrder),
+          Field<uint8_t>(idle, kOffBuildType));
+    CHECK(Field<uint8_t>(miner, kOffNextOrder) == kOrderNone, "the harvester must be left alone while one is idle");
+    {
+        const uint32_t site = Field<uint32_t>(idle, kOffBuildSite);
+        const int sx = static_cast<int16_t>(site & 0xFFFF), sy = static_cast<int16_t>(site >> 16);
+        const bool overlapsHall = sx + 2 > kHallX && sx < kHallX + 4 && sy + 2 > kHallY && sy < kHallY + 4;
+        const int dx = sx < kHallX ? kHallX - (sx + 1) : (sx > kHallX + 3 ? sx - (kHallX + 3) : 0);
+        const int dy = sy < kHallY ? kHallY - (sy + 1) : (sy > kHallY + 3 ? sy - (kHallY + 3) : 0);
+        using CanPlaceFn = uint16_t(__cdecl*)(Unit*, uint32_t, uint32_t);
+        const uint16_t verdict = reinterpret_cast<CanPlaceFn>(g_base + kRvaCanPlaceBuilding)(idle, site, kFarmType);
+        CHECK(sx >= 0 && sy >= 0 && sx + 2 <= kMap && sy + 2 <= kMap && !overlapsHall && (dx > dy ? dx : dy) <= 8 &&
+                  verdict == 0,
+              "farm site %d,%d: on map, off the hall, within 8 tiles of it (%d), placeable (%u)", sx, sy,
+              dx > dy ? dx : dy, verdict);
+        CHECK(Field<int16_t>(idle, kOffOrderX) >= sx - 1 && Field<int16_t>(idle, kOffOrderX) <= sx + 2,
+              "the walk-to tile comes from FUN_004c3a20 next to the site (%d vs %d)", Field<int16_t>(idle, kOffOrderX), sx);
+        printf("farm site from the game's own search: %d,%d for a hall at %d,%d, walk to %d,%d\n", sx, sy, kHallX,
+               kHallY, Field<int16_t>(idle, kOffOrderX), Field<int16_t>(idle, kOffOrderY));
+    }
+
+    // 3. One at a time: the peasant on its way counts, and so does a farm under construction.
+    FarmPass();
+    CHECK(FarmOrders() == 1, "a second farm must wait for the first (%d orders)", FarmOrders());
+    FarmWorld();
+    Unit* site = AddUnit(kFarmType, 0, 30, 20, 100, 0, 0);  // under construction: kStateComplete not set
+    (void)site;
+    idle = FarmPeasant(30, 30, kOrderStop);
+    FarmPass();
+    CHECK(FarmOrders() == 0, "a farm under construction must block the next one");
+
+    // 4. Not enough money for the live price: nothing.
+    FarmWorld();
+    idle = FarmPeasant(30, 30, kOrderStop);
+    At<int32_t>(kRvaPlayerLumber)[0] = 249;
+    FarmPass();
+    CHECK(FarmOrders() == 0, "no farm without 250 lumber");
+    At<int32_t>(kRvaPlayerLumber)[0] = 250;
+    At<int32_t>(kRvaPlayerGold)[0] = 499;
+    FarmPass();
+    CHECK(FarmOrders() == 0, "no farm without 500 gold");
+    At<int32_t>(kRvaPlayerGold)[0] = 500;
+    FarmPass();
+    CHECK(FarmOrders() == 1, "exactly the price is enough");
+
+    // 5. Food not low, 200 supply, the mission forbids farms, switched off: nothing.
+    FarmWorld();
+    idle = FarmPeasant(30, 30, kOrderStop);
+    FarmFood(20, 15);
+    FarmPass();
+    CHECK(FarmOrders() == 0, "5 free at supply 20 is above the 4 of the trigger");
+    FarmFood(200, 200);
+    FarmPass();
+    CHECK(FarmOrders() == 0, "never at 200 supply");
+    FarmFood(20, 18);
+    At<uint32_t>(kRvaUnitsAllowed)[0] &= ~kAllowFarm;
+    FarmPass();
+    CHECK(FarmOrders() == 0, "a mission without farms must not get one");
+    At<uint32_t>(kRvaUnitsAllowed)[0] |= kAllowFarm;
+    *At<uint8_t>(kRvaBuildPlayerMask) = 0xFE;
+    FarmPass();
+    CHECK(FarmOrders() == 0, "the build-button player mask must be honoured");
+    *At<uint8_t>(kRvaBuildPlayerMask) = 0xFF;
+    config::g.farmsAutoBuild = false;
+    FarmPass();
+    CHECK(FarmOrders() == 0, "auto_build = false must do nothing");
+    config::g.farmsAutoBuild = true;
+
+    // 6. Who may be taken: a harvester carrying nothing when nobody is idle; never one carrying goods, repairing or
+    //    already building something else; the nearest of two idle peasants.
+    FarmWorld();
+    Unit* loaded = FarmPeasant(24, 30, kOrderHarvest);
+    Field<uint8_t>(loaded, kOffWorkerFlags) = kWorkerCarrying;
+    Unit* repairer = FarmPeasant(25, 30, kOrderRepair);
+    Unit* builder = FarmPeasant(26, 30, kOrderBuild);
+    Field<uint8_t>(builder, kOffBuildType) = 0x3C;  // a barracks: not a farm, so it does not block
+    Field<uint8_t>(builder, kOffNextOrder) = kOrderNone;
+    miner = FarmPeasant(40, 40, kOrderHarvest);
+    FarmPass();
+    CHECK(Field<uint8_t>(miner, kOffNextOrder) == kOrderBuild && Field<uint8_t>(loaded, kOffNextOrder) == kOrderNone &&
+              Field<uint8_t>(repairer, kOffNextOrder) == kOrderNone,
+          "only the empty-handed harvester may be taken (miner %u, loaded %u, repairer %u)",
+          Field<uint8_t>(miner, kOffNextOrder), Field<uint8_t>(loaded, kOffNextOrder), Field<uint8_t>(repairer, kOffNextOrder));
+    FarmWorld();
+    Unit* farPeasant = FarmPeasant(60, 60, kOrderStop);
+    Unit* nearPeasant = FarmPeasant(26, 26, kOrderStop);
+    FarmPass();
+    CHECK(Field<uint8_t>(nearPeasant, kOffNextOrder) == kOrderBuild && Field<uint8_t>(farPeasant, kOffNextOrder) == kOrderNone,
+          "the idle peasant nearest the site builds it");
+    FarmWorld();
+    idle = FarmPeasant(30, 30, kOrderStop);
+    g_farmRegion[30 * kMap + 30] = 2;  // an island: the peasant cannot reach the hall's region
+    Unit* other = FarmPeasant(10, 30, kOrderStop);
+    FarmPass();
+    CHECK(Field<uint8_t>(idle, kOffNextOrder) == kOrderNone && Field<uint8_t>(other, kOffNextOrder) == kOrderBuild,
+          "a peasant cut off from the hall must not block one that can reach it (island %u, other %u)",
+          Field<uint8_t>(idle, kOffNextOrder), Field<uint8_t>(other, kOffNextOrder));
+
+    // 7. No free site anywhere (every square blocked but the peasant's): nothing.
+    FarmWorld();
+    for (auto& q : g_farmSq) q |= 0x80;
+    idle = FarmPeasant(30, 30, kOrderStop);
+    FarmPass();
+    CHECK(FarmOrders() == 0, "no placeable site: no order");
+
+    // 8. Through the real entry point: runs in single player, never in a network game. The idle-worker features
+    //    would otherwise send the peasant to work before the one-second farm pass comes round.
+    const bool savedHarvest = config::g.workerAutoHarvest, savedRepair = config::g.workerAutoRepair;
+    config::g.workerAutoHarvest = config::g.workerAutoRepair = false;
+    FarmWorld();
+    idle = FarmPeasant(30, 30, kOrderStop);
+    FarmLinkLists();
+    *At<uint32_t>(kRvaNetGame) = 1;
+    for (int i = 0; i < 15; ++i) { Sleep(100); mod::OnTick(); }
+    CHECK(FarmOrders() == 0, "a network game must never get a farm");
+    *At<uint32_t>(kRvaNetGame) = 0;
+    for (int i = 0; i < 15; ++i) { Sleep(100); mod::OnTick(); }
+    CHECK(FarmOrders() == 1, "mod::OnTick must run the farm pass in single player (%d)", FarmOrders());
+    config::g.workerAutoHarvest = savedHarvest;
+    config::g.workerAutoRepair = savedRepair;
+
+    *At<uint16_t*>(kRvaRegionMap) = s.region;
+    *At<uint16_t*>(kRvaSquareFlags) = s.sq;
+    *At<uint8_t*>(kRvaExploredMap) = s.explored;
+    *At<uint8_t*>(kRvaTileSeenBits) = s.seen;
+    tf[kPeasant] = s.tfPeasant; tf[kHall] = s.tfHall; tf[kFarmType] = s.tfFarm;
+    At<uint32_t>(kRvaUnitsAllowed)[0] = s.allowed;
+    *At<uint8_t>(kRvaBuildPlayerMask) = s.mask;
+    memset(At<Unit*>(kRvaPlayerUnitList), 0, 16 * sizeof(Unit*));
+    FarmFood(0, 0);
+    config::g.farmsAutoBuild = savedAuto;
+    config::g.farmsFreeMin = savedMin;
+    config::g.farmsFreePercent = savedPercent;
+    config::g.logCasts = savedLog;
     ResetWorld();
 }
 
@@ -6282,6 +6559,7 @@ int wmain(int argc, wchar_t** argv) {
 
     AiWatchTests();
     AiJobsTests();
+    FarmTests();
     SpellNumberTests(dir, ini);
     UpgradeTests(dir, ini);
     DamageTypeTests(dir, ini);

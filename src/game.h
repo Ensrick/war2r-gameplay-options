@@ -34,6 +34,20 @@ constexpr uint32_t kRvaHarvestHandler = 0xD85E0;     // order 23: target = gold 
 constexpr uint32_t kRvaReturnHandler = 0xD8960;      // order 24: null target = the game finds the depot itself
 constexpr uint32_t kRvaRepairHandler = 0xD8920;      // order 27: target = building
 constexpr uint32_t kRvaStopHandler = 0xD8580;        // order 2 entry of 0x8C1498: SetOrder(unit, 2); reads only the unit's own tile
+// Building placement (docs/research/farms.md). Both are the game's own functions, called the way it calls them.
+constexpr uint32_t kRvaAiFindBuildSite = 0xDBC30;  // int __cdecl (Unit* worker, int16 out[2], uint32 type): the computer's site
+                                                   // search (0x4DAF99), via table 0x8C5BA0: farms FUN_004db6d0 = rings of step 2
+                                                   // around the worker's nearest own hall in its region (FUN_004dbce0)
+constexpr uint32_t kRvaCanPlaceBuilding = 0xDC210;  // uint16 __cdecl (Unit* worker, uint32 x | y << 16, uint32 type): 0 = the
+                                                    // site is free; the player's build click (FUN_004dc2c0) and the build
+                                                    // action (0x4BDDC0) both test it
+constexpr uint32_t kRvaBuildTargetTile = 0xC3A20;   // int __cdecl (Unit* worker, int16 xy[2], uint32 type): moves xy to the
+                                                    // tile the worker walks to (FUN_004dc2c0 calls it before IssueOrder)
+constexpr uint32_t kRvaBuildHandler = 0xD8470;      // order 28 (0x1C): copies +0x80 to +0x84 and walks there; the build action
+                                                    // FUN_004bddc0 pays a HUMAN's price when construction starts (0x4BDF67)
+constexpr uint32_t kRvaBuildPlayerMask = 0x518D47;  // uint8, bit per player: the build buttons also require it (FUN_004e4330);
+                                                    // 0xFF in single player (FUN_004ee210)
+constexpr uint32_t kAllowFarm = 0x10000;            // kRvaUnitsAllowed bit the farm / pig farm button tests (FUN_004e4330)
 constexpr uint32_t kRvaShowMessage = 0xD3160;    // void __cdecl (const char* text, int 8, int duration, int 0), the cheat-toggle banner
 // Spell numbers (docs/research/spells.md): every one is an instruction immediate, patched in place and byte-verified.
 constexpr uint32_t kRvaFireballDamageInsn = 0xAF189;    // `mov al, 0x28` (B0 28) in FUN_004af0e0, stored to missile+0x37
@@ -254,6 +268,8 @@ constexpr int kOffResources = 0x82;     // uint16, gold mine / oil: what is left
 constexpr int kOffOrderX = 0x84;        // int16, order destination when there is no target unit
 constexpr int kOffOrderY = 0x86;        // int16
 constexpr int kOffOrderTarget = 0x88;   // Unit*
+constexpr int kOffBuildType = 0x7F;     // uint8, workers: the building type of a build order (FUN_004dc2c0, 0x4DAFBA)
+constexpr int kOffBuildSite = 0x80;     // int16 x, int16 y: its top-left tile, copied to +0x84 by the build handler
 constexpr int kOffResumeState = 0x8E;   // uint8 beside it: the engine sets 0x14 after resuming an attack-move, 0x28 a patrol
 constexpr int kOffResumeOrder = 0x8D;   // uint8, Remastered: order resumed after a stop (0x3C none, 5 patrol, 10 attack-move)
 
@@ -323,7 +339,7 @@ constexpr uint8_t kTileUnexplored = 0x10;
 constexpr uint8_t kOrderStop = 2, kOrderMove = 3, kOrderMovePatrol = 4, kOrderPatrol = 5;
 constexpr uint8_t kOrderAttack = 8, kOrderAttackTarget = 9, kOrderAttackArea = 10, kOrderAttackWall = 11;
 constexpr uint8_t kOrderDefend = 12, kOrderStand = 13, kOrderStandAttack = 14, kOrderDefendGround = 15, kOrderDefendStopped = 16;
-constexpr uint8_t kOrderHarvest = 23, kOrderReturnGoods = 24, kOrderRepair = 27;
+constexpr uint8_t kOrderHarvest = 23, kOrderReturnGoods = 24, kOrderRepair = 27, kOrderBuild = 28;
 constexpr uint8_t kOrderSpellEye = 0x30;
 constexpr uint8_t kOrderHolyVision = 0x26, kOrderFlameShield = 0x2A, kOrderFireball = 0x2B, kOrderInvisibility = 0x2D;
 constexpr uint8_t kOrderBlizzard = 0x2F, kOrderWhirlwind = 0x34, kOrderRunes = 0x37, kOrderDeathAndDecay = 0x38;

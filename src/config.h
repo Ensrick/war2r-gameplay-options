@@ -237,6 +237,10 @@ struct Config {
     // [food]
     bool hallFood = false;            // halls give hallFoodAmount food instead of the game's 1
     int hallFoodAmount = 5;           // per town hall / keep / castle (and the orc ones); a farm gives 4
+    // [farms]
+    bool farmsAutoBuild = false;      // a peasant builds a farm when free food runs low, see src/farms.cpp
+    int farmsFreeMin = 4;             // build at this much free food or less ...
+    int farmsFreePercent = 10;        // ... or this % of the supply (rounded up), whichever is HIGHER
     double goldMinesAmount = 1.0;     // x the gold in every mine, once, when a new map starts
     double oilAmount = 1.0;           // x the oil in every patch and platform, likewise
 

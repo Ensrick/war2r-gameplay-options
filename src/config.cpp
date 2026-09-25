@@ -707,6 +707,7 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"eye_of_kilrogg", " cast cast_at_mana max_active auto_scout "},
         {"gold_mines", " unlimited amount "},
         {"food", " hall_food hall_food_amount "},
+        {"farms", " auto_build free_min free_percent "},
         {"oil_platforms", " unlimited amount "},
         {"health", nullptr},  // multiplier trees and [range] validate their own keys
         {"costs", nullptr},
@@ -799,6 +800,9 @@ static bool Load() {
     ReadFactor(root, "gold_mines", "amount", c.goldMinesAmount);
     ReadBool(root, "food", "hall_food", c.hallFood);
     ReadInt(root, "food", "hall_food_amount", 1, 200, c.hallFoodAmount);
+    ReadBool(root, "farms", "auto_build", c.farmsAutoBuild);
+    ReadInt(root, "farms", "free_min", 0, 200, c.farmsFreeMin);
+    ReadInt(root, "farms", "free_percent", 0, 100, c.farmsFreePercent);
     ReadFactor(root, "oil_platforms", "amount", c.oilAmount);
     ReadMultipliers(root, "health", true, c.health);
     ReadMultipliers(root, "costs", false, c.costs);

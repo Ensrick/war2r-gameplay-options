@@ -369,6 +369,45 @@ hall_food_amount = 5     # 1 = the game's own value; a farm gives 4; the 200 foo
 Works right away, also in a game that is already running, and for the computer players too. Switch it off and the
 game's own numbers come back at once.
 
+### Peasants that build farms by themselves
+
+```toml
+[farms]
+auto_build = true
+free_min = 4        # build when this much food or less is free ...
+free_percent = 10   # ... or this % of your food (rounded up), whichever number is HIGHER
+```
+
+When your free food gets low, one of your peasants goes and builds a farm. The spot is picked by the same search the
+computer player uses for its own farms: the nearest free place around your town hall, as close to it as the game
+allows, on ground the peasant can reach and that you have explored. The farm costs what a farm costs you, and is paid
+when the peasant starts building, exactly as when you place it yourself.
+
+"Whichever is higher" means `free_min` is the floor while you have little food, and the percent takes over once 10 %
+of your food is more than 4 (from 41 food up):
+
+| Your food | 10 % of it | Farm starts at |
+|---|---|---|
+| 20 | 2 | 4 free or less |
+| 60 | 6 | 6 free or less |
+| 150 | 15 | 15 free or less |
+
+The rules:
+
+- One farm at a time. The next one waits until the first is finished (a farm on its way or being built counts).
+- Only when you can pay for it, never at 200 food, and only in missions that let you build farms.
+- An idle peasant goes first. If none is idle, the nearest one on its way to gold or wood that is carrying nothing.
+  A peasant that is repairing, building, fighting, carrying goods or told to stand ground is never taken.
+- Your own units only, never the computer's. Off in multiplayer.
+- With `log_casts = true` each farm is written to the log: `farm: peasant at 31,40 -> farm at 18,18 (food 18/20)`.
+
+This is the same rule `[auto_production]` uses to keep food free (`food_free_min` / `food_free_percent`, the higher
+of the two), so with both at the same numbers they work together: auto-production stops training when free food
+reaches that point, and that is exactly when the farm is started. If you give `[farms]` smaller numbers than
+`[auto_production]`, auto-production stops first and the farm only comes when you train units yourself. The two never
+take the same worker (auto-production only trains), but they spend the same gold: if it is gone by the time the
+peasant arrives, the game says so, the peasant stops, and the mod tries again a second later.
+
 ### Oil platforms that never run dry
 
 The same thing for oil, with its own switch. Off by default; it covers every platform on the map, the computer's too.
@@ -1149,6 +1188,7 @@ makes the log long.
 | gold_mines | amount | 1.0 | Multiplies the gold in every mine when a new map starts (cap 6,553,500 per mine) |
 | oil_platforms | unlimited | false | Oil platforms never run dry (all platforms) |
 | food | hall_food / hall_food_amount | false / 5 | Halls, keeps and castles give this much food instead of 1 (1 to 200) |
+| farms | auto_build / free_min / free_percent | false / 4 / 10 | A peasant builds a farm when free food is at or below the higher of the two numbers (free_percent of your food, rounded up) |
 | oil_platforms | amount | 1.0 | Multiplies the oil in every patch and platform when a new map starts |
 | workers | auto_repair / repair_idle_seconds / repair_radius | true / 1 / 10 | Idle workers repair your damaged buildings |
 | workers | auto_harvest / harvest_idle_seconds / harvest_radius | false / 10 / 5 | Idle workers go to the nearest mine or tree |

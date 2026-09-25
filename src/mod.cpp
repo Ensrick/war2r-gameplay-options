@@ -8,6 +8,7 @@
 #include "config.h"
 #include "datatweaks.h"
 #include "eye.h"
+#include "farms.h"
 #include "log.h"
 #include "production.h"
 #include "resume.h"
@@ -130,6 +131,7 @@ void __cdecl OnTick() {
     aijobs::OnTick(w);  // a game bug: a savegame load leaves the computer's worker-job counters out of step
     tweaks::OnTick(w, elapsedMs);
     workers::OnTick(w, elapsedMs);
+    farms::OnTick(w, elapsedMs);
     scouts::OnTick(w, elapsedMs);
     production::OnTick(w, elapsedMs);
     trees::OnTick(w, elapsedMs);
