@@ -20,6 +20,7 @@
 #include "../src/log.h"
 #include "../src/production.h"
 #include "../src/resume.h"
+#include "../src/dodge.h"
 #include "../src/scouts.h"
 #include "../src/spells.h"
 #include "../src/upgrades.h"
@@ -58,6 +59,9 @@ static void __cdecl FakeIssueOrder(Unit* caster, int16_t x, int16_t y, Unit* tar
                           : rva == kRvaBuildHandler   ? kOrderBuild
                           : rva == kRvaAttackMoveHandler ? kOrderAttackArea
                           : rva == kRvaPatrolHandler     ? kOrderPatrol
+                          : rva == kRvaPatrolCommandHandler ? kOrderPatrol
+                          : rva == kRvaStandHandler      ? kOrderStand
+                          : rva == kRvaAttackHandler     ? (target ? kOrderAttackTarget : kOrderAttack)
                                                       : static_cast<uint8_t>(*At<uint16_t>(kRvaPendingSpellOrder));
     Field<uint8_t>(caster, kOffNextOrder) = order;
     Field<Unit*>(caster, kOffOrderTarget) = target;
@@ -2457,6 +2461,243 @@ static production::Plan ShipyardCase(int oil) {
 
 static bool g_fakeCtrl = false, g_fakeF10 = false;
 static bool FakeKeys(int vk) { return (vk == VK_CONTROL && g_fakeCtrl) || (vk == VK_F10 && g_fakeF10); }
+
+// [dodge] (src/dodge.cpp): the player's units step out of a falling Blizzard / Death and Decay and hold at its edge
+// instead of walking in, and get their order back once it is gone.
+static void DodgeTests(const wchar_t* dir) {
+    CHECK(!Dodge().enabled, "[dodge] must be off by default");
+    constexpr uint8_t kArcher = 0x08, kBarracksD = 0x3C;
+    uint32_t* tf = At<uint32_t>(kRvaTypeFlags);
+    uint8_t* range = At<uint8_t>(kRvaAttackRangeByType);
+    const uint32_t savedTf[5] = {tf[kFootman], tf[kGrunt], tf[kArcher], tf[kBarracksD], tf[kDragon]};
+    const uint8_t savedRange[3] = {range[kFootman], range[kGrunt], range[kArcher]};
+    tf[kFootman] = tf[kGrunt] = tf[kArcher] = kTfFleshy | kTfAttacker;
+    tf[kBarracksD] = kTfBuilding;
+    tf[kDragon] = kTfFlyer | kTfFleshy | kTfAttacker;
+    range[kFootman] = range[kGrunt] = 1;
+    range[kArcher] = 4;
+    static uint8_t pool[16 * kMissileSize];
+    uint8_t* const savedPool = *At<uint8_t*>(kRvaMissilePool);
+    const uint32_t savedSlots = *At<uint32_t>(kRvaMissileSlots);
+    *At<uint8_t*>(kRvaMissilePool) = pool;
+    *At<uint32_t>(kRvaMissileSlots) = 16;
+    const bool savedLog = config::g.logCasts;
+    config::g.logCasts = true;
+    config::g.dodge.enabled = true;
+
+    auto clearPool = [&]() {
+        memset(pool, 0, sizeof(pool));
+        for (int i = 0; i < 16; ++i) pool[i * kMissileSize + kMisOffFlags] = 1;
+    };
+    auto missile = [&](int slot, uint8_t type, Unit* source, int px, int py) {
+        uint8_t* m = pool + slot * kMissileSize;
+        m[kMisOffFlags] = 0;
+        m[kMisOffType] = type;
+        *reinterpret_cast<Unit**>(m + kMisOffSource) = source;
+        *reinterpret_cast<int16_t*>(m + 0x28) = static_cast<int16_t>(px);
+        *reinterpret_cast<int16_t*>(m + 0x2A) = static_cast<int16_t>(py);
+    };
+    auto decay = [&](int slot, int ax, int ay) { missile(slot, 6, nullptr, ax * 32 + 16, ay * 32 + 16); };
+    auto gone = [&](int slot) { pool[slot * kMissileSize + kMisOffFlags] = 1; };
+    auto run = [&](unsigned ms) {
+        for (unsigned t = 0; t < ms; t += 250) {
+            World w;
+            if (BuildWorld(w)) dodge::OnTick(w, 250);
+        }
+    };
+    auto ox = [](Unit* u) { return static_cast<int>(Field<int16_t>(u, kOffOrderX)); };
+    auto oy = [](Unit* u) { return static_cast<int>(Field<int16_t>(u, kOffOrderY)); };
+    auto cheb = [](int ax, int ay, int bx, int by) { return abs(ax - bx) > abs(ay - by) ? abs(ax - bx) : abs(ay - by); };
+    auto arrive = [&](Unit* u) {  // the unit gets where it was sent and stops
+        Field<int16_t>(u, kOffX) = Field<int16_t>(u, kOffOrderX);
+        Field<int16_t>(u, kOffY) = Field<int16_t>(u, kOffOrderY);
+        Idle(u);
+        Field<uint8_t>(u, kOffOrder) = kOrderStop;
+    };
+    auto fresh = [&]() {
+        ResetWorld();
+        dodge::OnNewMap();
+        clearPool();
+    };
+
+    // A death and decay at 30,30: danger box 27..33. A footman standing at 30,31 steps out, away from the aim.
+    fresh();
+    Unit* ft = AddUnit(kFootman, 0, 30, 31, 60, 0, kOrderStand);
+    Field<uint32_t>(ft, kOffSerial) = 7001;
+    decay(0, 30, 30);
+    run(250);
+    CHECK(dodge::AreaCount() == 1, "one death and decay area (%u)", dodge::AreaCount());
+    CHECK(OrderOf(ft) == kOrderMove && cheb(ox(ft), oy(ft), 30, 30) >= 5 && oy(ft) > 31 && dodge::DodgeCount() == 1,
+          "the footman must step out of the area, away from the aim (order %u to %d,%d)", OrderOf(ft), ox(ft), oy(ft));
+    CHECK(LogContains(dir, "dodge: unit type 0 at 30,31 out of a blizzard / death and decay"), "the dodge must be logged");
+    const int destX = ox(ft), destY = oy(ft);
+    run(1000);
+    CHECK(dodge::DodgeCount() == 1 && ox(ft) == destX && oy(ft) == destY, "a unit on its way out must not be re-sent");
+    arrive(ft);
+    run(3000);  // out, and the area still falls: nothing, no ping-pong at the edge
+    CHECK(OrderOf(ft) == kOrderStop && dodge::DodgeCount() == 1 && dodge::RestoreCount() == 0,
+          "at the safe tile with the area still there the footman must wait (order %u)", OrderOf(ft));
+    gone(0);
+    run(750);
+    CHECK(OrderOf(ft) == kOrderStop, "an order must not come back before the area has been gone a second");
+    run(500);
+    CHECK(OrderOf(ft) == kOrderMove && ox(ft) == 30 && oy(ft) == 31 && dodge::RestoreCount() == 1,
+          "then the footman walks back to where it stood (order %u to %d,%d)", OrderOf(ft), ox(ft), oy(ft));
+    arrive(ft);
+    run(250);
+    CHECK(OrderOf(ft) == kOrderStand, "and stands its ground again, as it did (order %u)", OrderOf(ft));
+
+    // The player's own move through the area is his call.
+    fresh();
+    ft = AddUnit(kFootman, 0, 30, 30, 60, 0, kOrderMove);
+    Field<uint32_t>(ft, kOffSerial) = 7002;
+    Field<int16_t>(ft, kOffOrderX) = 45;
+    Field<int16_t>(ft, kOffOrderY) = 30;
+    decay(0, 30, 30);
+    run(1000);
+    CHECK(OrderOf(ft) == kOrderMove && ox(ft) == 45 && dodge::DodgeCount() == 0, "the player's own move must be left alone");
+    // ... and a player's order in the middle of a dodge makes the unit his.
+    fresh();
+    ft = AddUnit(kFootman, 0, 30, 31, 60, 0, kOrderStop);
+    Field<uint32_t>(ft, kOffSerial) = 7003;
+    decay(0, 30, 30);
+    run(250);
+    Field<uint8_t>(ft, kOffOrder) = kOrderAttackTarget;  // the player sends it at something
+    Field<uint8_t>(ft, kOffNextOrder) = kOrderNone;
+    Field<int16_t>(ft, kOffOrderX) = 0;
+    run(250);
+    Field<int16_t>(ft, kOffX) = 40;  // wherever it went, it is out
+    gone(0);
+    run(3000);
+    CHECK(OrderOf(ft) == kOrderAttackTarget && dodge::RestoreCount() == 0,
+          "an order the player gave during a dodge must not be overwritten (order %u)", OrderOf(ft));
+
+    // Exempt: the casting mage, a building, a unit under unholy armor, the computer's units. A flyer dodges too.
+    fresh();
+    Unit* mage = AddUnit(kTypeMage, 0, 30, 30, 60, 100, kOrderBlizzard);
+    Field<int16_t>(mage, kOffOrderX) = 31;
+    Field<int16_t>(mage, kOffOrderY) = 30;
+    Unit* barracks = AddUnit(kBarracksD, 0, 29, 29, 800, 0, kOrderStand);
+    Unit* armored = AddUnit(kFootman, 0, 32, 31, 60, 0, kOrderStand);
+    Field<uint16_t>(armored, kOffArmorTimer) = 300;
+    Unit* enemy = AddUnit(kGrunt, 1, 31, 31, 60, 0, kOrderStand);
+    Unit* dragon = AddUnit(kDragon, 0, 31, 29, 100, 0, kOrderStand);
+    Field<uint32_t>(dragon, kOffSerial) = 7004;
+    missile(0, 5, mage, 32 * 32 + 16, 31 * 32 + 16);  // a shard of the mage's channel: the area is its order tile 31,30
+    run(250);
+    CHECK(OrderOf(mage) == kOrderBlizzard && OrderOf(barracks) == kOrderStand && OrderOf(armored) == kOrderStand &&
+              OrderOf(enemy) == kOrderStand,
+          "caster %u, building %u, armored %u, enemy %u must stay put", OrderOf(mage), OrderOf(barracks), OrderOf(armored),
+          OrderOf(enemy));
+    CHECK(OrderOf(dragon) == kOrderMove && cheb(ox(dragon), oy(dragon), 31, 30) >= 5, "an own dragon must fly out (order %u to %d,%d)",
+          OrderOf(dragon), ox(dragon), oy(dragon));
+
+    // Blizzard: while the mage channels the whole 5x5 (+1) around its order tile is the area; once it stops, only the
+    // chains still falling on their own point are.
+    fresh();
+    mage = AddUnit(kTypeMage, 0, 20, 20, 60, 100, kOrderBlizzard);
+    Field<int16_t>(mage, kOffOrderX) = 30;
+    Field<int16_t>(mage, kOffOrderY) = 30;
+    ft = AddUnit(kFootman, 0, 27, 30, 60, 0, kOrderStand);  // 3 tiles off the aim: in the quarter ring of the pattern
+    Field<uint32_t>(ft, kOffSerial) = 7005;
+    missile(0, 5, mage, 32 * 32 + 16, 32 * 32 + 16);  // falling on 32,32
+    run(250);
+    CHECK(OrderOf(ft) == kOrderMove, "a footman 3 tiles off a channelled blizzard's aim must step out (order %u)", OrderOf(ft));
+    fresh();
+    mage = AddUnit(kTypeMage, 0, 20, 20, 60, 100, kOrderStop);  // the channel is over
+    ft = AddUnit(kFootman, 0, 29, 30, 60, 0, kOrderStand);  // inside the old 5x5 (+1), outside the chain's own 3x3
+    Field<uint32_t>(ft, kOffSerial) = 7006;
+    missile(0, 5, mage, 32 * 32 + 16, 32 * 32 + 16);
+    run(250);
+    CHECK(OrderOf(ft) == kOrderStand, "after the channel only 31..33 around the falling chain is dangerous (order %u)", OrderOf(ft));
+
+    // Ground units only step onto ground they can stand on: water to the south and east of the area.
+    fresh();
+    static uint16_t sq[kMap * kMap];
+    uint16_t* const savedSq = *At<uint16_t*>(kRvaSquareFlags);
+    for (int y = 0; y < kMap; ++y)
+        for (int x = 0; x < kMap; ++x) sq[y * kMap + x] = (x >= 31 || y >= 33) ? kSqWater : kSqLand;
+    *At<uint16_t*>(kRvaSquareFlags) = sq;
+    ft = AddUnit(kFootman, 0, 30, 32, 60, 0, kOrderStand);
+    Field<uint32_t>(ft, kOffSerial) = 7007;
+    decay(0, 31, 32);
+    run(250);
+    CHECK(OrderOf(ft) == kOrderMove && !(sq[oy(ft) * kMap + ox(ft)] & kSqWater), "the footman must step onto land (to %d,%d)",
+          ox(ft), oy(ft));
+    *At<uint16_t*>(kRvaSquareFlags) = savedSq;
+
+    // Avoid: a footman sent at a grunt standing inside the area holds its ground at the edge; an archer in range of the
+    // grunt keeps shooting. Once the area is gone the footman goes back to its attack.
+    fresh();
+    Unit* grunt = AddUnit(kGrunt, 1, 30, 30, 60, 0, kOrderStand);
+    Field<uint32_t>(grunt, kOffSerial) = 7008;
+    ft = AddUnit(kFootman, 0, 22, 30, 60, 0, kOrderAttackTarget);
+    Field<uint32_t>(ft, kOffSerial) = 7009;
+    Field<Unit*>(ft, kOffOrderTarget) = grunt;
+    Unit* archer = AddUnit(kArcher, 0, 23, 30, 40, 0, kOrderAttackTarget);  // 4 tiles from the danger box, range 4 to 27
+    Field<uint32_t>(archer, kOffSerial) = 7010;
+    Field<Unit*>(archer, kOffOrderTarget) = grunt;
+    Field<int16_t>(archer, kOffX) = 26;
+    decay(0, 30, 30);
+    run(250);
+    CHECK(OrderOf(ft) == kOrderStand && dodge::HoldCount() == 1, "the footman must hold instead of walking in (order %u)", OrderOf(ft));
+    CHECK(OrderOf(archer) == kOrderAttackTarget, "an archer in range must keep shooting (order %u)", OrderOf(archer));
+    CHECK(LogContains(dir, "holds at the edge"), "the hold must be logged");
+    run(2000);
+    CHECK(OrderOf(ft) == kOrderStand && dodge::HoldCount() == 1, "a holding unit must keep holding while the area falls");
+    gone(0);
+    run(1250);
+    CHECK(OrderOf(ft) == kOrderAttackTarget && Field<Unit*>(ft, kOffOrderTarget) == grunt,
+          "once the area is gone the footman attacks again (order %u)", OrderOf(ft));
+    // A target it picked by itself (+0x54) counts as well.
+    fresh();
+    grunt = AddUnit(kGrunt, 1, 30, 30, 60, 0, kOrderStand);
+    ft = AddUnit(kFootman, 0, 22, 30, 60, 0, kOrderAttack);
+    Field<uint32_t>(ft, kOffSerial) = 7011;
+    Field<Unit*>(ft, kOffAutoTarget) = grunt;
+    decay(0, 30, 30);
+    run(250);
+    CHECK(OrderOf(ft) == kOrderStand, "chasing its own pick into the area must be held too (order %u)", OrderOf(ft));
+    // An attack-move whose next steps lie in the area holds; further off it walks on; afterwards it is given back.
+    fresh();
+    ft = AddUnit(kFootman, 0, 22, 30, 60, 0, kOrderAttackArea);
+    Field<uint32_t>(ft, kOffSerial) = 7012;
+    Field<int16_t>(ft, kOffOrderX) = 45;
+    Field<int16_t>(ft, kOffOrderY) = 30;
+    decay(0, 30, 30);
+    run(500);
+    CHECK(OrderOf(ft) == kOrderAttackArea, "an attack-move 5 tiles from the area goes on (order %u)", OrderOf(ft));
+    Field<int16_t>(ft, kOffX) = 25;
+    run(250);
+    CHECK(OrderOf(ft) == kOrderStand, "an attack-move about to enter the area must hold (order %u)", OrderOf(ft));
+    gone(0);
+    run(1250);
+    CHECK(OrderOf(ft) == kOrderAttackArea && ox(ft) == 45 && oy(ft) == 30,
+          "the attack-move to 45,30 comes back once the area is gone (order %u to %d,%d)", OrderOf(ft), ox(ft), oy(ft));
+
+    // Off: nothing at all.
+    fresh();
+    config::g.dodge.enabled = false;
+    ft = AddUnit(kFootman, 0, 30, 31, 60, 0, kOrderStand);
+    decay(0, 30, 30);
+    run(1000);
+    CHECK(OrderOf(ft) == kOrderStand && dodge::DodgeCount() == 0, "dodging while [dodge] enabled = false");
+
+    config::g.dodge.enabled = false;
+    config::g.logCasts = savedLog;
+    *At<uint8_t*>(kRvaMissilePool) = savedPool;
+    *At<uint32_t>(kRvaMissileSlots) = savedSlots;
+    tf[kFootman] = savedTf[0];
+    tf[kGrunt] = savedTf[1];
+    tf[kArcher] = savedTf[2];
+    tf[kBarracksD] = savedTf[3];
+    tf[kDragon] = savedTf[4];
+    range[kFootman] = savedRange[0];
+    range[kGrunt] = savedRange[1];
+    range[kArcher] = savedRange[2];
+    dodge::OnNewMap();
+    ResetWorld();
+}
 
 static bool g_fakeF11 = false;
 static bool FakeKeysF11(int vk) { return (vk == VK_CONTROL && g_fakeCtrl) || (vk == VK_F11 && g_fakeF11); }
@@ -6859,6 +7100,7 @@ int wmain(int argc, wchar_t** argv) {
     ComputerPaladinTests(dir);
     ProductionTests(dir, ini);
     ScoutTests(dir, ini);
+    DodgeTests(dir);
 
     // TOML config: a custom file is honoured, typos and bad values are survivable, a syntax error keeps old settings.
     WriteFileText(ini,

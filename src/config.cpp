@@ -738,6 +738,7 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"auto_production", nullptr},  // validates its own keys and sub-tables
         {"priority", " save_mana hold_for_blocked_area paladin mage ogre_mage death_knight "},
         {"scouts", " enabled units toggle_key idle_seconds "},
+        {"dodge", " enabled "},
         {"upgrades", " missile_damage melee_damage shields ship_damage ship_armor siege_damage "},
         {"weapon_types", nullptr},   // the keys are names the player invents; the reader validates them
         {"armor_types", nullptr},
@@ -860,6 +861,7 @@ static bool Load() {
     ReadDamageTypes(root, c);
     ReadPriority(root, c);
     ReadScouts(root, c);
+    ReadBool(root, "dodge", "enabled", c.dodge.enabled);
     ReadAutoProduction(root, c);
     g = c;
 

@@ -12,6 +12,7 @@
 #include "log.h"
 #include "production.h"
 #include "resume.h"
+#include "dodge.h"
 #include "scouts.h"
 #include "spells.h"
 #include "upgrades.h"
@@ -133,6 +134,7 @@ void __cdecl OnTick() {
     workers::OnTick(w, elapsedMs);
     farms::OnTick(w, elapsedMs);
     scouts::OnTick(w, elapsedMs);
+    dodge::OnTick(w, elapsedMs);
     production::OnTick(w, elapsedMs);
     trees::OnTick(w, elapsedMs);
     aiwatch::OnTick(w, elapsedMs);  // reads only: never drives the computer player
