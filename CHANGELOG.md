@@ -7,6 +7,11 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.28.1 - 2026-09-25
+
+- Tests and tutorial: auto-built farms only anchor on a finished hall, and a base filled with 60 auto farms still
+  leaves the hall a clear way to both gold mines.
+
 ## 1.28.0 - 2026-09-25
 
 - Auto-built farms keep your workers' way clear: never within `mine_clearance` (3) tiles of a gold mine or 2 tiles of

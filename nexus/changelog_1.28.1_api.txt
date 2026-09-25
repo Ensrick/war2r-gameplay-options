@@ -1,0 +1,1 @@
+Tests and tutorial: auto-built farms only anchor on a finished hall, and a base filled with 60 auto farms still leaves the hall a clear way to both gold mines.

@@ -15,6 +15,11 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.28.1 (2026-09-25)
+
+- Tests only (agent follow-up): finished-hall anchor, and a flood-fill proof that 60 auto farms leave the hall a path to
+  both mines. 18 mutations, 18 caught.
+
 ## 1.28.0 (2026-09-25, UNTESTED in game, NOT released)
 
 - Author: "I can't have farms auto-building in the path of my gold mine. Are peasants who are actively working building

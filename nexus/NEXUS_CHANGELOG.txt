@@ -1,3 +1,8 @@
+[size=4][b]1.28.1[/b][/size]
+[list]
+[*]Tests and tutorial: auto-built farms only anchor on a finished hall, and a base filled with 60 auto farms still leaves the hall a clear way to both gold mines.
+[/list]
+
 [size=4][b]1.28.0[/b][/size]
 [list]
 [*]Auto-built farms keep your workers' way clear: never within mine_clearance (3) tiles of a gold mine or 2 tiles of the path between your hall and a mine, preferring spots beside other buildings on the side away from the mines. Only once you own a finished hall. New [farms] workers: idle workers first, then a wood cutter walking back empty; a gold miner is never taken (idle_only and any are the other choices).
