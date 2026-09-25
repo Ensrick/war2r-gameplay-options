@@ -23,6 +23,7 @@
 #include "../src/scouts.h"
 #include "../src/spells.h"
 #include "../src/upgrades.h"
+#include "../src/aijobs.h"
 #include "../src/aiwatch.h"
 #include "../src/trees.h"
 
@@ -512,6 +513,9 @@ static void AiWatchTests() {
     At<uint16_t>(kRvaAiKnightCount)[3] = 4;
     At<uint16_t>(kRvaPeasantCount)[3] = 8;
     for (int i = 0; i < 9; ++i) At<uint8_t>(kRvaAiBuildDone)[3 * kAiBuildListMax + i] = 1;  // buildlist 9/13
+    At<uint16_t>(kRvaAiGoldWorkers)[3] = 4;  // the worker-job counters, one of them wrapped by a load
+    At<uint16_t>(kRvaAiLumberWorkers)[3] = 0xFFFF;
+    At<uint16_t>(kRvaAiRepairWorkers)[3] = 1;
 
     ResetWorld();
     AddUnit(kTypeMage, 0, 10, 10, 60, 255, kOrderStand);  // the human, so BuildWorld succeeds
@@ -522,7 +526,7 @@ static void AiWatchTests() {
     const char* kExpected =
         "ai: player 3 script 41 pc 0x0010 WAITFOR have_castle same pc for 1m | gold 3750 lum 1000 oil 4700 | "
         "food 24/60 | force land 13 sea 0 air 0 | foot 6/6 arch 3/3 siege 0/0 knight 4/4 | workers 8/8 | "
-        "buildlist 9/13";
+        "buildlist 9/13 | jobs gold 4 lum 65535 rep 1";
 
     // 1. Nothing before a minute of play, exactly one line at the minute, with the expected text.
     config::g.logAi = true;
@@ -652,6 +656,168 @@ static void AiWatchTests() {
     aiwatch::SetSinkForTests(nullptr);
     aiwatch::ResetForTests();
     config::g.logAi = savedLogAi;
+    ResetWorld();
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// [general] fix_ai_after_load (src/aijobs.cpp, docs/research/ai_lumber.md): a savegame load zeroes the computer's
+// worker-job counters but keeps the job bits, and the first release wraps a counter to 65535. The fix sets every
+// counter back to the number of units carrying its bit.
+// ---------------------------------------------------------------------------------------------------------------
+
+static char g_jobLines[4][768];
+static int g_jobLineCount = 0;
+
+static void JobSink(const char* line) {
+    if (g_jobLineCount < 4) strcpy_s(g_jobLines[g_jobLineCount], sizeof g_jobLines[0], line);
+    ++g_jobLineCount;
+}
+
+static Unit* AddWorker(uint8_t owner, uint16_t job, uint16_t kind, uint16_t state) {
+    Unit* u = AddUnit(kPeon, owner, 20 + g_unitCount % 40, 20 + g_unitCount / 40, 30, 0, kOrderStand);
+    Field<uint16_t>(u, kOffAiJob) = job;
+    Field<uint16_t>(u, kOffAiBuildKind) = kind;
+    Field<uint16_t>(u, kOffStateFlags) = state;
+    return u;
+}
+
+static uint16_t* JobGold() { return At<uint16_t>(kRvaAiGoldWorkers); }
+static uint16_t* JobLumber() { return At<uint16_t>(kRvaAiLumberWorkers); }
+static uint16_t* JobRepair() { return At<uint16_t>(kRvaAiRepairWorkers); }
+static uint16_t* JobBuild(int p) { return At<uint16_t>(kRvaAiBuilders) + p * kAiBuildKinds; }
+
+static void ClearJobCounters() {
+    memset(JobGold(), 0, kMaxPlayers * 2);
+    memset(JobLumber(), 0, kMaxPlayers * 2);
+    memset(JobRepair(), 0, kMaxPlayers * 2);
+    memset(JobBuild(0), 0, kMaxPlayers * kAiBuildKinds * 2);
+}
+
+// Player 3's counters as a savegame load leaves them after the first lumber worker delivered: everything zeroed,
+// then the lumber counter and one builder entry taken below zero.
+static void WrapJobCounters() {
+    ClearJobCounters();
+    JobLumber()[3] = 0xFFFF;
+    JobBuild(3)[5] = 0xFFFF;
+    JobGold()[0] = 7;  // the human's words: never read by the game, must never be touched
+    JobLumber()[0] = 9;
+}
+
+static void JobTick() {
+    World w;
+    if (!BuildWorld(w)) {
+        CHECK(false, "aijobs test: BuildWorld failed");
+        return;
+    }
+    aijobs::OnTick(w);
+}
+
+static bool JobsAreFixed() {
+    const uint16_t* b = JobBuild(3);
+    int others = 0;
+    for (int k = 0; k < kAiBuildKinds; ++k)
+        if (k != 0 && k != 5) others += b[k];
+    return JobGold()[3] == 2 && JobLumber()[3] == 3 && JobRepair()[3] == 1 && b[0] == 1 && b[5] == 1 && others == 0;
+}
+
+static void AiJobsTests() {
+    const bool savedFix = config::g.fixAiAfterLoad;
+    uint32_t* tf = At<uint32_t>(kRvaTypeFlags);
+    const uint32_t savedPeon = tf[kPeon], savedGrunt = tf[kGrunt];
+    tf[kPeon] = kTfFleshy | kTfWorker;
+    tf[kGrunt] = kTfFleshy | kTfAttacker;
+    memset(At<uint8_t>(kRvaController), 0, kMaxPlayers);
+    At<uint8_t>(kRvaController)[3] = 1;  // player 3 is the computer, player 0 the human
+    aijobs::SetSinkForTests(&JobSink);
+
+    ResetWorld();
+    AddUnit(kTypeMage, 0, 10, 10, 60, 255, kOrderStand);  // the human, so BuildWorld succeeds
+    AddWorker(3, kAiJobGold, 0, 0);
+    AddWorker(3, kAiJobGold, 0, 0x08);          // inside the mine: the removal path still releases it, so it counts
+    AddWorker(3, kAiJobLumber, 0, 0);
+    AddWorker(3, kAiJobLumber, 0, 0x80);        // other state bits above 7 do not matter either
+    AddWorker(3, kAiJobRepair, 0, 0);
+    AddWorker(3, kAiJobBuild, 5, 0);            // builder of kind 5
+    AddWorker(3, kAiJobBuildFarm, 0, 0);        // farm builder, kind 0
+    AddWorker(3, kAiJobLumber, 0, kStateDying); // dying: already released by FUN_004ee380, not counted
+    AddWorker(3, kAiJobLumber | kAiJobBuild, kAiBuildKinds, 0);  // lumber counts, a kind past the row does not
+    AddWorker(3, 0, 5, 0);                      // no job at all
+    Unit* grunt = AddUnit(kGrunt, 3, 50, 50, 60, 0, kOrderStand);
+    Field<uint16_t>(grunt, kOffAiJob) = kAiJobLumber;  // not a worker type: the game never releases it
+    AddWorker(0, kAiJobGold | kAiJobLumber, 0, 0);     // the human's peon: not the computer's business
+
+    // 1. The wrapped counters are put back, the human's words stay, and one line says what changed.
+    config::g.fixAiAfterLoad = true;
+    g_jobLineCount = 0;
+    WrapJobCounters();
+    JobTick();
+    CHECK(JobsAreFixed(), "recount after load: gold %u lumber %u repair %u build0 %u build5 %u", JobGold()[3],
+          JobLumber()[3], JobRepair()[3], JobBuild(3)[0], JobBuild(3)[5]);
+    CHECK(JobGold()[0] == 7 && JobLumber()[0] == 9, "the human player's counters must not be touched (%u %u)",
+          JobGold()[0], JobLumber()[0]);
+    const char* kWant =
+        "ai: recounted workers after load: player 3 gold 0 lumber 65535 repair 0 build 65535 -> gold 2 lumber 3 "
+        "repair 1 build 2";
+    CHECK(g_jobLineCount == 1 && strcmp(g_jobLines[0], kWant) == 0, "recount line\n  want: %s\n  got:  %s", kWant,
+          g_jobLineCount ? g_jobLines[0] : "(none)");
+
+    // 2. Idempotent: the next steps find nothing to do and say nothing.
+    for (int i = 0; i < 10; ++i) JobTick();
+    CHECK(JobsAreFixed() && g_jobLineCount == 1, "a second pass must change nothing (%d lines)", g_jobLineCount);
+
+    // 3. A fresh map, where the counters already match the units: not one write, not one line.
+    g_jobLineCount = 0;
+    for (int i = 0; i < 10; ++i) JobTick();
+    CHECK(JobsAreFixed() && g_jobLineCount == 0, "matching counters must be left alone (%d lines)", g_jobLineCount);
+
+    // 4. The off switch leaves the wrapped counters as the game has them.
+    config::g.fixAiAfterLoad = false;
+    WrapJobCounters();
+    for (int i = 0; i < 10; ++i) JobTick();
+    CHECK(JobLumber()[3] == 0xFFFF && JobBuild(3)[5] == 0xFFFF && JobGold()[3] == 0 && g_jobLineCount == 0,
+          "fix_ai_after_load = false must not write (lumber %u, %d lines)", JobLumber()[3], g_jobLineCount);
+    config::g.fixAiAfterLoad = true;
+
+    // 5. Multiplayer: the real entry point never gets as far as the recount.
+    WrapJobCounters();
+    *At<uint32_t>(kRvaNetGame) = 1;
+    for (int i = 0; i < 10; ++i) mod::OnTick();
+    *At<uint32_t>(kRvaNetGame) = 0;
+    CHECK(JobLumber()[3] == 0xFFFF && JobGold()[3] == 0 && g_jobLineCount == 0,
+          "a network game must not be touched (lumber %u, %d lines)", JobLumber()[3], g_jobLineCount);
+
+    // 6. ...and in single player the same entry point does run it.
+    mod::OnTick();
+    CHECK(JobsAreFixed() && g_jobLineCount == 1, "mod::OnTick must run the recount in single player (lumber %u)",
+          JobLumber()[3]);
+
+    // 7. A human player's slot is never recounted, even with job bits on its units.
+    At<uint8_t>(kRvaController)[3] = 0;
+    WrapJobCounters();
+    g_jobLineCount = 0;
+    JobTick();
+    CHECK(JobLumber()[3] == 0xFFFF && g_jobLineCount == 0, "a human slot must not be recounted (lumber %u)",
+          JobLumber()[3]);
+
+    // 8. A drift that comes back on every step is logged 20 times, then once more to say it stops logging.
+    At<uint8_t>(kRvaController)[3] = 1;
+    g_jobLineCount = 0;
+    for (int i = 0; i < 30; ++i) {
+        JobLumber()[3] = 0xFFFF;
+        JobTick();
+    }
+    CHECK(g_jobLineCount == 21 && JobsAreFixed(), "a repeating drift must stop logging after 20 lines (%d)",
+          g_jobLineCount);
+
+    // The log_ai line shows the three counters.
+    // (checked in AiWatchTests through the expected line)
+
+    ClearJobCounters();
+    memset(At<uint8_t>(kRvaController), 0, kMaxPlayers);
+    tf[kPeon] = savedPeon;
+    tf[kGrunt] = savedGrunt;
+    aijobs::SetSinkForTests(nullptr);
+    config::g.fixAiAfterLoad = savedFix;
     ResetWorld();
 }
 
@@ -3222,7 +3388,7 @@ int wmain(int argc, wchar_t** argv) {
         CHECK(handlers[kOrderReturnGoods] == g_base + kRvaReturnHandler, "return handler is not table entry 24");
         CHECK(handlers[kOrderRepair] == g_base + kRvaRepairHandler, "repair handler is not table entry 27");
         CHECK(handlers[kOrderSpellEye] == g_base + kRvaSpellOrderHandler, "spell handler is not table entry 0x30");
-        CHECK(handlers[kOrderStop] == g_base + kRvaStopHandler, "stop handler is not table entry 2");
+        CHECK(handlers[kOrderStop] == g_base + kRvaStopHandler, "stop handler is not table entry 2");
         CHECK(handlers[kOrderAttackArea] == g_base + kRvaAttackMoveHandler, "attack-move handler is not table entry 10");
         // The patrol RESUME handler is not a table entry: SetOrder pushes it as an immediate when it resumes a patrol.
         {
@@ -6115,6 +6281,7 @@ int wmain(int argc, wchar_t** argv) {
     }
 
     AiWatchTests();
+    AiJobsTests();
     SpellNumberTests(dir, ini);
     UpgradeTests(dir, ini);
     DamageTypeTests(dir, ini);

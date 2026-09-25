@@ -694,7 +694,7 @@ static void WarnUnknownKeys(const toml::table& root) {
         const char* section;
         const char* keys;
     } kKnown[] = {
-        {"general", " enabled toggle_key interval_ticks log_casts log_ai "},
+        {"general", " enabled toggle_key interval_ticks log_casts log_ai fix_ai_after_load "},
         {"autocast", " search_radius combat_radius own_units_only cast_while_attacking channel_mana_reserve area_min_enemies "
                      "area_building_value area_friendly_clearance fireball_min_enemies resume_orders "},
         {"spells", " heal exorcism slow polymorph bloodlust death_coil haste unholy_armor raise_dead holy_vision flame_shield "
@@ -771,6 +771,7 @@ static bool Load() {
     ReadInt(root, "general", "interval_ticks", 1, 500, c.intervalTicks);
     ReadBool(root, "general", "log_casts", c.logCasts);
     ReadBool(root, "general", "log_ai", c.logAi);
+    ReadBool(root, "general", "fix_ai_after_load", c.fixAiAfterLoad);
     ReadInt(root, "autocast", "search_radius", 1, 15, c.searchRadius);
     ReadInt(root, "autocast", "combat_radius", 1, 15, c.combatRadius);
     ReadBool(root, "autocast", "own_units_only", c.ownUnitsOnly);

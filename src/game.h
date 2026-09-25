@@ -184,6 +184,20 @@ constexpr uint32_t kRvaAiArcherCount = 0x51B88C;     // against st[0x15]
 constexpr uint32_t kRvaAiSiegeCount = 0x51B8AC;      // against st[0x16]
 constexpr uint32_t kRvaAiKnightCount = 0x51B8CC;     // against st[0x17]
 
+// --- computer worker-job counters, WRITTEN only by src/aijobs.cpp (docs/research/ai_lumber.md) ---
+// The worker manager FUN_004dad80 adds one when it gives a computer worker a job (and sets the job bit in the unit's
+// +0x20 word); FUN_004db420 takes it off again and clears the bit. A savegame load zeroes all of them (0x4E895A ->
+// FUN_004dac70) but restores the bits (FUN_004abf10), so the next release wraps a counter to 65535.
+constexpr uint32_t kRvaAiGoldWorkers = 0x5231B8;     // uint16[16], bit kAiJobGold (0x4DA9B2 add, 0x4DB45F release)
+constexpr uint32_t kRvaAiLumberWorkers = 0x5231D8;   // uint16[16], bit kAiJobLumber; the lumber-first test 0x4DB0CB is unsigned
+constexpr uint32_t kRvaAiRepairWorkers = 0x5231F8;   // uint16[16], bit kAiJobRepair (cap test 0x4DB017)
+constexpr uint32_t kRvaAiBuilders = 0x523218;        // uint16[16][kAiBuildKinds], bits kAiJobBuildFarm / kAiJobBuild,
+                                                     // index = the worker's +0x76 word; the manager builds a kind only while its entry is 0
+constexpr int kAiBuildKinds = 0x2F;                  // per-player row length (FUN_004dac70 clears 16 * 0x2F * 2 = 0x5E0 bytes)
+constexpr int kOffAiJob = 0x20;                      // uint16 job bits of a computer worker
+constexpr int kOffAiBuildKind = 0x76;                // uint16, builders: the kAiBuildKinds index their job was counted under
+constexpr uint16_t kAiJobGold = 0x01, kAiJobLumber = 0x02, kAiJobBuildFarm = 0x08, kAiJobBuild = 0x10, kAiJobRepair = 0x20;
+
 constexpr int kAiPlayerCount = 8;     // FUN_004ca440 loops players 0..7 only
 constexpr int kAiStateStride = 0x30;
 constexpr int kAiBuildListMax = 0x40;  // the walk in FUN_004da300 stops at this index

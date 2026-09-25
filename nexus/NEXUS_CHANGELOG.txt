@@ -1,3 +1,8 @@
+[size=4][b]1.26.0[/b][/size]
+[list]
+[*]Fixed a bug in the game itself: after you load a savegame, the computer players lose count of their wood cutters, send every worker to gold, never afford a keep or castle and stop attacking for the rest of the mission. New [general] fix_ai_after_load (on) counts their workers again after a load. It changes no orders and nothing for you; off in multiplayer. The log_ai lines now show the counters (jobs gold lum rep).
+[/list]
+
 [size=4][b]1.25.0[/b][/size]
 [list]
 [*]New [scouts] (off; Ctrl+F11 toggles it in game): your idle flying machines and zeppelins scout by themselves, first ground you have never explored, then the fog you have not seen for the longest time. They keep clear of enemy towers and anti-air units you know about, never two to the same area, and a scout you order is yours until it stands idle for idle_seconds again.

@@ -7,6 +7,7 @@ Steps (each one only when the file still needs it):
   1.1.0  adds "amount = 1.0" to [gold_mines] and [oil_platforms]
   1.2.0  adds the [food] block after [oil_platforms]
   1.3.0  adds the [trees] block after [food]
+  1.26.0 adds [general] fix_ai_after_load = true after log_ai
   1.25.0 adds the [scouts] block (switched off) in front of [workers]
   1.24.0 adds [priority] hold_for_blocked_area = true after save_mana
   1.21.0 adds the empty [auto_production.class_upgrade_bias] table (example commented out) after bank_multiple
@@ -57,6 +58,7 @@ FOOD_BLOCK = ['[food]', '# true = every Town Hall / Great Hall, Keep / Stronghol
 TREES_BLOCK = ['[trees]', "# EXPERIMENTAL. true = felled forest grows back, so lumber never runs out for good (the computer's too). Every stump", '# waits its own time between regrow_min_minutes and regrow_max_minutes of play, so a felled patch fills back in bit', '# by bit. A tree never grows back close to a building, a wall or a ground unit, never where it would close a', '# passage, and only where a forest stood before. Flyers do not hold it up.', 'regrow = false', 'regrow_min_minutes = 10', 'regrow_max_minutes = 20', '# No regrowth within this many tiles of a building or wall / of a ground unit of any player.', 'building_distance = 3', 'unit_distance = 3']
 UNIT_REGEN_BLOCK = ['[unit_regen]', '# true = every unit regenerates hit points while you play: land units, flyers and ships, never a structure. A hurt', '# unit is then worth keeping instead of being a waste of food. Heroes follow [heroes] regen while that is on.', 'enabled = false', 'hp_per_second = 1', '# "all" = every unit on the map (the enemy\'s too), "mine" = only your own.', 'regen_for = "all"']
 SPELLS_NEW = ['# Area spells hurt YOUR units and buildings too. They are only cast with no friendly unit, building or wall in the', '# blast area, and a Blizzard / Death and Decay the mod started is stopped when a friendly walks in (see [autocast]).', 'fireball = false', 'blizzard = false', 'death_and_decay = false', 'whirlwind = false', 'flame_shield = false', 'runes = false', 'invisibility = false', '# Holy Vision: an idle paladin at full mana looks at the least explored part of the map. It may move the camera to', '# its target for your own paladins (not tested in game yet).', 'holy_vision = false']
+FIX_AI_1260 = ['# true = fix a bug in the game: loading a savegame makes the computer lose count of its wood cutters, so it sends', '# every worker to gold, never affords a keep or castle and stops attacking. The mod counts its workers again after a', '# load. Changes no orders and nothing for you. Off in multiplayer.', 'fix_ai_after_load = true']
 SCOUTS_1250 = ['[scouts]', '# Your idle flying machines and zeppelins scout by themselves: first the ground you have never explored, then the fog you', '# have not seen for the longest time. They keep away from enemy towers and units that can shoot at flyers, as far as you', '# know of them, and two scouts never head for the same area. A scout you give an order to is yours until it has stood', '# idle for idle_seconds again. Ctrl + toggle_key turns it on and off in game.', 'enabled = false', 'units = ["flying_machine", "zeppelin"]', 'toggle_key = "F11"', 'idle_seconds = 5']
 HOLD_1240 = ['# true = when a Blizzard or Death and Decay has something worth hitting in range but only your own units stand too close', '# to every spot (area_friendly_clearance), the caster casts nothing further down its list and waits for you to pull', '# them back. Your buildings and walls do not count: they cannot move. false = the spells below go ahead meanwhile.', 'hold_for_blocked_area = true']
 CLASS_BIAS_1210 = ['[auto_production.class_upgrade_bias]', '# upgrade_bias for one class only (units / names as in [auto_production.units]); a class left out uses upgrade_bias.', '# Example: ballistas and catapults gain twice the share per upgrade level of every other line.', '# siege = 0.5']
@@ -241,6 +243,11 @@ def insert_after_key(lines, tree, section, after_key, block, notes):
             notes.append(f'[{section}] gained {key}')
             return
     append_missing(lines, tree, section, block, notes)
+
+
+def fix_ai_1260(lines, tree, notes):
+    if 'general' in tree:
+        insert_after_key(lines, tree, 'general', 'log_ai', FIX_AI_1260, notes)
 
 
 def scouts_1250(lines, tree, notes):
@@ -558,6 +565,7 @@ def main():
     class_bias_1210(lines, tomllib.loads(LF.join(lines)), notes)
     hold_1240(lines, tomllib.loads(LF.join(lines)), notes)
     scouts_1250(lines, tomllib.loads(LF.join(lines)), notes)
+    fix_ai_1260(lines, tomllib.loads(LF.join(lines)), notes)
     auto_production_180(lines, now, notes)
     save_up_1120(lines, now, notes)
     plenty_1140(lines, now, notes, 'auto_production' in before)
@@ -582,7 +590,7 @@ def main():
     allowed = {('oil_platforms', 'unlimited'), ('oil_platforms', 'amount'), ('gold_mines', 'amount'), ('food', 'hall_food'),
                ('food', 'hall_food_amount'), ('heroes', 'regen'), ('unit_regen', 'enabled'), ('unit_regen', 'hp_per_second'),
                ('unit_regen', 'regen_for')} | {('spells', l.split('=')[0].strip()) for l in SPELLS_NEW if not l.startswith('#')} | {
-               ('autocast', l.split('=')[0].strip()) for l in AUTOCAST_NEW if not l.startswith('#')} | {('autocast', 'area_building_value'), ('general', 'log_ai'), ('auto_production', 'save_up_seconds'), ('upgrades', 'missile_damage'), ('upgrades', 'melee_damage'), ('upgrades', 'shields'), ('upgrades', 'ship_damage'), ('upgrades', 'ship_armor'), ('upgrades', 'siege_damage'), ('auto_production', 'plenty_units'), ('autocast', 'area_friendly_clearance'), ('heal', 'cooldown_seconds'), ('heal', 'urgent_below_percent'), ('autocast', 'resume_orders'), ('priority', 'hold_for_blocked_area'), ('scouts', 'enabled'), ('scouts', 'units'), ('scouts', 'toggle_key'), ('scouts', 'idle_seconds'), ('heal', 'cooldown_for_computer')} | {('priority', k) for k in ('paladin', 'mage', 'ogre_mage', 'death_knight', 'save_mana')} | {
+               ('autocast', l.split('=')[0].strip()) for l in AUTOCAST_NEW if not l.startswith('#')} | {('autocast', 'area_building_value'), ('general', 'log_ai'), ('auto_production', 'save_up_seconds'), ('upgrades', 'missile_damage'), ('upgrades', 'melee_damage'), ('upgrades', 'shields'), ('upgrades', 'ship_damage'), ('upgrades', 'ship_armor'), ('upgrades', 'siege_damage'), ('auto_production', 'plenty_units'), ('autocast', 'area_friendly_clearance'), ('heal', 'cooldown_seconds'), ('heal', 'urgent_below_percent'), ('autocast', 'resume_orders'), ('priority', 'hold_for_blocked_area'), ('scouts', 'enabled'), ('general', 'fix_ai_after_load'), ('scouts', 'units'), ('scouts', 'toggle_key'), ('scouts', 'idle_seconds'), ('heal', 'cooldown_for_computer')} | {('priority', k) for k in ('paladin', 'mage', 'ogre_mage', 'death_knight', 'save_mana')} | {
                (sec, l.split('=')[0].strip()) for sec in ('spell_damage', 'spell_cost', 'mana') for l in SPELL_POWER
                if l and not l.startswith(('#', '['))} | {
                k for k in AUTO_PRODUCTION_KEYS | {('auto_production', 'no_enemy_navy_cap', c) for c in

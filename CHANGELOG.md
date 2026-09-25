@@ -7,6 +7,13 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.26.0 - 2026-09-25
+
+- Fixed a bug in the game itself: after you load a savegame, the computer players lose count of their wood cutters,
+  send every worker to gold, never afford a keep or castle and stop attacking for the rest of the mission. New
+  `[general] fix_ai_after_load` (on) counts their workers again after a load. It changes no orders and nothing for
+  you; off in multiplayer. The `log_ai` lines now show the counters (`jobs gold lum rep`).
+
 ## 1.25.0 - 2026-09-25
 
 - New `[scouts]` (off; Ctrl+F11 toggles it in game): your idle flying machines and zeppelins scout by themselves,

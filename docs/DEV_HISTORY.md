@@ -15,6 +15,17 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.26.0 (2026-09-25, UNTESTED in game, NOT released)
+
+- The AI stall (#24) solved: a savegame load zeroes the computer's gold / lumber / repair job counters (0x4E895A ->
+  0x4DAC70) while the units keep their job bits; the first lumber delivery wraps the counter to 65535 and the unsigned
+  compare at 0x4DB0CB never sends a worker to wood again (both re-read by me). Evidence: log_ai, three computers with
+  lumber frozen within two minutes of a load, gold climbing past 50000, all parked on WAITFOR have_keep / have_castle.
+- The author first said this belongs in a separate mod (a winmm.dll proxy was researched, docs/research/ai_lumber.md),
+  then decided "The AI fix in-place". So it lives here as src/aijobs.cpp: every single-player tick, a computer
+  player's counters are set to the number of workers carrying each job bit (state & 7 == 0, workers inside a mine
+  count), written only when they differ. 12 mutations, 12 caught.
+
 ## 1.25.0 (2026-09-25, UNTESTED in game, NOT released)
 
 - Author: "make the player's zeppelins and flying machines auto scout? I would like a button that I could click to toggle
