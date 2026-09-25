@@ -15,6 +15,13 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.30.0 (2026-09-25, UNTESTED in game, NOT released)
+
+- Author: "make auto production favor production buildings on land where there's enemies? It's producing most of my
+  troops on the home shore". The game's region map splits at forests (special ids 0xFFFA+), so the mod flood-fills its
+  own landmass ids once per map (water / coast bits block land units). Known enemy = building on explored ground or a
+  unit the player sees, remembered 60 s; no hidden knowledge. 10 mutations, 10 caught.
+
 ## 1.29.0 (2026-09-25, UNTESTED in game, NOT released)
 
 - Author: "on sea maps after I have a dock it needs to reserve the amount of food needed to get my Navy to the size it

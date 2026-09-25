@@ -1,3 +1,8 @@
+[size=4][b]1.30.0[/b][/size]
+[list]
+[*]New [auto_production] land_units_where_enemies (on): once you know of an enemy on a landmass where you have a barracks or other army building, land troops are trained only there; buildings on your other shores keep training workers, ships and flyers. With no such landmass known, everything trains as before.
+[/list]
+
 [size=4][b]1.29.0[/b][/size]
 [list]
 [*]New [auto_production] reserve_navy_food (on): while you own a shipyard and the enemy still has a shipyard or warships, land units leave free the food your missing ships need, so a navy waiting for oil is not crowded out by ground troops. The log says how much food is kept for ships.

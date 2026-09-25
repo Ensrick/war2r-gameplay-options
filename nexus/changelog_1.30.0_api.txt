@@ -1,0 +1,1 @@
+New [auto_production] land_units_where_enemies (on): once you know of an enemy on a landmass where you have a barracks or other army building, land troops are trained only there; buildings on your other shores keep training workers, ships and flyers. With no such landmass known, everything trains as before.

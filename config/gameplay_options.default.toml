@@ -629,6 +629,7 @@ save_up_seconds = 60
 navy_weight = 1.0           # x that share (0 = never build ships)
 navy_max = 80               # ships are never more than this much of the army, in percent
 reserve_navy_food = true    # while the enemy has a navy, land units leave food free for your missing ships
+land_units_where_enemies = true  # land troops come from the landmass where a known enemy is (flyers, ships, workers anywhere)
 workers_ignore_reserve = true  # workers wait for their own price only, never for the upgrade reserve
 tankers_ignore_reserve = true  # the one oil tanker with them
 

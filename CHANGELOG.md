@@ -7,6 +7,12 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.30.0 - 2026-09-25
+
+- New `[auto_production] land_units_where_enemies` (on): once you know of an enemy on a landmass where you have a
+  barracks or other army building, land troops are trained only there; buildings on your other shores keep training
+  workers, ships and flyers. With no such landmass known, everything trains as before.
+
 ## 1.29.0 - 2026-09-25
 
 - New `[auto_production] reserve_navy_food` (on): while you own a shipyard and the enemy still has a shipyard or
