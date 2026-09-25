@@ -63,7 +63,7 @@ diagonals included):
 
 | Spell | Cast at | Nothing friendly within |
 |---|---|---|
-| fireball | an enemy, when its burning line (the target tile and about 7 tiles behind it, away from the mage) hits at least `fireball_min_enemies` enemies | 2 tiles of that line (walls: 1) |
+| fireball | an enemy, when its burning line (the target tile and about 7 tiles behind it, away from the mage) hits at least `fireball_min_enemies` enemies. Once you have Blizzard researched (and `[spells] blizzard` on), only enemy units count: buildings are left to Blizzard | 2 tiles of that line (walls: 1) |
 | blizzard, death_and_decay | the spot in range where the waves would do the most damage (buildings count `area_building_value` times, units once), with at least one enemy building or `area_min_enemies` enemy units in it, and only with mana for 3 waves | 4 tiles (walls: 3) |
 | whirlwind | the same kind of group; one whirlwind per death knight at a time | 6 tiles, because it wanders |
 | runes | 2 or more enemy ground units, not within 2 tiles of runes already on the ground | 6 tiles, **the ogre-mage included**: a rune hurts whoever steps on it, whoever owns it |
@@ -821,6 +821,18 @@ one of them has a proper target right now and only the mana is missing, the knig
 saving until it can. When that spell has no target, the ones below it go ahead as before. Set `save_mana = false`
 and the lists are only an order, never a reason to hold back.
 
+**`hold_for_blocked_area` (on by default) does the same for your own army.** When a Blizzard or Death and Decay in
+the list has a building or a group worth hitting in range, but every spot to aim at has your own units too close
+(`area_friendly_clearance`), the caster casts nothing further down its list and waits: pull your troops back and the
+blizzard goes off, with the mana still there for it. Only units count as "in the way": your buildings and walls
+cannot move, so a spot blocked by them is no reason to wait and the list goes on as before. The caster does not walk
+while it holds. Set it to `false` to let the spells below go ahead while the area spell is blocked.
+
+```toml
+[priority]
+hold_for_blocked_area = true
+```
+
 Good to know:
 
 - A spell switched off in `[spells]` is skipped wherever it sits in the list, and is never a reason to save.
@@ -1043,6 +1055,7 @@ makes the log long.
 | general | interval_ticks | 10 | Game steps between autocast passes. Lower reacts faster |
 | general | log_casts | false | Write every cast to gameplay_options.log |
 | priority | save_mana | true | A caster keeps its mana for a spell higher in its list instead of casting a cheaper one |
+| priority | hold_for_blocked_area | true | A Blizzard / Death and Decay with a target that only your own units block holds the caster: nothing further down its list is cast |
 | priority | paladin, mage, ogre_mage, death_knight | today's order | The order each caster tries its spells in, by `[spells]` name |
 | general | log_ai | false | Write what each computer player's script is waiting for, once a minute (read-only diagnostic) |
 | autocast | search_radius | 8 | Tiles a caster searches for targets (Raise Dead always looks 15 tiles around, like the computer) |
