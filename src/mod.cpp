@@ -10,6 +10,7 @@
 #include "log.h"
 #include "production.h"
 #include "resume.h"
+#include "scouts.h"
 #include "spells.h"
 #include "upgrades.h"
 #include "trees.h"
@@ -33,6 +34,7 @@ bool g_netGameLogged = false;
 ULONGLONG g_lastTickMs = 0;
 
 bool g_productionKeyWasDown = false;
+bool g_scoutsKeyWasDown = false;
 
 bool GameWindowFocused() {
     DWORD pid = 0;
@@ -62,6 +64,11 @@ void PollToggleKeys() {
         config::g.production.enabled = !config::g.production.enabled;
         logx::Write("toggle key: auto-production %s", config::g.production.enabled ? "on" : "off");
         ShowMessage(config::g.production.enabled ? "Auto-production ON" : "Auto-production OFF");
+    }
+    if (Pressed(config::g.scouts.toggleKey, g_scoutsKeyWasDown)) {
+        config::g.scouts.enabled = !config::g.scouts.enabled;
+        logx::Write("toggle key: auto-scouting %s", config::g.scouts.enabled ? "on" : "off");
+        ShowMessage(config::g.scouts.enabled ? "Auto-scouting ON" : "Auto-scouting OFF");
     }
 }
 
@@ -121,6 +128,7 @@ void __cdecl OnTick() {
     if (!BuildWorld(w)) return;
     tweaks::OnTick(w, elapsedMs);
     workers::OnTick(w, elapsedMs);
+    scouts::OnTick(w, elapsedMs);
     production::OnTick(w, elapsedMs);
     trees::OnTick(w, elapsedMs);
     aiwatch::OnTick(w, elapsedMs);  // reads only: never drives the computer player

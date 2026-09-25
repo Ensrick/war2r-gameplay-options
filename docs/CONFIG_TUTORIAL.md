@@ -257,6 +257,31 @@ max_active = 3       # eyes out at once, all your ogre-magi together
 auto_scout = true    # the eye flies to unexplored ground; an eye you move yourself is left to you
 ```
 
+### Flying machines and zeppelins that scout by themselves
+
+Off by default. `Ctrl+F11` turns it on and off in game.
+
+```toml
+[scouts]
+enabled = true
+units = ["flying_machine", "zeppelin"]   # any of your units can be listed, gryphon_rider for example
+toggle_key = "F11"                       # Ctrl + this key in game; "" = no hotkey
+idle_seconds = 5                         # how long a scout stands idle before it is sent
+```
+
+A scout of yours that has stood idle for `idle_seconds` flies to the nearest large patch of ground you have never
+explored. When the whole map is explored it keeps going: it flies to the fogged ground you have not seen for the
+longest time, so it patrols instead of parking. What it does:
+
+- Two scouts never head for the same area.
+- It stays out of reach of the enemy towers and units that can shoot at flyers, as far as you know of them: the ones
+  you see right now, and towers on ground you have explored. It only checks where it is going and the middle of the
+  way there, not the whole flight path.
+- Give it an order yourself and it is yours: the mod leaves it alone, and only after it has stood idle for
+  `idle_seconds` again does it go back to scouting. To park one for longer, raise `idle_seconds` or switch scouting
+  off with `Ctrl+F11`.
+- Only your own units, never the computer's, and never in a multiplayer game.
+
 ### Idle workers
 
 A worker that is stopped with nothing queued counts as idle. Stand Ground never counts as idle.
@@ -1086,6 +1111,9 @@ makes the log long.
 | eye_of_kilrogg | cast_at_mana | 255 | Mana needed before casting it |
 | eye_of_kilrogg | max_active | 3 | Eyes out at the same time, all ogre-magi together |
 | eye_of_kilrogg | auto_scout | false | Eyes fly to unexplored ground |
+| scouts | enabled / toggle_key | false / "F11" | Idle flyers of yours scout the map by themselves; Ctrl + key toggles it |
+| scouts | units | ["flying_machine", "zeppelin"] | Which of your units scout |
+| scouts | idle_seconds | 5 | Seconds a scout stands idle (also after an order of yours) before it is sent (0 to 600) |
 | gold_mines | unlimited | false | Mines never run dry (all mines) |
 | gold_mines | amount | 1.0 | Multiplies the gold in every mine when a new map starts (cap 6,553,500 per mine) |
 | oil_platforms | unlimited | false | Oil platforms never run dry (all platforms) |
