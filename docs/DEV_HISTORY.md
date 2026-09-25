@@ -15,6 +15,14 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.31.0 (2026-09-25, UNTESTED in game, NOT released)
+
+- Author: "My units naturally wander into blizzards, if you could have them avoid them, and move out of blizzards and
+  death and decay". src/dodge.cpp (agent aoe-aim): areas read from the missile pool (death and decay clouds carry the
+  aim at +0x28; blizzard shards use the caster's order tile while it channels), 5x5 plus the quarter ring; units in an
+  area step to the nearest safe tile away from the aim, units about to walk in hold with Stand Ground, orders given
+  back 1 s after the area is gone. The agent stalled for hours on a background test run before committing.
+
 ## 1.30.0 (2026-09-25, UNTESTED in game, NOT released)
 
 - Author: "make auto production favor production buildings on land where there's enemies? It's producing most of my

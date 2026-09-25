@@ -1,3 +1,8 @@
+[size=4][b]1.31.0[/b][/size]
+[list]
+[*]New [dodge] (off): while a Blizzard or Death and Decay is falling, the enemy's or your own, your units standing in it step out to the nearest safe spot, and units that would walk in on their own stop at the edge. They go back to what they were doing a second after it ends. Moves you order yourself, casters mid-spell and buildings are left alone. Single player only.
+[/list]
+
 [size=4][b]1.30.0[/b][/size]
 [list]
 [*]New [auto_production] land_units_where_enemies (on): once you know of an enemy on a landmass where you have a barracks or other army building, land troops are trained only there; buildings on your other shores keep training workers, ships and flyers. With no such landmass known, everything trains as before.

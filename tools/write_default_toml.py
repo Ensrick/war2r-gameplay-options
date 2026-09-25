@@ -223,6 +223,12 @@ mine_clearance = 3
 # which workers may go: "idle_then_lumber" (idle, else a wood cutter walking back, never a gold miner), "idle_only", "any"
 workers = "idle_then_lumber"
 
+[dodge]
+# true = while a Blizzard or Death and Decay is falling (the enemy's or your own), your units standing in it step out
+# to the nearest safe spot, and units that would walk into one on their own (chasing an enemy, attack-move) stop at
+# the edge. Once it is over they go back to what they were doing. Moves you order yourself are left alone.
+enabled = false
+
 [workers]
 # Idle this long -> repair the nearest damaged building of yours within repair_radius tiles. Needs at least
 # 1 gold and 1 lumber in the bank; buildings still under construction are left alone.

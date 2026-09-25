@@ -7,6 +7,7 @@ Steps (each one only when the file still needs it):
   1.1.0  adds "amount = 1.0" to [gold_mines] and [oil_platforms]
   1.2.0  adds the [food] block after [oil_platforms]
   1.3.0  adds the [trees] block after [food]
+  1.31.0 adds the [dodge] block (switched off) in front of [workers]
   1.30.0 adds [auto_production] land_units_where_enemies = true after reserve_navy_food
   1.29.0 adds [auto_production] reserve_navy_food = true after navy_max
   1.28.0 adds [farms] mine_clearance = 3 and workers = "idle_then_lumber" after free_percent
@@ -62,6 +63,7 @@ FOOD_BLOCK = ['[food]', '# true = every Town Hall / Great Hall, Keep / Stronghol
 TREES_BLOCK = ['[trees]', "# EXPERIMENTAL. true = felled forest grows back, so lumber never runs out for good (the computer's too). Every stump", '# waits its own time between regrow_min_minutes and regrow_max_minutes of play, so a felled patch fills back in bit', '# by bit. A tree never grows back close to a building, a wall or a ground unit, never where it would close a', '# passage, and only where a forest stood before. Flyers do not hold it up.', 'regrow = false', 'regrow_min_minutes = 10', 'regrow_max_minutes = 20', '# No regrowth within this many tiles of a building or wall / of a ground unit of any player.', 'building_distance = 3', 'unit_distance = 3']
 UNIT_REGEN_BLOCK = ['[unit_regen]', '# true = every unit regenerates hit points while you play: land units, flyers and ships, never a structure. A hurt', '# unit is then worth keeping instead of being a waste of food. Heroes follow [heroes] regen while that is on.', 'enabled = false', 'hp_per_second = 1', '# "all" = every unit on the map (the enemy\'s too), "mine" = only your own.', 'regen_for = "all"']
 SPELLS_NEW = ['# Area spells hurt YOUR units and buildings too. They are only cast with no friendly unit, building or wall in the', '# blast area, and a Blizzard / Death and Decay the mod started is stopped when a friendly walks in (see [autocast]).', 'fireball = false', 'blizzard = false', 'death_and_decay = false', 'whirlwind = false', 'flame_shield = false', 'runes = false', 'invisibility = false', '# Holy Vision: an idle paladin at full mana looks at the least explored part of the map. It may move the camera to', '# its target for your own paladins (not tested in game yet).', 'holy_vision = false']
+DODGE_1310 = ['[dodge]', "# true = while a Blizzard or Death and Decay is falling (the enemy's or your own), your units standing in it step out", '# to the nearest safe spot, and units that would walk into one on their own (chasing an enemy, attack-move) stop at', '# the edge. Once it is over they go back to what they were doing. Moves you order yourself are left alone.', 'enabled = false']
 FRONT_1300 = ['land_units_where_enemies = true  # land troops come from the landmass where a known enemy is (flyers, ships, workers anywhere)']
 NAVY_FOOD_1290 = ['reserve_navy_food = true    # while the enemy has a navy, land units leave food free for your missing ships']
 FARMS2_1280 = ['# Free tiles always kept between a farm and a gold mine, and 2 from the path between your hall and each mine, so', '# your workers keep a clear way to the mine. Farms are only built once you own a finished hall.', 'mine_clearance = 3', '# which workers may go: "idle_then_lumber" (idle, else a wood cutter walking back, never a gold miner), "idle_only", "any"', 'workers = "idle_then_lumber"']
@@ -251,6 +253,18 @@ def insert_after_key(lines, tree, section, after_key, block, notes):
             notes.append(f'[{section}] gained {key}')
             return
     append_missing(lines, tree, section, block, notes)
+
+
+def dodge_1310(lines, tree, notes):
+    if 'dodge' in tree:
+        return
+    for i, line in enumerate(lines):
+        if line.strip() == '[workers]':
+            lines[i:i] = DODGE_1310 + ['']
+            notes.append('added [dodge] (switched off)')
+            return
+    lines += [''] + DODGE_1310
+    notes.append('added [dodge] at the end (switched off)')
 
 
 def front_1300(lines, tree, notes):
@@ -612,6 +626,7 @@ def main():
     farms2_1280(lines, tomllib.loads(LF.join(lines)), notes)
     navy_food_1290(lines, tomllib.loads(LF.join(lines)), notes)
     front_1300(lines, tomllib.loads(LF.join(lines)), notes)
+    dodge_1310(lines, tomllib.loads(LF.join(lines)), notes)
     auto_production_180(lines, now, notes)
     save_up_1120(lines, now, notes)
     plenty_1140(lines, now, notes, 'auto_production' in before)
@@ -636,7 +651,7 @@ def main():
     allowed = {('oil_platforms', 'unlimited'), ('oil_platforms', 'amount'), ('gold_mines', 'amount'), ('food', 'hall_food'),
                ('food', 'hall_food_amount'), ('heroes', 'regen'), ('unit_regen', 'enabled'), ('unit_regen', 'hp_per_second'),
                ('unit_regen', 'regen_for')} | {('spells', l.split('=')[0].strip()) for l in SPELLS_NEW if not l.startswith('#')} | {
-               ('autocast', l.split('=')[0].strip()) for l in AUTOCAST_NEW if not l.startswith('#')} | {('autocast', 'area_building_value'), ('general', 'log_ai'), ('auto_production', 'save_up_seconds'), ('upgrades', 'missile_damage'), ('upgrades', 'melee_damage'), ('upgrades', 'shields'), ('upgrades', 'ship_damage'), ('upgrades', 'ship_armor'), ('upgrades', 'siege_damage'), ('auto_production', 'plenty_units'), ('autocast', 'area_friendly_clearance'), ('heal', 'cooldown_seconds'), ('heal', 'urgent_below_percent'), ('autocast', 'resume_orders'), ('priority', 'hold_for_blocked_area'), ('scouts', 'enabled'), ('general', 'fix_ai_after_load'), ('farms', 'auto_build'), ('farms', 'free_min'), ('farms', 'free_percent'), ('farms', 'mine_clearance'), ('auto_production', 'reserve_navy_food'), ('auto_production', 'land_units_where_enemies'), ('farms', 'workers'), ('scouts', 'units'), ('scouts', 'toggle_key'), ('scouts', 'idle_seconds'), ('heal', 'cooldown_for_computer')} | {('priority', k) for k in ('paladin', 'mage', 'ogre_mage', 'death_knight', 'save_mana')} | {
+               ('autocast', l.split('=')[0].strip()) for l in AUTOCAST_NEW if not l.startswith('#')} | {('autocast', 'area_building_value'), ('general', 'log_ai'), ('auto_production', 'save_up_seconds'), ('upgrades', 'missile_damage'), ('upgrades', 'melee_damage'), ('upgrades', 'shields'), ('upgrades', 'ship_damage'), ('upgrades', 'ship_armor'), ('upgrades', 'siege_damage'), ('auto_production', 'plenty_units'), ('autocast', 'area_friendly_clearance'), ('heal', 'cooldown_seconds'), ('heal', 'urgent_below_percent'), ('autocast', 'resume_orders'), ('priority', 'hold_for_blocked_area'), ('scouts', 'enabled'), ('general', 'fix_ai_after_load'), ('farms', 'auto_build'), ('farms', 'free_min'), ('farms', 'free_percent'), ('farms', 'mine_clearance'), ('auto_production', 'reserve_navy_food'), ('auto_production', 'land_units_where_enemies'), ('dodge', 'enabled'), ('farms', 'workers'), ('scouts', 'units'), ('scouts', 'toggle_key'), ('scouts', 'idle_seconds'), ('heal', 'cooldown_for_computer')} | {('priority', k) for k in ('paladin', 'mage', 'ogre_mage', 'death_knight', 'save_mana')} | {
                (sec, l.split('=')[0].strip()) for sec in ('spell_damage', 'spell_cost', 'mana') for l in SPELL_POWER
                if l and not l.startswith(('#', '['))} | {
                k for k in AUTO_PRODUCTION_KEYS | {('auto_production', 'no_enemy_navy_cap', c) for c in

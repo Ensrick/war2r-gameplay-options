@@ -7,6 +7,13 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.31.0 - 2026-09-25
+
+- New `[dodge]` (off): while a Blizzard or Death and Decay is falling, the enemy's or your own, your units standing in
+  it step out to the nearest safe spot, and units that would walk in on their own stop at the edge. They go back to
+  what they were doing a second after it ends. Moves you order yourself, casters mid-spell and buildings are left
+  alone. Single player only.
+
 ## 1.30.0 - 2026-09-25
 
 - New `[auto_production] land_units_where_enemies` (on): once you know of an enemy on a landmass where you have a

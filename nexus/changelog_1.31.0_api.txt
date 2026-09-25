@@ -1,0 +1,1 @@
+New [dodge] (off): while a Blizzard or Death and Decay is falling, the enemy's or your own, your units standing in it step out to the nearest safe spot, and units that would walk in on their own stop at the edge. They go back to what they were doing a second after it ends. Moves you order yourself, casters mid-spell and buildings are left alone. Single player only.
