@@ -73,7 +73,9 @@ there: with a mine up-left of a hall at 20,20, the game's own search returns 18,
 facing the mine (selftest 9a). The rule:
 
 1. Centre: the worker's nearest complete town hall (type flag 0x1000) in its own region, as `FUN_004DBC50` picks it.
-   No such hall: no farm.
+   No such hall: no farm. A hall still under construction (state without 0x80) never counts, so nothing is built
+   until the player has finished a hall of their own (town hall, great hall, keep, stronghold, castle, fortress:
+   all carry 0x1000).
 2. Candidates: every top-left tile on the step-2 lattice of the hall's corner (the computer's farm step,
    `FUN_004DB6D0` -> `FUN_004DBCE0(.., 2)`), within 16 tiles of the hall, footprint on the map, anchor tile in the
    worker's region.
@@ -88,6 +90,10 @@ facing the mine (selftest 9a). The rule:
 6. The winner must pass the player's placement test `FUN_004DC210` (the computer's own search is no longer called).
 
 No candidate: nothing is built, and `farm: food is low but ...` is logged at most once a minute of play.
+
+Because the band keeps 2 free tiles on each side of the whole hull between the hall and every mine within 12 tiles,
+farms can never close the hall's mine-facing side or the mine's hall-facing side. Selftest 9i fills a base with two
+mines (60 farms) and flood-fills over open ground afterwards: the hall still reaches both mines.
 
 ## Which workers (`[farms] workers`)
 
