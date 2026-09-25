@@ -303,6 +303,7 @@ static void ReadAutoProduction(const toml::table& root, Config& c) {
     ReadBool(root, kSec, "workers_ignore_reserve", p.workersIgnoreReserve);
     ReadBool(root, kSec, "tankers_ignore_reserve", p.tankersIgnoreReserve);
     ReadBool(root, kSec, "reserve_navy_food", p.reserveNavyFood);
+    ReadBool(root, kSec, "land_units_where_enemies", p.landUnitsWhereEnemies);
     auto readNumber = [&](const char* key, double lo, double hi, double& out) {  // 0 is a real value here
         const auto node = sec[key];
         if (!node) return;
@@ -333,7 +334,7 @@ static void ReadAutoProduction(const toml::table& root, Config& c) {
     warnUnknown(nullptr, " enabled toggle_key workers_tier1 workers_tier2 workers_tier3 food_free_min food_free_percent "
                          "bank_multiple reserve_extra "
                          "upgrade_bias filler_min save_up_seconds plenty_units navy_weight navy_max workers_ignore_reserve "
-                         "tankers_ignore_reserve reserve_navy_food units "
+                         "tankers_ignore_reserve reserve_navy_food land_units_where_enemies units "
                          "no_enemy_navy_cap class_upgrade_bias land_tier1 land_tier2 land_tier3 navy_tier1 navy_tier2 navy_tier3 ");
     const char* const kAllClasses = " workers infantry archers knights casters flyers siege tankers destroyers battleships submarines ";
     const char* const kLandClasses = " infantry archers knights casters flyers siege ";

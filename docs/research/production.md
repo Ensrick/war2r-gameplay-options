@@ -470,6 +470,22 @@ is exactly the waiting-for-oil case. `NavyFoodAllows()` then treats that food as
 `0x8C0B80`: a type whose counter is the food-free one (`0x91B6AC`) eats 0, every other counted unit 1
 (docs/research/food_supply.md).
 
+## Front line: which landmass a building trains for (mod design)
+
+`land_units_where_enemies`: a player with a base on each of two islands had most troops trained at home, far from
+the enemy. The game's region map (`0x91AD7C`) cannot answer "same island": forest, rock and chopping tiles carry
+special ids (0xFFFA and up), so a wood splits a region. The mod numbers landmasses itself, once per map with the map
+profile (water never changes): tiles without the water (0x40) or coast (0x02) square bit, both of which block land
+units (mask 0x09CE), flood-filled 8-connected. Whether the game lets a land unit pass between two land tiles that meet
+only at a corner is `[unverified]`. A building counts on the landmass of the first land tile of its footprint.
+
+Known enemies are only what the player could know: an enemy building whose anchor tile is explored for the local
+player (`0x91AD60` != 0x10), or an enemy land unit (not a flyer) with the fog bit clear, the seen bit set and no
+invisibility, remembered for 60 s of play after it was last seen. The ship caps (`HostileNavy`) deliberately look at
+every enemy shipyard, fogged or not; this rule does not. The front = landmasses with a known enemy AND a finished
+building of the player's that trains land army classes (barracks, mage tower / temple). With a front, the other
+buildings drop those classes from their candidates. Without one, nothing changes.
+
 ## Recommended way for the mod to train a unit
 
 Single player only, from the tick hook after the multiplayer gate (same as every other mod feature):

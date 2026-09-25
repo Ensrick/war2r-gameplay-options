@@ -3546,6 +3546,92 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
     CHECK(StartsOf(0x1E) + StartsOf(0x20) + StartsOf(0x26) > 9 && LogContains(dir, "an enemy shipyard or warship is on the map"),
           "an enemy shipyard under construction lifts the caps (%d ships)", StartsOf(0x1E) + StartsOf(0x20) + StartsOf(0x26));
 
+    // Front line ([auto_production] land_units_where_enemies): two landmasses split by a strait (x 30..33 water),
+    // home on the left, a second base on the right. Land army units come from the landmass with a known enemy.
+    {
+        static uint8_t explored[kMap * kMap];
+        uint8_t* const savedExplored = *At<uint8_t*>(kRvaExploredMap);
+        *At<uint8_t*>(kRvaExploredMap) = explored;
+        struct FrontBase { Unit* hall; Unit* home; Unit* front; };
+        auto frontWorld = [&](bool frontBarracks) {
+            ProdWorld();
+            for (int y = 0; y < kMap; ++y)
+                for (int x = 30; x < 34; ++x) g_prodSquare[y * kMap + x] = kSqWater;
+            memset(explored, 0, sizeof explored);  // all explored
+            production::OnNewMap();
+            FrontBase b{};
+            b.hall = AddProd(0x4A, 0, 5, 5);
+            b.home = AddProd(0x3C, 0, 10, 5);
+            if (frontBarracks) b.front = AddProd(0x3C, 0, 40, 5);
+            for (int i = 0; i < 5; ++i) AddProd(0x02, 0, i, 20);  // below the worker target: the hall trains
+            return b;
+        };
+
+        // An enemy base on explored ground on the right: only the right barracks trains the army, the hall its peasant.
+        FrontBase b = frontWorld(true);
+        config::g.logCasts = false;
+        AddProd(0x3D, 1, 50, 20);  // an enemy barracks
+        ProdPass(1000);
+        CHECK(production::LandmassAt(10, 5) == 1 && production::LandmassAt(40, 5) == 2 && production::LandmassAt(31, 5) == 0,
+              "landmasses: left 1, right 2, the strait none (%d %d %d)", production::LandmassAt(10, 5),
+              production::LandmassAt(40, 5), production::LandmassAt(31, 5));
+        CHECK(StartsAt(b.front) == 1 && StartsAt(b.home) == 0 && StartsAt(b.hall) == 1,
+              "front: the barracks facing the enemy trains, the home one waits, the hall still trains (%d %d %d)",
+              StartsAt(b.front), StartsAt(b.home), StartsAt(b.hall));
+        CHECK(LogContains(dir, "production: land units only on landmass 2 (enemy base seen)"), "front: the landmass is logged");
+        const int frontLines = LogCount(dir, "production: land units only on landmass 2");
+        FinishTraining(0);
+        ProdPass(2000);
+        CHECK(LogCount(dir, "production: land units only on landmass 2") == frontLines && StartsAt(b.home) == 0,
+              "front: logged once, and the home barracks keeps waiting");
+
+        // The enemy base on ground the player has never explored: nothing known, both barracks train.
+        b = frontWorld(true);
+        AddProd(0x3D, 1, 50, 20);
+        explored[20 * kMap + 50] = kTileUnexplored;
+        ProdPass(1000);
+        CHECK(StartsAt(b.front) == 1 && StartsAt(b.home) == 1, "front: an enemy the player cannot know about changes nothing");
+
+        // An enemy army seen on the right counts for a minute after it is out of sight, then the rule lets go.
+        b = frontWorld(true);
+        Unit* grunt = AddProd(0x01, 1, 45, 10);
+        ProdPass(1000);
+        CHECK(StartsAt(b.front) == 1 && StartsAt(b.home) == 0, "front: a visible enemy army marks its landmass");
+        CHECK(LogContains(dir, "production: land units only on landmass 2 (enemy units seen)"), "front: units seen is logged");
+        FinishTraining(0);
+        Field<uint8_t>(grunt, kOffFogMask) = 1;  // now under the player's fog
+        ProdPass(50000);
+        CHECK(StartsAt(b.home) == 0, "front: still remembered 49 s later");
+        FinishTraining(0);
+        ProdPass(62000);
+        CHECK(StartsAt(b.home) == 1 && LogContains(dir, "production: land units anywhere again"),
+              "front: forgotten after a minute out of sight, both barracks train again");
+
+        // No barracks of the player's on the enemy's landmass: production never stops, the home barracks trains.
+        b = frontWorld(false);
+        AddProd(0x3D, 1, 50, 20);
+        ProdPass(1000);
+        CHECK(StartsAt(b.home) == 1, "front: with no barracks facing the enemy, home trains as before");
+
+        // Switched off: both train.
+        b = frontWorld(true);
+        AddProd(0x3D, 1, 50, 20);
+        config::g.production.landUnitsWhereEnemies = false;
+        ProdPass(1000);
+        CHECK(StartsAt(b.front) == 1 && StartsAt(b.home) == 1, "front: land_units_where_enemies = false changes nothing");
+
+        // Flyers cross water: an aviary at home keeps training while the front rule holds the home barracks.
+        b = frontWorld(true);
+        AddProd(0x5A, 0, 5, 10);  // a castle: tier 3, flyers are 15 % of the land army
+        AddProd(0x42, 0, 14, 5);  // stables
+        Unit* aviary = AddProd(0x46, 0, 18, 5);
+        AddProd(0x3D, 1, 50, 20);
+        ProdPass(1000);
+        CHECK(StartsAt(aviary) == 1 && StartsAt(b.home) == 0, "front: the home aviary still trains flyers (%d), the home barracks waits",
+              StartsAt(aviary));
+        *At<uint8_t*>(kRvaExploredMap) = savedExplored;
+    }
+
     // Navy food: an own shipyard, an enemy one, no oil yet. The barracks may not eat the food the ships still need.
     {
         auto navyWorld = [&](bool enemy) {

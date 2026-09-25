@@ -721,6 +721,7 @@ save_up_seconds = 60        # how long a building keeps its money for a unit it 
 navy_weight = 1.0           # how much of the map's water turns into ships (0 = never build ships)
 navy_max = 80               # ships are never more than this much of the army, in percent
 reserve_navy_food = true    # while the enemy has a navy, land units leave food free for your missing ships (below)
+land_units_where_enemies = true  # land troops come from the island where the enemy is (below)
 workers_ignore_reserve = true  # workers only wait for their own price, never for the upgrade reserve
 tankers_ignore_reserve = true  # and the one tanker with them
 
@@ -850,6 +851,19 @@ production: keeping 6 food for ships (navy 3 of 9)
 ```
 
 and with `log_casts = true` a waiting barracks shows `infantry=navy food` in the "production: nothing" line.
+
+**Troops where the enemy is.** On a map of islands, a barracks at home is no use for a war on another island: its
+footmen would stand on the wrong shore. With `land_units_where_enemies = true` (the default), land army units
+(footmen, archers, knights, casters, catapults) are trained only at buildings standing on a landmass where you know of
+an enemy: an enemy building on ground you have explored, or enemy troops you can see or saw there in the last minute.
+Enemies you could not know about do not count. Workers, ships and flyers are not affected (flyers cross water, so
+where their roost stands does not matter). If none of your barracks stands on such a landmass, or no enemy is known
+anywhere, every building trains as before, so production never stops. A landmass is ground a land unit could walk
+over: water and coast split it, forests, rocks, walls and buildings do not. The log says when the choice changes:
+
+```
+production: land units only on landmass 2 (enemy base seen)
+```
 
 **When the enemy has no navy, neither do you.** While no hostile player owns a shipyard or a warship anywhere on the
 map, the mod holds at most **1 oil tanker, 5 destroyers, 2 battleships / juggernaughts and 2 submarines** and builds
@@ -1251,6 +1265,7 @@ makes the log long.
 | auto_production | save_up_seconds | 60 | A building keeps its money for the class furthest behind its share instead of spending that resource on a cheaper one; it gives up after this many seconds without the resource growing (0 to 600, 0 = never save up) |
 | auto_production | navy_weight | 1.0 | Scales the ship share the map asks for; 0 = never build ships |
 | auto_production | navy_max | 80 | Ships never take more than this much of the army, in percent |
+| auto_production | land_units_where_enemies | true | Land army units train only at buildings on a landmass with a known enemy, while you have one there; otherwise everywhere |
 | auto_production | reserve_navy_food | true | With your own finished shipyard and an enemy navy on the map, land units leave free the food your missing ships need |
 | auto_production | workers_ignore_reserve | true | Workers wait for their own price only, never for the upgrade reserve or bank_multiple |
 | auto_production | tankers_ignore_reserve | true | The same for the single oil tanker |

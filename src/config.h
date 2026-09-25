@@ -147,6 +147,9 @@ struct AutoProduction {
     // Own a finished shipyard while an enemy has a shipyard or warship: land units leave free the food the navy
     // still needs to reach its share of the army (src/production.cpp NavyFood).
     bool reserveNavyFood = true;
+    // Land army units (not workers, ships or flyers) train only at buildings on a landmass where an enemy is known,
+    // while at least one such building exists (src/production.cpp FrontLandmasses).
+    bool landUnitsWhereEnemies = true;
     bool unitClass[kProdClassCount] = {true, true, true, true, true, true, true, true, true, true, true};
     // Land army shares in percent, per hall tier: infantry, archers, knights, casters, flyers, siege.
     int land[kProdTiers][kProdClassCount] = {
