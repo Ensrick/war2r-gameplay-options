@@ -126,6 +126,8 @@ void OnNewMap();                                        // forget the cached map
 void OnTick(const game::World& w, unsigned elapsedMs);  // one pass per second of play time
 void Pass(const game::World& w, unsigned nowMs);        // one pass right now (tests); nowMs = play time for the back-off
 unsigned StartCount();                                  // productions started since load (tests, log)
+// Landmass id of a tile (1..n, 0 = water / coast / off the map), as the last pass counted them (tests).
+int LandmassAt(int x, int y);
 const Plan& LastPlan();                                 // the numbers of the last pass as it began (tests)
 
 }  // namespace production

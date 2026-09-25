@@ -369,6 +369,19 @@ struct MapProfile {
 };
 MapProfile g_map;
 
+// Landmasses: ground a land unit could walk between if nothing stood in the way. Tiles without the water or the coast
+// bit (both block land units, mask 0x09CE at 0x8C1AC8), 8-connected (units step diagonally [unverified: that the game
+// lets a land unit pass between two tiles that touch only at a corner]). Forest, rocks, walls and buildings are land:
+// they close a path for a while, they do not make an island, so the game's own region ids (which forests split) are
+// not used. Counted with the map profile, which recounts whenever the water changes: the game never changes it.
+constexpr int kMaxLandmasses = 4096;
+uint16_t g_landmass[kMaxMapSize * kMaxMapSize];
+int g_landmassCount = 0;
+int g_landmassSize = 0;  // map size the table was built for
+unsigned g_enemySeenMs[kMaxLandmasses];  // play time + 1 an enemy land unit was last seen there, 0 = never
+constexpr unsigned kEnemyMemoryMs = 60000;  // a seen enemy army counts for a minute after it left the player's sight
+char g_frontLogged[160] = "";  // the front the log last announced
+
 // Per unit slot, verified by creation serial (the unit struct has nothing for this).
 constexpr unsigned kMaxSlots = 2048;
 struct SlotState {
@@ -624,6 +637,55 @@ bool Selected(Unit* b) {
     return false;
 }
 
+bool LandTile(const uint16_t* square, int size, int x, int y) {
+    return x >= 0 && y >= 0 && x < size && y < size && !(square[y * size + x] & (kSqWater | kSqCoast));
+}
+
+void BuildLandmasses(const World& w, const uint16_t* square) {
+    static int stack[kMaxMapSize * kMaxMapSize];
+    const int size = w.mapSize > kMaxMapSize ? kMaxMapSize : w.mapSize;
+    memset(g_landmass, 0, sizeof g_landmass);
+    memset(g_enemySeenMs, 0, sizeof g_enemySeenMs);
+    g_frontLogged[0] = 0;
+    g_landmassCount = 0;
+    g_landmassSize = size;
+    for (int start = 0; start < size * size; ++start) {
+        if (g_landmass[start] || !LandTile(square, size, start % size, start / size)) continue;
+        if (g_landmassCount + 1 >= kMaxLandmasses) break;  // specks beyond this stay 0: never a front
+        const uint16_t id = static_cast<uint16_t>(++g_landmassCount);
+        int top = 0;
+        stack[top++] = start;
+        g_landmass[start] = id;
+        while (top > 0) {
+            const int t = stack[--top], x = t % size, y = t / size;
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dx = -1; dx <= 1; ++dx) {
+                    const int n = (y + dy) * size + x + dx;
+                    if ((dx || dy) && LandTile(square, size, x + dx, y + dy) && !g_landmass[n]) {
+                        g_landmass[n] = id;
+                        stack[top++] = n;
+                    }
+                }
+        }
+    }
+}
+
+int Landmass(int x, int y) {
+    if (x < 0 || y < 0 || x >= g_landmassSize || y >= g_landmassSize) return 0;
+    return g_landmass[y * g_landmassSize + x];
+}
+
+// A unit's landmass: the first land tile of its footprint, so a building on the coast counts where it stands.
+int LandmassOf(Unit* u) {
+    const auto size = At<uint16_t>(kRvaUnitSizeByType) + TypeOf(u) * 2;
+    const int x0 = Field<int16_t>(u, kOffX), y0 = Field<int16_t>(u, kOffY);
+    const int w = size[0] ? size[0] : 1, h = size[1] ? size[1] : 1;
+    for (int y = y0; y < y0 + h; ++y)
+        for (int x = x0; x < x0 + w; ++x)
+            if (const int id = Landmass(x, y)) return id;
+    return 0;
+}
+
 // Water tiles and oil sources of the running map. Counted once: the square flags never change for water, and oil
 // patches only turn into platforms (both count). The signature notices a new map or a loaded game.
 void UpdateMapProfile(const World& w) {
@@ -649,6 +711,7 @@ void UpdateMapProfile(const World& w) {
     }
     g_map.valid = true;
     g_map.signature = signature;
+    BuildLandmasses(w, square);
     g_map.waterPercent = tiles > 0 ? water * 100 / tiles : 0;
     g_map.oilSources = oil;
     const AutoProduction& cfg = config::g.production;
@@ -657,6 +720,53 @@ void UpdateMapProfile(const World& w) {
                 static_cast<int>(NavyShare(g_map.waterPercent, g_map.oilSources, 1, cfg.navyWeight, cfg.navyMax) * 100 + 0.5),
                 static_cast<int>(NavyShare(g_map.waterPercent, g_map.oilSources, 2, cfg.navyWeight, cfg.navyMax) * 100 + 0.5),
                 static_cast<int>(NavyShare(g_map.waterPercent, g_map.oilSources, 3, cfg.navyWeight, cfg.navyMax) * 100 + 0.5));
+}
+
+// Land army classes the front rule steers. Flyers cross water, so where their roost stands says nothing.
+constexpr unsigned kFrontClasses =
+    1u << kProdInfantry | 1u << kProdArchers | 1u << kProdKnights | 1u << kProdCasters | 1u << kProdSiege;
+
+// Landmasses where the player KNOWS of an enemy: an enemy building on explored ground (his fog shows it), or an enemy
+// land unit he sees now or saw there in the last minute. Hidden enemies never count (the ship caps above do look at
+// every enemy shipyard, seen or not; this rule does not). known[id]: bit 1 = a base, bit 2 = units.
+void KnownEnemyLandmasses(const World& w, uint8_t me, unsigned nowMs, uint8_t* known) {
+    const uint8_t* explored = *At<uint8_t*>(kRvaExploredMap);
+    for (unsigned i = 0; i < w.unitCount; ++i) {
+        Unit* u = UnitAt(w, i);
+        if ((Field<uint8_t>(u, kOffStateFlags) & 0x0F) || !IsEnemy(w, me, u)) continue;
+        const uint32_t flags = w.typeFlags[TypeOf(u)];
+        if (flags & kTfFlyer) continue;
+        const int id = LandmassOf(u);
+        if (!id) continue;  // ships, and anything on the water
+        if (flags & kTfBuilding) {
+            const int x = Field<int16_t>(u, kOffX), y = Field<int16_t>(u, kOffY);
+            if (explored && x >= 0 && y >= 0 && x < w.mapSize && y < w.mapSize &&
+                explored[y * w.mapSize + x] != kTileUnexplored)
+                known[id] |= 1;
+            continue;
+        }
+        const uint8_t p = w.localPlayer;
+        const bool sees = !(Field<uint8_t>(u, kOffFogMask) & (1u << (p & 7))) && (Field<uint8_t>(u, kOffSeenMask) & (1u << (p & 7))) &&
+                          Field<uint16_t>(u, kOffInvisTimer) == 0;
+        if (sees) g_enemySeenMs[id] = nowMs + 1;
+    }
+    for (int id = 1; id <= g_landmassCount; ++id)
+        if (g_enemySeenMs[id] && nowMs + 1 - g_enemySeenMs[id] <= kEnemyMemoryMs) known[id] |= 2;
+}
+
+// One line when the set of front landmasses changes.
+void LogFront(const uint8_t* front, const uint8_t* known) {
+    char line[160] = "";
+    size_t used = 0;
+    for (int id = 1; id <= g_landmassCount && used + 40 < sizeof line; ++id) {
+        if (!front[id]) continue;
+        used += sprintf_s(line + used, sizeof line - used, "%s%d (%s)", used ? ", " : "", id,
+                          (known[id] & 1) ? "enemy base seen" : "enemy units seen");
+    }
+    if (strcmp(line, g_frontLogged) == 0) return;
+    strcpy_s(g_frontLogged, line);
+    if (line[0]) logx::Write("production: land units only on landmass %s", line);
+    else logx::Write("production: land units anywhere again (no known enemy on a landmass with a barracks)");
 }
 
 const char* const kClassNames[kProdClassCount] = {"worker",    "infantry",   "archer",      "knight",    "caster", "flyer",
@@ -797,6 +907,8 @@ void OnNewMap() {
     g_nextSaveLogMs = 0;
     g_navyCapState = -1;
     g_navyFoodLogged = 0;
+    g_landmassCount = 0;  // counted again with the next map profile
+    g_frontLogged[0] = 0;
     for (unsigned i = 0; i < kMaxSlots; ++i) g_slots[i].save = SaveUp{};  // no building saves into the next map
 }
 
@@ -910,6 +1022,24 @@ void Pass(const World& w, unsigned nowMs) {
     }
     const unsigned startsBefore = g_starts;
 
+    // The front: landmasses with a known enemy and a building of the player's that trains land army units. With one,
+    // land army units come only from there; without one, from everywhere, so production never stops.
+    static uint8_t known[kMaxLandmasses], front[kMaxLandmasses];
+    bool hasFront = false;
+    if (cfg.landUnitsWhereEnemies && g_landmassCount > 0) {
+        memset(known, 0, sizeof known);
+        memset(front, 0, sizeof front);
+        KnownEnemyLandmasses(w, p, nowMs, known);
+        for (unsigned i = 0; i < count; ++i) {
+            Unit* u = UnitAt(w, i);
+            if (OwnerOf(u) != p || (Field<uint8_t>(u, kOffStateFlags) & 0x0F) || !(ClassesAt(TypeOf(u)) & kFrontClasses)) continue;
+            if (!(Field<uint16_t>(u, kOffStateFlags) & kStateComplete)) continue;
+            const int id = LandmassOf(u);
+            if (id && known[id]) front[id] = 1, hasFront = true;
+        }
+        LogFront(front, known);
+    }
+
     // 1. Workers: every idle hall, keep or castle while below the best tier's workers_tierN.
     for (int k = 0; k < idleCount; ++k) {
         const uint8_t t = TypeOf(idle[k].unit);
@@ -935,6 +1065,7 @@ void Pass(const World& w, unsigned nowMs) {
         unsigned candidates = 0;
         for (int c = 0; c < kProdClassCount; ++c)
             if ((ClassesAt(t) & (1u << c)) && IsArmy(c) && plan.trainable[c]) candidates |= 1u << c;
+        if (hasFront && !front[LandmassOf(idle[k].unit)]) candidates &= ~kFrontClasses;  // away from the enemy
         if (!candidates) continue;
         SaveUp& save = g_slots[idle[k].slot].save;
         const int savedBefore = save.resource;
@@ -967,6 +1098,7 @@ void OnTick(const World& w, unsigned elapsedMs) {
 }
 
 unsigned StartCount() { return g_starts; }
+int LandmassAt(int x, int y) { return Landmass(x, y); }
 const Plan& LastPlan() { return g_lastPlan; }
 
 }  // namespace production
