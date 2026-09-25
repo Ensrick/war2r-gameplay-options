@@ -456,6 +456,20 @@ never is. Below the line the factor is linear, so the weights stay proportional 
 each group is renormalised over its own classes, a `plenty_units` every class of a group is under cancels out
 entirely: it only moves the mix where some classes are over the line and others are not.
 
+## Navy food: why land units can starve the fleet (mod design, not engine RE)
+
+Found in play on a sea map: the shipyard saved up oil, the barracks kept training, and the food ran out before the
+fleet got its share. The saving rule (`Decide`) only holds a building whose chosen class COSTS the blocked resource
+(`plan.cost[d.cls].r[resource] <= 0` -> carry on), and land units cost no oil, so by design they never wait for it.
+Food is shared, though. `reserve_navy_food` keeps it for the ships: `NavyFood()` = (round(navyShare x (army + 1)) -
+warships) x food per ship, capped by the room under 200, and only with a finished shipyard of the player's
+(`plan.trainable`, which needs a complete trainer, covers the same ground) and `HostileNavy` true. It uses the
+map's share, not the money-weighted `Targets()`: `Targets()` shrinks a class the bank cannot pay for towards 0, which
+is exactly the waiting-for-oil case. `NavyFoodAllows()` then treats that food as used for LAND classes only;
+`Decide()` drops a land pick it refuses (`heldForNavy`). Food per ship comes from the per-type counter table
+`0x8C0B80`: a type whose counter is the food-free one (`0x91B6AC`) eats 0, every other counted unit 1
+(docs/research/food_supply.md).
+
 ## Recommended way for the mod to train a unit
 
 Single player only, from the tick hook after the multiplayer gate (same as every other mod feature):

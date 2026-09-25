@@ -187,6 +187,34 @@ bool FoodAllows(const Plan& plan, const AutoProduction& cfg) {
     return FoodAllows(plan.supply, plan.used, plan.inTraining, cfg.foodFreeMin, cfg.foodFreePercent);
 }
 
+int NavyFood(const Plan& plan, const AutoProduction& cfg, int* have, int* want) {
+    int ships = 0;
+    for (int c = 0; c < kProdClassCount; ++c)
+        if (GroupOf(c) == kGroupNavy) ships += plan.count[c];
+    if (have) *have = ships;
+    if (want) *want = 0;
+    if (!cfg.reserveNavyFood || !plan.ownShipyard || !plan.enemyNavy || plan.navyShare <= 0) return 0;
+    const int tier = plan.tier < 1 ? 1 : (plan.tier > kProdTiers ? kProdTiers : plan.tier);
+    bool buildable = false;  // some warship class the mix asks for can still be trained
+    for (int c = 0; c < kProdClassCount; ++c)
+        if (GroupOf(c) == kGroupNavy && plan.trainable[c] && UnderCap(plan, c) && cfg.navy[tier - 1][c] > 0) buildable = true;
+    if (!buildable) return 0;
+    const double share = plan.navyShare > 1 ? 1 : plan.navyShare;
+    const int size = static_cast<int>(std::floor(share * (ArmySize(plan) + 1) + 0.5));
+    if (want) *want = size;
+    const int missing = size - ships;
+    if (missing <= 0) return 0;
+    int food = missing * plan.shipFood;
+    const int room = 200 - plan.used - plan.inTraining;  // the navy can never grow past the 200 cap
+    if (food > room) food = room;
+    return food < 0 ? 0 : food;
+}
+
+bool NavyFoodAllows(const Plan& plan, const AutoProduction& cfg, int cls) {
+    if (GroupOf(cls) != kGroupLand || plan.navyFood <= 0) return true;
+    return FoodAllows(plan.supply, plan.used, plan.inTraining + plan.navyFood, cfg.foodFreeMin, cfg.foodFreePercent);
+}
+
 // Workers are a plain count target, not army shopping: with workers_ignore_reserve they wait for nothing but the
 // price itself. Making the economy wait for the upgrade reserve is what stalls a poor start (the keep upgrade alone
 // is 2000 gold, more than a hall full of peasants).
@@ -238,7 +266,18 @@ static int NeededFor(const Plan& plan, const AutoProduction& cfg, int cls, int r
     return v > 2e9 ? 2000000000 : static_cast<int>(std::ceil(v - 1e-9));
 }
 
+static Decision DecideMix(const Plan& plan, const AutoProduction& cfg, unsigned candidates, SaveUp& state, unsigned nowMs);
+
 Decision Decide(const Plan& plan, const AutoProduction& cfg, unsigned candidates, SaveUp& state, unsigned nowMs) {
+    Decision d = DecideMix(plan, cfg, candidates, state, nowMs);
+    if (d.cls >= 0 && !NavyFoodAllows(plan, cfg, d.cls)) {  // a land unit would eat the food the ships still need
+        d.cls = -1;
+        d.heldForNavy = true;
+    }
+    return d;
+}
+
+static Decision DecideMix(const Plan& plan, const AutoProduction& cfg, unsigned candidates, SaveUp& state, unsigned nowMs) {
     Decision d;
     if (!FoodAllows(plan, cfg)) {  // nothing is anybody's fault here: the food rule stops the whole building
         state.resource = -1;
@@ -318,6 +357,7 @@ unsigned g_starts = 0;
 unsigned g_nextDiagMs = 0;
 unsigned g_nextSaveLogMs = 0;
 int g_navyCapState = -1;  // -1 not decided yet, 0 the caps are in force, 1 the enemy has a navy
+int g_navyFoodLogged = 0;  // the navy food reserve the log last announced
 Plan g_lastPlan;
 
 // The map decides how much of the army is ships. Counted once per map: every tile and every oil source.
@@ -454,11 +494,12 @@ bool RequirementsMet(uint8_t type, const Owned& o) {
 // Why a class is not being trained, for the log line. The order is the order the gates are applied in.
 enum Block {
     kBlockNone, kBlockOff, kBlockNever, kBlockNoBuilding, kBlockMission, kBlockPrereq, kBlockNoPlatform, kBlockCap, kBlockBusy,
-    kBlockWaiting, kBlockFood, kBlockGold, kBlockLumber, kBlockOil, kBlockReserve, kBlockBank, kBlockSaving, kBlockEnough
+    kBlockWaiting, kBlockFood, kBlockNavyFood, kBlockGold, kBlockLumber, kBlockOil, kBlockReserve, kBlockBank, kBlockSaving,
+    kBlockEnough
 };
 const char* const kBlockNames[] = {"ok",   "off",     "never",  "no building", "mission", "prereq",  "no platform", "cap", "busy",
-                                   "waiting", "food", "gold",   "lumber",      "oil",     "reserve", "bank",        "saving",
-                                   "enough"};
+                                   "waiting", "food", "navy food", "gold", "lumber",   "oil",     "reserve", "bank",
+                                   "saving",  "enough"};
 const char* const kResourceNames[kResourceCount] = {"gold", "lumber", "oil"};
 
 // The building comes first, so a class the player has nothing to build in stays out of the log line entirely.
@@ -631,6 +672,22 @@ bool HostileNavy(const World& w, Unit* u, uint8_t me) {
            || t == 0x26 || t == 0x27;                  // submarine / turtle
 }
 
+// Food one unit of the type eats: 1, or 0 when CountAdd files it under the food-free counter (skeletons, daemons,
+// critters). The pointer table is static .data, relocated with the image like every absolute address.
+int ShipFood(uint8_t type) {
+    return At<uint32_t>(kRvaCounterByType)[type] == static_cast<uint32_t>(g_base + kRvaFoodFreeUnits) ? 0 : 1;
+}
+
+// One line when the navy food reserve changes, never a line per pass.
+void LogNavyFood(int food, int have, int want) {
+    if (food == g_navyFoodLogged) return;
+    g_navyFoodLogged = food;
+    if (food > 0)
+        logx::Write("production: keeping %d food for ships (navy %d of %d)", food, have, want);
+    else
+        logx::Write("production: no food kept for ships any more (navy %d of %d)", have, want);
+}
+
 // One line when the ship caps come into force and one when they lift, never a line per pass.
 void LogNavyCaps(const AutoProduction& cfg, bool enemyNavy) {
     const int state = enemyNavy ? 1 : 0;
@@ -660,6 +717,7 @@ Block WhyNot(const Plan& plan, const AutoProduction& cfg, const Owned& o, int ra
     if (!UnderCap(plan, cls)) return kBlockCap;  // the enemy has no navy and we hold enough of this class
     if (!(usableMask & (1u << cls))) return (idleMask & (1u << cls)) ? kBlockWaiting : kBlockBusy;
     if (!FoodAllows(plan, cfg)) return kBlockFood;
+    if (!NavyFoodAllows(plan, cfg, cls)) return kBlockNavyFood;  // the food the ships still need
     for (int r = 0; r < kResourceCount; ++r)
         if (plan.bank.r[r] < plan.cost[cls].r[r]) return static_cast<Block>(kBlockGold + r);
     const bool ignoresReserve = (cls == kProdWorkers && cfg.workersIgnoreReserve) ||
@@ -738,6 +796,7 @@ void OnNewMap() {
     g_nextDiagMs = 0;
     g_nextSaveLogMs = 0;
     g_navyCapState = -1;
+    g_navyFoodLogged = 0;
     for (unsigned i = 0; i < kMaxSlots; ++i) g_slots[i].save = SaveUp{};  // no building saves into the next map
 }
 
@@ -825,6 +884,17 @@ void Pass(const World& w, unsigned nowMs) {
         plan.levels[c] = Levels(c, o, race);
         plan.cap[c] = enemyNavy ? -1 : cfg.noEnemyNavyCap[c];
     }
+    plan.ownShipyard = o.Pair(0x48) > 0;
+    plan.enemyNavy = enemyNavy;
+    plan.shipFood = 0;
+    for (int c = 0; c < kProdClassCount; ++c)
+        if (GroupOf(c) == kGroupNavy) {
+            const int food = ShipFood(TypeFor(c, race, o));
+            if (food > plan.shipFood) plan.shipFood = food;
+        }
+    int navyHave = 0, navyWant = 0;
+    plan.navyFood = NavyFood(plan, cfg, &navyHave, &navyWant);
+    LogNavyFood(plan.navyFood, navyHave, navyWant);
     static Buy items[256];
     const int itemCount = Purchasable(w, o, items, 256);
     plan.reserve = Reserve(items, itemCount, cfg.reserveExtra);
@@ -868,6 +938,7 @@ void Pass(const World& w, unsigned nowMs) {
         if (!candidates) continue;
         SaveUp& save = g_slots[idle[k].slot].save;
         const int savedBefore = save.resource;
+        plan.navyFood = NavyFood(plan, cfg);  // a ship or a land unit started this pass moves it
         const Decision d = Decide(plan, cfg, candidates, save, nowMs);
         if (d.saveResource >= 0) {
             savingResources |= 1u << d.saveResource;

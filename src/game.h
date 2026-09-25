@@ -161,6 +161,8 @@ constexpr uint32_t kRvaHallCount = 0x51B52C;         // uint16[16]: town / great
 constexpr uint32_t kRvaKeepCount = 0x51B54C;         // uint16[16]: keeps / strongholds
 constexpr uint32_t kRvaCastleCount = 0x51B56C;       // uint16[16]: castles / fortresses
 constexpr uint32_t kRvaUnitsCounted = 0x51B38C;      // uint16[16]: every complete non-building unit ("food used" before the free ones)
+constexpr uint32_t kRvaCounterByType = 0x4C0B80;     // uint16*[110] (.data): the per-type counter CountAdd bumps; types
+                                                     // pointing at kRvaFoodFreeUnits eat no food (docs/research/food_supply.md)
 constexpr uint32_t kRvaFoodFreeUnits = 0x51B6AC;     // uint16[16]: skeletons, daemons, critters (0x8C0B80[0x37..0x39])
 constexpr uint32_t kRvaUnitsInTraining = 0x5193F0;   // uint16[16]: +1 in StartProduction kind 0 (0x4AD079), -1 when it ends
 constexpr uint32_t kRvaPlayerOil = 0x519168;         // int32[16]

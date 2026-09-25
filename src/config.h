@@ -144,6 +144,9 @@ struct AutoProduction {
     int saveUpSeconds = 60;
     double navyWeight = 1.0;          // x the navy share the map asks for
     int navyMax = 80;                 // percent of the army, ships at most
+    // Own a finished shipyard while an enemy has a shipyard or warship: land units leave free the food the navy
+    // still needs to reach its share of the army (src/production.cpp NavyFood).
+    bool reserveNavyFood = true;
     bool unitClass[kProdClassCount] = {true, true, true, true, true, true, true, true, true, true, true};
     // Land army shares in percent, per hall tier: infantry, archers, knights, casters, flyers, siege.
     int land[kProdTiers][kProdClassCount] = {
