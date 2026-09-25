@@ -2625,6 +2625,33 @@ static void DodgeTests(const wchar_t* dir) {
     CHECK(OrderOf(ft) == kOrderMove && !(sq[oy(ft) * kMap + ox(ft)] & kSqWater), "the footman must step onto land (to %d,%d)",
           ox(ft), oy(ft));
     *At<uint16_t*>(kRvaSquareFlags) = savedSq;
+    // The side the aim is NOT on: the only thing on that side (x <= 29, left of the unit at 30,32 with the aim at 31,32)
+    // is water, then forest; the nearest exit (x 27) is there, so a footman that ignores what it can stand on steps
+    // into it. It must take the land above instead.
+    for (int blocked = 0; blocked < 2; ++blocked) {
+        fresh();
+        for (int y = 0; y < kMap; ++y)
+            for (int x = 0; x < kMap; ++x)
+                sq[y * kMap + x] = x <= 29 ? (blocked == 0 ? kSqWater : static_cast<uint16_t>(kSqLand | kSqUnpassable)) : kSqLand;
+        *At<uint16_t*>(kRvaSquareFlags) = sq;
+        ft = AddUnit(kFootman, 0, 30, 32, 60, 0, kOrderStand);
+        Field<uint32_t>(ft, kOffSerial) = 7020 + blocked;
+        decay(0, 31, 32);
+        run(250);
+        const uint16_t there = OrderOf(ft) == kOrderMove ? sq[oy(ft) * kMap + ox(ft)] : 0;
+        CHECK(OrderOf(ft) == kOrderMove && !(there & (kSqWater | kSqUnpassable)),
+              "the footman must not step onto %s (order %u to %d,%d)", blocked == 0 ? "water" : "forest", OrderOf(ft), ox(ft), oy(ft));
+        *At<uint16_t*>(kRvaSquareFlags) = savedSq;
+    }
+    // Away from the aim: a footman one tile down and right of a death and decay's aim leaves down and right, not along
+    // the edge toward the top of the area (the first safe tile a scan would meet is 35,27).
+    fresh();
+    ft = AddUnit(kFootman, 0, 31, 31, 60, 0, kOrderStand);
+    Field<uint32_t>(ft, kOffSerial) = 7022;
+    decay(0, 30, 30);
+    run(250);
+    CHECK(OrderOf(ft) == kOrderMove && ox(ft) >= 33 && oy(ft) >= 33,
+          "the footman must leave on the side away from the aim (order %u to %d,%d)", OrderOf(ft), ox(ft), oy(ft));
 
     // Avoid: a footman sent at a grunt standing inside the area holds its ground at the edge; an archer in range of the
     // grunt keeps shooting. Once the area is gone the footman goes back to its attack.

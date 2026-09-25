@@ -30,7 +30,7 @@ units only:
   are NOT exempt: a harvesting peasant in a blizzard steps out too; harvest / repair / build orders are not given back
   (the unit is left idle; `[workers] auto_harvest` picks it up if on).
 - Dodge: a unit on a tile inside an area (flyers too) is moved to the nearest tile outside every area by one more
-  tile, the one farthest from the area's aim, then nearest to where it wants to be (its attack target or
+  tile, the one most straight away from the nearest aim (step dotted with aim-to-unit), then nearest to where it wants to be (its attack target or
   attack-move / patrol destination). A ground unit only picks ground it can stand on (the tile's water bit matches its
   own tile's, no forest, rock, wall or building bits, `kRvaSquareFlags`); a flyer any tile.
 - Player's orders win: a unit on a move the player gave is never touched (walking through is his call). While the mod
