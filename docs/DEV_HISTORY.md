@@ -15,6 +15,14 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.29.0 (2026-09-25, UNTESTED in game, NOT released)
+
+- Author: "on sea maps after I have a dock it needs to reserve the amount of food needed to get my Navy to the size it
+  needs to be while the enemy still has docks. Right now, I'm stocking up oil, but auto-build is filling my army with
+  ground troops." Confirmed: Decide() only holds a pick that costs the blocked resource, land units cost no oil. The
+  reserve uses the MAP's navy share (Targets() shrinks an unaffordable class toward 0 and would reserve nothing
+  while oil is short). 14 of 15 mutations caught; the survivor is equivalent.
+
 ## 1.28.1 (2026-09-25)
 
 - Tests only (agent follow-up): finished-hall anchor, and a flood-fill proof that 60 auto farms leave the hall a path to

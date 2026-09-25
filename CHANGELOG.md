@@ -7,6 +7,12 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.29.0 - 2026-09-25
+
+- New `[auto_production] reserve_navy_food` (on): while you own a shipyard and the enemy still has a shipyard or
+  warships, land units leave free the food your missing ships need, so a navy waiting for oil is not crowded out by
+  ground troops. The log says how much food is kept for ships.
+
 ## 1.28.1 - 2026-09-25
 
 - Tests and tutorial: auto-built farms only anchor on a finished hall, and a base filled with 60 auto farms still

@@ -1,0 +1,1 @@
+New [auto_production] reserve_navy_food (on): while you own a shipyard and the enemy still has a shipyard or warships, land units leave free the food your missing ships need, so a navy waiting for oil is not crowded out by ground troops. The log says how much food is kept for ships.
