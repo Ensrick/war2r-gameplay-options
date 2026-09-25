@@ -195,6 +195,16 @@ max_active = 3
 auto_scout = false
 
 ''' + banner('3. WORKERS', '"Idle" means stopped with nothing queued. Stand Ground is respected: that is how you park a worker.') + '''
+[scouts]
+# Your idle flying machines and zeppelins scout by themselves: first the ground you have never explored, then the fog you
+# have not seen for the longest time. They keep away from enemy towers and units that can shoot at flyers, as far as you
+# know of them, and two scouts never head for the same area. A scout you give an order to is yours until it has stood
+# idle for idle_seconds again. Ctrl + toggle_key turns it on and off in game.
+enabled = false
+units = ["flying_machine", "zeppelin"]
+toggle_key = "F11"
+idle_seconds = 5
+
 [workers]
 # Idle this long -> repair the nearest damaged building of yours within repair_radius tiles. Needs at least
 # 1 gold and 1 lumber in the bank; buildings still under construction are left alone.

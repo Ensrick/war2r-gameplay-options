@@ -7,6 +7,13 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.25.0 - 2026-09-25
+
+- New `[scouts]` (off; Ctrl+F11 toggles it in game): your idle flying machines and zeppelins scout by themselves,
+  first ground you have never explored, then the fog you have not seen for the longest time. They keep clear of enemy
+  towers and anti-air units you know about, never two to the same area, and a scout you order is yours until it stands
+  idle for `idle_seconds` again.
+
 ## 1.24.0 - 2026-09-25
 
 - Mages no longer Fireball enemy buildings once Blizzard is researched (and switched on): a Fireball line counts enemy

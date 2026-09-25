@@ -15,6 +15,15 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.25.0 (2026-09-25, UNTESTED in game, NOT released)
+
+- Author: "make the player's zeppelins and flying machines auto scout? I would like a button that I could click to toggle
+  auto-scouting on ... like an ability on the bottom row". src/scouts.cpp (agent aoe-aim): the mod keeps its own
+  last-seen time per tile (the game has only the fogged bit), anti-air read from the can-target byte 0x918580 bit 4.
+  13 mutations, 13 caught. Ctrl+F11 now; the command-card button is researched (docs/research/scouts.md section 2:
+  feasible by repointing the unit's button array to a mod-owned copy; custom tooltip and the HD click path open) and
+  not built.
+
 ## 1.24.0 (2026-09-25, UNTESTED in game, NOT released)
 
 - Author: "never have them fireball buildings when they have the blizzard spell, even if the path is clear for fireball
