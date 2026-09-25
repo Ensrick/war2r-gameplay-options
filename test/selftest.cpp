@@ -4557,9 +4557,95 @@ int wmain(int argc, wchar_t** argv) {
                   "after a dry run the same tile must still be castable (order %u, %u channel(s))", OrderOf(mgp),
                   autocast::ChannelCount());
 
+            // (i) hold_for_blocked_area: a blizzard target whose every worthwhile aim has the player's own units in it
+            // holds the mage; slow further down the list waits (the author's report: slow cast instead of blizzard).
+            // The barracks' centre is 28,20, so every aim that reaches it lies in 26..30 x 18..22: a footman at 28,17
+            // and one at 28,23 put every such aim within 4 tiles of one of them.
+            auto troopsInTheWay = [&](int mana) {
+                Unit* c = mageWorld(mana, true);
+                AddUnit(kFootman, 0, 28, 17, 60, 0, kOrderStand);
+                AddUnit(kFootman, 0, 28, 23, 60, 0, kOrderStand);
+                return c;
+            };
+            config::g.priority.holdForBlockedArea = false;
+            mgp = troopsInTheWay(255);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(mgp) == 0x2C, "hold off: troops in the blizzard's way, slow goes ahead (order %u)", OrderOf(mgp));
+            config::g.priority.holdForBlockedArea = true;
+            mgp = troopsInTheWay(255);
+            {
+                const int before = LogCount(dir, "holding: mage at 20,20 mana 255 for blizzard");
+                mod::RunAutocastPass();
+                CHECK(OrderOf(mgp) == kOrderStand && Field<uint8_t>(mgp, kOffNextOrder) == kOrderNone &&
+                          LogCount(dir, "holding: mage at 20,20 mana 255 for blizzard") == before + 1,
+                      "hold on: the mage must hold for blizzard, cast nothing and not walk (order %u, next %u)", OrderOf(mgp),
+                      Field<uint8_t>(mgp, kOffNextOrder));
+            }
+            mgp = troopsInTheWay(60);  // short of the 75 for three waves, rich enough for slow: still held
+            mod::RunAutocastPass();
+            CHECK(OrderOf(mgp) == kOrderStand, "hold on, 60 mana: blocked blizzard must still hold slow back (order %u)",
+                  OrderOf(mgp));
+            config::g.priority.saveMana = false;
+            mgp = troopsInTheWay(60);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(mgp) == kOrderStand, "hold works without save_mana too (order %u)", OrderOf(mgp));
+            config::g.priority.saveMana = true;
+            // Something of the player's that cannot move (a barracks at 24..26 x 19..21, within 4 of every aim) is no
+            // reason to hold: slow goes ahead.
+            mgp = mageWorld(255, true);
+            {
+                Unit* own = AddUnit(kBarracks, 0, 24, 19, 800, 0, kOrderStand);
+                Field<uint16_t>(own, kOffStateFlags) = kStateComplete;
+            }
+            mod::RunAutocastPass();
+            CHECK(OrderOf(mgp) == 0x2C, "an own building in the way must not hold the mage (order %u)", OrderOf(mgp));
+            // The footmen walk off: blizzard now.
+            mgp = mageWorld(255, true);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(mgp) == kOrderBlizzard, "once the way is clear the held blizzard is cast (order %u)", OrderOf(mgp));
+
+            // (j) Fireball leaves buildings to Blizzard once the owner knows Blizzard and [spells] blizzard is on.
+            constexpr uint32_t kBlizzardBit = 0x200;  // src/autocast.cpp kSpells, the button record's research bit
+            for (int i = 0; i < kSpellCount; ++i) config::g.spell[i] = i == kSpellBlizzard || i == kSpellFireball;
+            mageList[0] = kSpellFireball;
+            mageList[1] = -1;
+            auto fireballAtBuildings = [&](bool grunt) {
+                ResetWorld();
+                Unit* c = caster(kTypeMage, 20, 30);
+                enemyBuilding(26, 30, 800);
+                enemyBuilding(29, 30, 800);
+                if (grunt) AddUnit(kGrunt, 1, 27, 33, 60, 0, kOrderAttack);  // off the line
+                return c;
+            };
+            mgp = fireballAtBuildings(false);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(mgp) == kOrderStand, "blizzard known: fireball at two buildings (order %u at %d,%d)", OrderOf(mgp),
+                  Field<int16_t>(mgp, kOffOrderX), Field<int16_t>(mgp, kOffOrderY));
+            mgp = fireballAtBuildings(false);
+            AddUnit(kGrunt, 1, 27, 30, 60, 0, kOrderAttack);  // one unit on the line: 1 + 2 buildings, but only 1 counts
+            mod::RunAutocastPass();
+            CHECK(OrderOf(mgp) == kOrderStand, "blizzard known: two buildings and one grunt must count as one (order %u)",
+                  OrderOf(mgp));
+            AddUnit(kGrunt, 1, 28, 30, 60, 0, kOrderAttack);  // two units on the line: fire
+            mod::RunAutocastPass();
+            CHECK(OrderOf(mgp) == kOrderFireball, "blizzard known: two grunts on the line still get a fireball (order %u)",
+                  OrderOf(mgp));
+            config::g.spell[kSpellBlizzard] = false;  // [spells] blizzard off: buildings count again
+            mgp = fireballAtBuildings(false);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(mgp) == kOrderFireball, "blizzard switched off: fireball at two buildings (order %u)", OrderOf(mgp));
+            config::g.spell[kSpellBlizzard] = true;
+            At<uint32_t>(kRvaSpellsResearched)[0] &= ~kBlizzardBit;  // not researched: buildings count again
+            mgp = fireballAtBuildings(false);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(mgp) == kOrderFireball, "blizzard not researched: fireball at two buildings (order %u)", OrderOf(mgp));
+            At<uint32_t>(kRvaSpellsResearched)[0] |= kBlizzardBit;
+            for (int i = 0; i < kSpellCount; ++i) config::g.spell[i] = i == kSpellBlizzard || i == kSpellSlow;
+            config::g.priority = defaults;
+
             // (f) the reader: an unknown name, a name from another caster, a duplicate, and the spells left out.
             WriteFileText(ini,
-                          "[priority]\nsave_mana = false\n"
+                          "[priority]\nsave_mana = false\nhold_for_blocked_area = false\n"
                           "death_knight = [\"death_and_decay\", \"bogus_spell\", \"heal\", \"death_and_decay\", \"death_coil\"]\n"
                           "mage = [\"blizzard\"]\n");
             CHECK(config::Init(dir), "[priority] config rejected");
@@ -4569,6 +4655,7 @@ int wmain(int argc, wchar_t** argv) {
                                          kSpellUnholyArmor,   kSpellHaste,       kSpellWhirlwind, -1};
                 const int8_t wantMg[] = {kSpellBlizzard,      kSpellPolymorph,   kSpellSlow,
                                          kSpellFireball,      kSpellInvisibility, kSpellFlameShield, -1};
+                CHECK(!p.holdForBlockedArea, "[priority] hold_for_blocked_area = false was not read");
                 CHECK(!p.saveMana && memcmp(p.list[kCasterDeathKnight], wantDk, sizeof(wantDk)) == 0,
                       "[priority] death_knight: named spells first, the rest appended in the default order");
                 CHECK(memcmp(p.list[kCasterMage], wantMg, sizeof(wantMg)) == 0, "[priority] mage: one name, the rest appended");

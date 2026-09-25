@@ -42,6 +42,9 @@ struct Priority {
     // true = a caster with a valid target for a spell higher in its list saves its mana for it instead of casting
     // something cheaper. false = the list is only an order.
     bool saveMana = true;
+    // true = a Blizzard / Death and Decay with a spot worth casting on, blocked only by the player's own units (not
+    // buildings, not walls), holds the caster: nothing further down its list is cast until the way is clear.
+    bool holdForBlockedArea = true;
 };
 
 // [upgrades] keys: what one level of an upgrade line is worth. The game keeps one byte per upgrade group and

@@ -362,6 +362,12 @@ tile is a candidate aim, scored by what the pattern above would do there:
   the blast. All of this is an estimate: the rolls (`h + rand() % (h + 1)`), the blizzard shard's landing step and
   units walking in and out move the real damage either way.
 
+Priority (1.24): when no aim survives the friendly check and at least one worthwhile aim was blocked only by the
+player's units (FriendlyInDanger true, the building footprints and walls alone false), `[priority]
+hold_for_blocked_area` stops the caster's list walk there, with or without the mana for the spell (the dry run
+reports the same flag). No order is issued, so the caster neither casts nor walks. Fireball, for an owner with
+Blizzard researched and switched on, counts and aims at enemy units only.
+
 Budget per caster per pass: at most 31 x 31 = 961 aim tiles (`search_radius` <= 15), at most 256 enemies gathered
 from the tiles within reach + 6, each adding to the at most (w + 6) x (h + 6) aims its pattern reaches, and at most
 256 friendly-fire checks. Whirlwind keeps the per-target aim: it lands on the aim and then wanders at random, so there

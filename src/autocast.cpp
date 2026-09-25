@@ -194,6 +194,15 @@ bool FriendlyInDanger(const World& w, int x, int y, int radius, Unit* spared, in
     return WallNear(w, x, y, walls);  // a wall has no unit: the caller says "a wall"
 }
 
+// The part of FriendlyInDanger the player cannot move out of the way: own and allied buildings, and walls.
+bool FriendlyStructureNear(const World& w, int x, int y, int radius, int walls) {
+    for (int i = 0; i < g_footprintCount; ++i) {
+        const Footprint& b = g_footprints[i];
+        if (x >= b.x0 - radius && x <= b.x1 + radius && y >= b.y0 - radius && y <= b.y1 + radius) return true;
+    }
+    return WallNear(w, x, y, walls);
+}
+
 // Distinct enemies within `radius` tiles that a spell would hurt; a building counts once, whatever its size.
 int CountEnemies(const World& w, uint8_t me, int x, int y, int radius, bool groundUnitsOnly) {
     Unit* seen[64];
@@ -626,21 +635,33 @@ bool ForEachFireballPoint(int cx, int cy, int ax, int ay, Fn fn) {
     return false;
 }
 
+// Buildings belong to Blizzard: once the owner knows it (and [spells] blizzard is on), Fireball neither aims at a
+// building nor counts one on its line. The author's rule: a blizzard blocked by his own army is his to clear by moving
+// the army, not a reason to burn 100 mana of fireball on a wall of stone.
+bool BuildingsLeftToBlizzard(Unit* caster) {
+    return config::g.spell[kSpellBlizzard] &&
+           (At<uint32_t>(kRvaSpellsResearched)[OwnerOf(caster)] & kSpells[kSpellBlizzard].researchBit) != 0;
+}
+
 bool TryFireball(const World& w, Unit* caster) {
     if (!Ready(caster, kSpellFireball, ManaCost(kOrderFireball))) return false;
     const uint8_t me = OwnerOf(caster);
     const int cx = X(caster), cy = Y(caster);
+    const bool unitsOnly = BuildingsLeftToBlizzard(caster);
+    auto isFireballTarget = [&](Unit* u) {
+        return IsTarget(w, me, u) && !(unitsOnly && (w.typeFlags[TypeOf(u)] & kTfBuilding));
+    };
     Unit* best = nullptr;
     int bestScore = 0, bestDistance = 1 << 30;
     ScanGrid(w, caster, Reach(kOrderFireball), [&](Unit* t) {
-        if (!IsTarget(w, me, t)) return false;
+        if (!isFireballTarget(t)) return false;
         const int ax = X(t), ay = Y(t), d = Distance(caster, t);
         if (!OnMap(w, ax, ay) || (ax == cx && ay == cy) || IsAreaClaimed(kOrderFireball, ax, ay, 1)) return false;
         Unit* hit[64];
         int n = 0;
         ForEachFireballPoint(cx, cy, ax, ay, [&](int px, int py) {
             ScanTileRaw(w, px, py, 1, [&](Unit* u) {
-                if (!IsTarget(w, me, u)) return false;
+                if (!isFireballTarget(u)) return false;
                 for (int i = 0; i < n; ++i)
                     if (hit[i] == u) return false;
                 if (n < 64) hit[n++] = u;
@@ -803,6 +824,7 @@ int CompareAims(const void* pa, const void* pb) {
 // Why an area spell found nothing to cast at, for the NoteArea line.
 struct AreaWhy {
     bool sawTarget = false, gateMet = false, blockedFriendly = false, blockedClaim = false, blockedOverkill = false;
+    bool blockedByTroops = false;  // some aim worth casting on is blocked by units of the player's that can move away
     int bestGateValue = 0;
     Unit* witness = nullptr;
     int witnessX = 0, witnessY = 0;
@@ -927,6 +949,7 @@ AreaPick PickCoverageAim(const World& w, Unit* caster, uint8_t order, int reach,
                 why.witnessX = X(who);
                 why.witnessY = Y(who);
             }
+            if (!why.blockedByTroops && !FriendlyStructureNear(w, a.x, a.y, clearance, walls)) why.blockedByTroops = true;
             continue;
         }
         const AimCover& c = g_cover[(a.y - cy + reach) * side + (a.x - cx + reach)];
@@ -983,7 +1006,12 @@ AreaPick PickTargetAim(const World& w, Unit* caster, int reach, int clearance, i
 }
 
 // Blizzard, Death and Decay (channelled) and Whirlwind.
+// Set by the last TryAreaSpell (dry runs included): a Blizzard / Death and Decay had a spot worth casting on in range,
+// and the only thing in the way of every such spot was units of the player's. [priority] hold_for_blocked_area uses it.
+bool g_areaBlockedByTroops = false;
+
 bool TryAreaSpell(const World& w, Unit* caster, Spell spell) {
+    g_areaBlockedByTroops = false;
     const uint8_t order = kSpells[spell].order;
     const bool channel = spell != kSpellWhirlwind;
     const int cost = ManaCost(order);
@@ -1013,6 +1041,7 @@ bool TryAreaSpell(const World& w, Unit* caster, Spell spell) {
                                   : PickTargetAim(w, caster, reach, clearance, walls, why);
 
     if (!pick.found) {
+        g_areaBlockedByTroops = channel && why.blockedByTroops;
         if (!why.sawTarget) NoteArea(w, caster, spell, "no enemy in reach");
         else if (!why.gateMet)
             NoteArea(w, caster, spell, "the best spot is worth %d: it takes one building or %d units", why.bestGateValue,
@@ -1300,16 +1329,48 @@ void NoteSaving(const World& w, Unit* caster, int kind, int spell) {
 
 // [priority]: the caster walks its own list. With save_mana on, a spell it could cast except for the mana stops the
 // walk: the caster keeps its mana for it instead of spending it on something further down the list.
+// With log_casts on: one line per caster per 30 s of play while it holds for an area spell its own troops block.
+SaveNote g_holdNotes[kMaxNoteSlots];
+
+void NoteHolding(const World& w, Unit* caster, int kind, int spell) {
+    if (!config::g.logCasts) return;
+    const unsigned slot = NoteSlot(w, caster);
+    if (slot >= kMaxNoteSlots) return;
+    SaveNote& n = g_holdNotes[slot];
+    const uint32_t serial = Field<uint32_t>(caster, kOffSerial);
+    if (n.logged && n.serial == serial && g_playMs - n.lastMs < kRaiseNoteEveryMs) return;
+    n = {serial, g_playMs, true};
+    logx::Write("holding: %s at %d,%d mana %u for %s: only your own units are in the way", config::kCasterKindKeys[kind],
+                X(caster), Y(caster), Field<uint8_t>(caster, kOffMana), config::kSpellKeys[spell]);
+}
+
+bool IsChannelSpell(int spell) { return spell == kSpellBlizzard || spell == kSpellDeathAndDecay; }
+
+// [priority]: the caster walks its own list. With save_mana on, a spell it could cast except for the mana stops the
+// walk: the caster keeps its mana for it instead of spending it on something further down the list. With
+// hold_for_blocked_area on, a Blizzard / Death and Decay whose every worthwhile spot is blocked only by the player's
+// own units stops the walk too: the player can move them, and the mana is still there when he does. Holding issues
+// no order, so the caster does not walk either (an area aim is never out of range, and none is issued here).
 void CasterThink(const World& w, Unit* caster) {
     const int kind = KindOf(Field<uint8_t>(caster, kOffType));
     if (kind < 0) return;
     const int8_t* list = config::g.priority.list[kind];
+    const bool hold = config::g.priority.holdForBlockedArea;
     for (int i = 0; i < kSpellCount && list[i] >= 0; ++i) {
         const int spell = list[i];
         if (TrySpell(w, caster, spell)) return;
-        if (!config::g.priority.saveMana) continue;
-        if (WouldCastWithMoreMana(w, caster, spell)) {
-            NoteSaving(w, caster, kind, spell);
+        bool blocked = hold && IsChannelSpell(spell) && g_areaBlockedByTroops;  // it had the mana, own troops in the way
+        if (!config::g.priority.saveMana && !hold) continue;
+        if (WouldCastWithMoreMana(w, caster, spell)) {  // short of mana only: the dry run found a clean target
+            if (config::g.priority.saveMana) {
+                NoteSaving(w, caster, kind, spell);
+                return;
+            }
+        } else if (hold && IsChannelSpell(spell) && Field<uint8_t>(caster, kOffMana) < ManaNeed(spell)) {
+            blocked = blocked || g_areaBlockedByTroops;  // short of mana AND blocked: the dry run says why
+        }
+        if (blocked) {
+            NoteHolding(w, caster, kind, spell);
             return;
         }
     }
@@ -1429,6 +1490,7 @@ void OnNewMap() {
     memset(g_raiseNotes, 0, sizeof(g_raiseNotes));
     memset(g_areaNotes, 0, sizeof(g_areaNotes));
     memset(g_saveNotes, 0, sizeof(g_saveNotes));
+    memset(g_holdNotes, 0, sizeof(g_holdNotes));
     g_channelCount = 0;
 }
 unsigned RaiseDeadNoteCount() { return g_raiseNoteCount; }

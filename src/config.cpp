@@ -392,6 +392,7 @@ const char* const kUpgradeEffectKeys[kUpgradeEffectCount] = {"missile_damage", "
 // so a spell added in a later version is never silently switched off. The first mention of a spell wins.
 static void ReadPriority(const toml::table& root, Config& c) {
     ReadBool(root, "priority", "save_mana", c.priority.saveMana);
+    ReadBool(root, "priority", "hold_for_blocked_area", c.priority.holdForBlockedArea);
     const Priority defaults;
     for (int kind = 0; kind < kCasterKindCount; ++kind) {
         const auto node = root["priority"][kCasterKindKeys[kind]];
@@ -698,7 +699,7 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"spell_damage", " all fireball flame_shield blizzard death_and_decay whirlwind death_coil runes heal "},
         {"mana", " regen "},
         {"auto_production", nullptr},  // validates its own keys and sub-tables
-        {"priority", " save_mana paladin mage ogre_mage death_knight "},
+        {"priority", " save_mana hold_for_blocked_area paladin mage ogre_mage death_knight "},
         {"upgrades", " missile_damage melee_damage shields ship_damage ship_armor siege_damage "},
         {"weapon_types", nullptr},   // the keys are names the player invents; the reader validates them
         {"armor_types", nullptr},
