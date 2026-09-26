@@ -15,6 +15,13 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.34.0 (2026-09-26, UNTESTED in game, NOT released)
+
+- Author: "The stats for units don't seem to reload mid-game" -> "Sure" to live reload. Snapshot of every edited table at
+  the new-map hook, restore + re-apply on a config reload (single player, not after a savegame load). Sight is written
+  as the reveal-function pointer FinalizeTables would store (table 0x8C1E28, which I re-read at 0x4C4BB6) instead of
+  calling FinalizeTables again. Live HP scaled by the ratio of maxima. 12 mutations, 12 caught.
+
 ## 1.33.0 (2026-09-25, UNTESTED in game, NOT released)
 
 - Author: "when groups of objects are together sometimes they waste all mana on one that's close by". The 1.30.0 log:

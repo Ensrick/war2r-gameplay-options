@@ -7,6 +7,13 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.34.0 - 2026-09-26
+
+- Unit and building stats now reload mid-game: saving gameplay_options.toml re-applies your [unit.*] / [building.*]
+  tables and the health, cost and time multipliers from the game's original numbers, so nothing ever doubles. Units
+  already on the map keep their share of health when a maximum changes. Not after loading a savegame: there the stats
+  apply at the next new map, and the log says so.
+
 ## 1.33.0 - 2026-09-25
 
 - A running Blizzard or Death and Decay no longer burns the whole mana bar on the first spot it chose: when a spot
