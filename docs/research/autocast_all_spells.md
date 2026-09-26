@@ -368,6 +368,16 @@ hold_for_blocked_area` stops the caster's list walk there, with or without the m
 reports the same flag). No order is issued, so the caster neither casts nor walks. Fireball, for an owner with
 Blizzard researched and switched on, counts and aims at enemy units only.
 
+Value by type (1.32): every target's share of the score is also multiplied by its `[area_values]` entry (towers 3.0,
+production buildings / halls / casters / siege 1.5, farms / scout towers / oil platforms / walls 0.3, the rest 1.0).
+The aims are scored out to reach + `lookahead_tiles`; aims past the reach are never cast at (no friendly check for
+them), but when the best one there is worth more than 100 / `area_settle_percent` times the pick in reach, the cast is
+skipped and the caster holds (`[priority]` walk stops, as for hold_for_blocked_area). The same scan gives the largest
+"worth" (sum of area_building_value x value of the targets a spot hits at full damage, in plain units) within reach +
+lookahead; at `area_reserve_value` or more, every other spell of the caster must leave the mana of one full area cast
+(`ManaNeed`, three waves) untouched: `g_manaReserve`, applied in `ManaOk` and the raise-dead mana test, found by a dry
+run of the area spell (nothing written). Budget now up to 63 x 63 aims (search_radius 15 + lookahead 16).
+
 Budget per caster per pass: at most 31 x 31 = 961 aim tiles (`search_radius` <= 15), at most 256 enemies gathered
 from the tiles within reach + 6, each adding to the at most (w + 6) x (h + 6) aims its pattern reaches, and at most
 256 friendly-fire checks. Whirlwind keeps the per-target aim: it lands on the aim and then wanders at random, so there

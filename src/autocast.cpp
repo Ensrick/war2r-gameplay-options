@@ -7,6 +7,7 @@
 
 #include "config.h"
 #include "log.h"
+#include "units.h"
 #include "world.h"
 
 using namespace game;
@@ -142,7 +143,13 @@ bool IsTarget(const World& w, uint8_t me, Unit* u) {
 // to decide whether a caster should sit on its mana for a spell higher in its list.
 bool g_dryRun = false;
 
-bool ManaOk(Unit* caster, int manaNeeded) { return g_dryRun || Field<uint8_t>(caster, kOffMana) >= manaNeeded; }
+// [autocast] area_reserve_value: while a good Blizzard / Death and Decay target is near, every other spell may only
+// spend the mana above this (CasterThink sets it per spell; 0 for the area spells themselves).
+int g_manaReserve = 0;
+
+bool ManaOk(Unit* caster, int manaNeeded) {
+    return g_dryRun || Field<uint8_t>(caster, kOffMana) >= manaNeeded + g_manaReserve;
+}
 
 bool Ready(Unit* caster, Spell spell, int manaNeeded) {
     if (!config::g.spell[spell]) return false;
@@ -563,7 +570,7 @@ bool TryRaiseDead(const World& w, Unit* caster) {
         return false;
     }
     const int cost = At<uint16_t>(kRvaManaCostByOrder)[def.order];
-    if (Field<uint8_t>(caster, kOffMana) < cost) {
+    if (Field<uint8_t>(caster, kOffMana) < cost + g_manaReserve) {
         NoteRaiseDead(w, caster, "mana below the cost of %d", cost);
         return false;
     }
@@ -747,7 +754,8 @@ constexpr int kPatternHalf = 2;           // impacts on aim-2 .. aim+2 in both d
 constexpr int kPatternMinOnMap = 13;      // more than half of the 25 impact tiles must be on the map
 constexpr int kPointsPerWave = 5;         // FUN_004e19a0 / FUN_004e2530 call the spawner five times a wave
 constexpr int kMaxAreaEnemies = 256;
-constexpr int kMaxAimBox = 2 * 15 + 1;    // search_radius is at most 15, so the aim tiles form at most 31 x 31
+constexpr int kMaxLookahead = 16;         // [autocast] lookahead_tiles is at most 16
+constexpr int kMaxAimBox = 2 * (15 + kMaxLookahead) + 1;  // search_radius <= 15 plus the lookahead: at most 63 x 63
 constexpr int kMaxBuildingSize = 4;
 // Friendly-fire checks per caster per pass. The cheap tests (gate, overkill, claims) run on every aim tile in range;
 // the friendly-fire check reads 9x9 tiles of both grids plus the building list, so it only runs on the best-scoring
@@ -792,6 +800,9 @@ struct AimCover {
     int buildings;   // enemy buildings that can take a full hit (their centre is inside the pattern)
     int buildingHp;  // hit points of those buildings
     int spread;      // squared half-tile distance from the aim to every enemy counted above: smaller is more centred
+    int worth;       // what the targets counted above are worth, in plain units x 100 ([area_values] x area_building_value)
+    int topPct;      // the most valuable of them ...
+    uint8_t topType; // ... and its type
 };
 AimCover g_cover[kMaxAimBox * kMaxAimBox];
 
@@ -833,7 +844,24 @@ struct AreaWhy {
 struct AreaPick {
     bool found = false;
     int x = 0, y = 0, value = 0, buildingHp = 0, tiles = 0, units = 0, damage = 0;
+    int raw = 0, worth = 0;            // the pick's score (tenths) and worth (plain units x 100)
+    uint8_t topType = 0;
+    // Past the reach, within [autocast] lookahead_tiles: the best spot there (same rules, no friendly check: the
+    // player may move his units, and the caster would have to be moved anyway) ...
+    int farRaw = 0, farDistance = 0;
+    uint8_t farType = 0;
+    // ... and the most a spot anywhere within reach + lookahead is worth, for the mana reserve.
+    int worthAll = 0;
+    uint8_t worthAllType = 0;
+    int worthAllDistance = 0;
 };
+
+// Name of a unit or building type for the log.
+const char* TypeName(uint8_t type) {
+    if (const units::Entry* e = units::FindById(type)) return e->name;
+    if (const units::Building* b = units::FindBuildingById(type)) return b->name;
+    return "unit";
+}
 
 // Blizzard and Death and Decay: every tile in cast range of the caster's current tile is a candidate aim, scored by
 // what the real impact pattern would do there. The friendly clearance, the gate, the overkill rule and the claims are
@@ -844,13 +872,15 @@ AreaPick PickCoverageAim(const World& w, Unit* caster, uint8_t order, int reach,
     const uint8_t me = OwnerOf(caster);
     const Size* sizes = At<Size>(kRvaUnitSizeByType);
     const int cx = X(caster), cy = Y(caster);
-    const int side = 2 * reach + 1;
+    const int lookahead = config::g.areaLookaheadTiles < kMaxLookahead ? config::g.areaLookaheadTiles : kMaxLookahead;
+    const int outer = reach + (lookahead > 0 ? lookahead : 0);  // the aims scored: in reach, and the lookahead ring
+    const int side = 2 * outer + 1;
     if (reach < 0 || side > kMaxAimBox) return pick;
 
-    // Every enemy a pattern aimed in range can reach: 2 tiles of scatter plus 1 of quarter hits past the aim box. A
+    // Every enemy a pattern aimed in that box can reach: 2 tiles of scatter plus 1 of quarter hits past it. A
     // building is filed on every footprint tile, so it is met more than once; a large one may reach in from further.
     int enemyCount = 0;
-    ScanTileRaw(w, cx, cy, reach + kPatternHalf + 1 + kMaxBuildingSize - 1, [&](Unit* u) {
+    ScanTileRaw(w, cx, cy, outer + kPatternHalf + 1 + kMaxBuildingSize - 1, [&](Unit* u) {
         if (u == caster || !IsTarget(w, me, u)) return false;
         const bool building = (w.typeFlags[TypeOf(u)] & kTfBuilding) != 0;
         if (building)
@@ -868,26 +898,32 @@ AreaPick PickCoverageAim(const World& w, Unit* caster, uint8_t order, int reach,
     for (int i = 0; i < enemyCount; ++i) {
         const AreaEnemy& e = g_areaEnemies[i];
         const int c2x = e.x0 + e.x1 + 1, c2y = e.y0 + e.y1 + 1;  // centre in half tiles: 2 * x0 + width
-        const int weight = e.building ? config::g.areaBuildingValue : 1;
+        // What hitting it is worth: area_building_value for a building, times its [area_values] entry, in percent.
+        const int weight = (e.building ? config::g.areaBuildingValue : 1) * config::g.areaValues.pct[TypeOf(e.unit)];
         for (int ay = e.y0 - reachAxis; ay <= e.y1 + reachAxis; ++ay) {
-            if (abs(ay - cy) > reach) continue;
+            if (abs(ay - cy) > outer) continue;
             const AxisHits hy = HitsOnAxis(ay, c2y);
             if (!hy.any) continue;
             for (int ax = e.x0 - reachAxis; ax <= e.x1 + reachAxis; ++ax) {
-                if (abs(ax - cx) > reach) continue;
+                if (abs(ax - cx) > outer) continue;
                 const AxisHits hx = HitsOnAxis(ax, c2x);
                 if (!hx.any) continue;
-                AimCover& c = g_cover[(ay - cy + reach) * side + (ax - cx + reach)];
+                AimCover& c = g_cover[(ay - cy + outer) * side + (ax - cx + outer)];
                 const int full = hx.full * hy.full;
                 // No overkill in the score: a nearly dead target is worth only the hit points it has left, so a spot
                 // full of units one wave already finishes scores low.
                 const int expected = ExpectedTenths(order, hx, hy), left = 10 * Field<uint16_t>(e.unit, kOffHp);
                 const int useful = expected < left ? expected : left;
-                c.value += weight * useful;
+                c.value += weight * useful / 100;
                 c.damage += useful;
                 if (!full) continue;  // a quarter hit alone adds a little value, but never makes the spot a target
                 const int dx = 2 * ax + 1 - c2x, dy = 2 * ay + 1 - c2y;
                 c.spread += dx * dx + dy * dy;
+                c.worth += weight;
+                if (weight > c.topPct) {
+                    c.topPct = weight;
+                    c.topType = TypeOf(e.unit);
+                }
                 if (e.building) {
                     const int px0 = ax - kPatternHalf, px1 = ax + kPatternHalf, py0 = ay - kPatternHalf, py1 = ay + kPatternHalf;
                     const int ox = (e.x1 < px1 ? e.x1 : px1) - (e.x0 > px0 ? e.x0 : px0) + 1;
@@ -903,10 +939,12 @@ AreaPick PickCoverageAim(const World& w, Unit* caster, uint8_t order, int reach,
     }
 
     int candidates = 0;
-    for (int ay = cy - reach; ay <= cy + reach; ++ay)
-        for (int ax = cx - reach; ax <= cx + reach; ++ax) {
-            const AimCover& c = g_cover[(ay - cy + reach) * side + (ax - cx + reach)];
+    for (int ay = cy - outer; ay <= cy + outer; ++ay)
+        for (int ax = cx - outer; ax <= cx + outer; ++ax) {
+            const AimCover& c = g_cover[(ay - cy + outer) * side + (ax - cx + outer)];
             if (!c.value || !OnMap(w, ax, ay)) continue;
+            const int dx = abs(ax - cx), dy = abs(ay - cy), d = dx > dy ? dx : dy;
+            const bool inReach = d <= reach;
             // Impacts off the map are not clipped (FUN_004af9e0 only bounds-checks the grid reads), they are simply
             // wasted: an aim whose pattern mostly lies outside is never taken.
             int cols = 0, rows = 0;
@@ -915,27 +953,38 @@ AreaPick PickCoverageAim(const World& w, Unit* caster, uint8_t order, int reach,
                 rows += ay + k >= 0 && ay + k < w.mapSize;
             }
             if (cols * rows < kPatternMinOnMap) continue;
-            why.sawTarget = true;
+            if (inReach) why.sawTarget = true;
             const AreaTargets a{c.units, c.buildings, c.buildingHp};
             if (!AreaGateMet(a, true)) {
                 const int gateValue = AreaValue(a);
-                if (gateValue > why.bestGateValue) why.bestGateValue = gateValue;
+                if (inReach && gateValue > why.bestGateValue) why.bestGateValue = gateValue;
                 continue;
             }
-            why.gateMet = true;
+            if (inReach) why.gateMet = true;
             // No overkill: what one wave would already flatten is not worth a channel, unless the units in the blast
             // are reason enough on their own. Units are never in this sum, they walk out of it.
             if (c.buildings > 0 && c.buildingHp <= wave && c.units < config::g.areaMinEnemies) {
-                why.blockedOverkill = true;
+                if (inReach) why.blockedOverkill = true;
                 continue;
             }
             if (AreaSpellNear(ax, ay, clearance)) {
-                why.blockedClaim = true;
+                if (inReach) why.blockedClaim = true;
                 continue;
             }
-            const int dx = abs(ax - cx), dy = abs(ay - cy);
-            g_aims[candidates++] = {static_cast<int16_t>(ax), static_cast<int16_t>(ay), c.value, c.tiles, c.spread,
-                                    dx > dy ? dx : dy};
+            if (c.worth > pick.worthAll) {
+                pick.worthAll = c.worth;
+                pick.worthAllType = c.topType;
+                pick.worthAllDistance = d;
+            }
+            if (!inReach) {
+                if (c.value > pick.farRaw || (c.value == pick.farRaw && d < pick.farDistance)) {
+                    pick.farRaw = c.value;
+                    pick.farDistance = d;
+                    pick.farType = c.topType;
+                }
+                continue;
+            }
+            g_aims[candidates++] = {static_cast<int16_t>(ax), static_cast<int16_t>(ay), c.value, c.tiles, c.spread, d};
         }
     qsort(g_aims, candidates, sizeof(AimCandidate), CompareAims);
 
@@ -952,8 +1001,18 @@ AreaPick PickCoverageAim(const World& w, Unit* caster, uint8_t order, int reach,
             if (!why.blockedByTroops && !FriendlyStructureNear(w, a.x, a.y, clearance, walls)) why.blockedByTroops = true;
             continue;
         }
-        const AimCover& c = g_cover[(a.y - cy + reach) * side + (a.x - cx + reach)];
-        pick = {true, a.x, a.y, (a.value + 5) / 10, c.buildingHp, c.tiles, c.units, (c.damage + 5) / 10};
+        const AimCover& c = g_cover[(a.y - cy + outer) * side + (a.x - cx + outer)];
+        pick.found = true;
+        pick.x = a.x;
+        pick.y = a.y;
+        pick.value = (a.value + 5) / 10;
+        pick.buildingHp = c.buildingHp;
+        pick.tiles = c.tiles;
+        pick.units = c.units;
+        pick.damage = (c.damage + 5) / 10;
+        pick.raw = a.value;
+        pick.worth = c.worth;
+        pick.topType = c.topType;
         break;
     }
     return pick;
@@ -1009,9 +1068,20 @@ AreaPick PickTargetAim(const World& w, Unit* caster, int reach, int clearance, i
 // Set by the last TryAreaSpell (dry runs included): a Blizzard / Death and Decay had a spot worth casting on in range,
 // and the only thing in the way of every such spot was units of the player's. [priority] hold_for_blocked_area uses it.
 bool g_areaBlockedByTroops = false;
+// Set by the last TryAreaSpell (dry runs included): it did not cast at the spot in reach because a spot within
+// [autocast] lookahead_tiles is worth more than 100 / area_settle_percent times as much. The caster holds for it.
+bool g_areaBetterOut = false;
+int g_areaBetterDistance = 0;
+uint8_t g_areaBetterType = 0;
+// Also set by the last TryAreaSpell: the most a spot within reach + lookahead is worth (plain units x 100), for the
+// mana reserve, and what and how far it is.
+int g_areaWorthAll = 0, g_areaWorthDistance = 0;
+uint8_t g_areaWorthType = 0;
 
 bool TryAreaSpell(const World& w, Unit* caster, Spell spell) {
     g_areaBlockedByTroops = false;
+    g_areaBetterOut = false;
+    g_areaWorthAll = 0;
     const uint8_t order = kSpells[spell].order;
     const bool channel = spell != kSpellWhirlwind;
     const int cost = ManaCost(order);
@@ -1039,6 +1109,19 @@ bool TryAreaSpell(const World& w, Unit* caster, Spell spell) {
     AreaWhy why;
     const AreaPick pick = channel ? PickCoverageAim(w, caster, order, reach, clearance, walls, WaveDamage(order), why)
                                   : PickTargetAim(w, caster, reach, clearance, walls, why);
+    if (channel) {
+        g_areaWorthAll = pick.worthAll;
+        g_areaWorthType = pick.worthAllType;
+        g_areaWorthDistance = pick.worthAllDistance;
+    }
+    // No cheap cast when a much better spot is a few tiles further: hold for it instead (the player moves the caster).
+    if (channel && pick.found && config::g.areaSettlePercent > 0 && pick.farRaw > 0 &&
+        static_cast<long long>(pick.raw) * 100 < static_cast<long long>(config::g.areaSettlePercent) * pick.farRaw) {
+        g_areaBetterOut = true;
+        g_areaBetterDistance = pick.farDistance;
+        g_areaBetterType = pick.farType;
+        return false;
+    }
 
     if (!pick.found) {
         g_areaBlockedByTroops = channel && why.blockedByTroops;
@@ -1057,8 +1140,10 @@ bool TryAreaSpell(const World& w, Unit* caster, Spell spell) {
             NoteArea(w, caster, spell, "the buildings there would die to one wave");
         return false;
     }
-    char note[64] = "";
-    if (channel) sprintf_s(note, ", covers %d building tiles, %d units, about %d damage a wave", pick.tiles, pick.units, pick.damage);
+    char note[160] = "";
+    if (channel)
+        sprintf_s(note, ", covers %d building tiles, %d units, about %d damage a wave, worth %d.%02d units (%s)", pick.tiles,
+                  pick.units, pick.damage, pick.worth / 100, pick.worth % 100, TypeName(pick.topType));
     if (!CastAtTile(w, caster, spell, pick.x, pick.y, pick.value, note)) return false;
     if (channel && !g_dryRun) RememberChannel(caster, order, pick.x, pick.y, pick.buildingHp);
     return true;
@@ -1332,7 +1417,7 @@ void NoteSaving(const World& w, Unit* caster, int kind, int spell) {
 // With log_casts on: one line per caster per 30 s of play while it holds for an area spell its own troops block.
 SaveNote g_holdNotes[kMaxNoteSlots];
 
-void NoteHolding(const World& w, Unit* caster, int kind, int spell) {
+void NoteHolding(const World& w, Unit* caster, int kind, int spell, const char* why) {
     if (!config::g.logCasts) return;
     const unsigned slot = NoteSlot(w, caster);
     if (slot >= kMaxNoteSlots) return;
@@ -1340,8 +1425,8 @@ void NoteHolding(const World& w, Unit* caster, int kind, int spell) {
     const uint32_t serial = Field<uint32_t>(caster, kOffSerial);
     if (n.logged && n.serial == serial && g_playMs - n.lastMs < kRaiseNoteEveryMs) return;
     n = {serial, g_playMs, true};
-    logx::Write("holding: %s at %d,%d mana %u for %s: only your own units are in the way", config::kCasterKindKeys[kind],
-                X(caster), Y(caster), Field<uint8_t>(caster, kOffMana), config::kSpellKeys[spell]);
+    logx::Write("holding: %s at %d,%d mana %u for %s: %s", config::kCasterKindKeys[kind], X(caster), Y(caster),
+                Field<uint8_t>(caster, kOffMana), config::kSpellKeys[spell], why);
 }
 
 bool IsChannelSpell(int spell) { return spell == kSpellBlizzard || spell == kSpellDeathAndDecay; }
@@ -1351,28 +1436,87 @@ bool IsChannelSpell(int spell) { return spell == kSpellBlizzard || spell == kSpe
 // hold_for_blocked_area on, a Blizzard / Death and Decay whose every worthwhile spot is blocked only by the player's
 // own units stops the walk too: the player can move them, and the mana is still there when he does. Holding issues
 // no order, so the caster does not walk either (an area aim is never out of range, and none is issued here).
+// With log_casts on: one line per caster per 30 s of play while it keeps mana back for an area spell.
+SaveNote g_reserveNotes[kMaxNoteSlots];
+
+void NoteReserve(const World& w, Unit* caster, int kind, int spell, int reserve) {
+    if (!config::g.logCasts) return;
+    const unsigned slot = NoteSlot(w, caster);
+    if (slot >= kMaxNoteSlots) return;
+    SaveNote& n = g_reserveNotes[slot];
+    const uint32_t serial = Field<uint32_t>(caster, kOffSerial);
+    if (n.logged && n.serial == serial && g_playMs - n.lastMs < kRaiseNoteEveryMs) return;
+    n = {serial, g_playMs, true};
+    logx::Write("reserving: %s at %d,%d keeps %d mana for %s: worth %d.%02d units %d tiles away (%s)",
+                config::kCasterKindKeys[kind], X(caster), Y(caster), reserve, config::kSpellKeys[spell], g_areaWorthAll / 100,
+                g_areaWorthAll % 100, g_areaWorthDistance, TypeName(g_areaWorthType));
+}
+
+// [autocast] area_reserve_value: the mana the caster keeps back for its Blizzard / Death and Decay, 0 when there is
+// no target worth it within reach + lookahead. Found with a dry run of the area spell (nothing written).
+int AreaReserve(const World& w, Unit* caster, const int8_t* list, int* areaSpell) {
+    *areaSpell = -1;
+    if (config::g.areaReserveValue <= 0.0) return 0;
+    for (int i = 0; i < kSpellCount && list[i] >= 0; ++i) {
+        const int spell = list[i];
+        if (!IsChannelSpell(spell) || !config::g.spell[spell]) continue;
+        if (!(At<uint32_t>(kRvaSpellsResearched)[OwnerOf(caster)] & kSpells[spell].researchBit)) continue;
+        const bool sumsTried = g_sumsTried, sumsReady = g_sumsReady;
+        g_dryRun = true;
+        TrySpell(w, caster, spell);
+        g_dryRun = false;
+        g_sumsTried = sumsTried;
+        g_sumsReady = sumsReady;
+        if (g_areaWorthAll * 1.0 < config::g.areaReserveValue * 100.0) return 0;
+        *areaSpell = spell;
+        return ManaNeed(spell);
+    }
+    return 0;
+}
+
+// [priority]: the caster walks its own list. With save_mana on, a spell it could cast except for the mana stops the
+// walk. With hold_for_blocked_area on, a Blizzard / Death and Decay blocked only by the player's own units stops it
+// too, and so does one that passed up a cheap spot for a better one within lookahead_tiles (area_settle_percent).
+// While a target worth area_reserve_value is near, the other spells only spend the mana above one full area cast.
+// Holding issues no order, so the caster does not walk either.
 void CasterThink(const World& w, Unit* caster) {
     const int kind = KindOf(Field<uint8_t>(caster, kOffType));
     if (kind < 0) return;
     const int8_t* list = config::g.priority.list[kind];
     const bool hold = config::g.priority.holdForBlockedArea;
+    const bool settle = config::g.areaSettlePercent > 0 && config::g.areaLookaheadTiles > 0;
+    int areaSpell = -1;
+    const int reserve = AreaReserve(w, caster, list, &areaSpell);
     for (int i = 0; i < kSpellCount && list[i] >= 0; ++i) {
         const int spell = list[i];
-        if (TrySpell(w, caster, spell)) return;
+        g_manaReserve = IsChannelSpell(spell) ? 0 : reserve;
+        const bool cast = TrySpell(w, caster, spell);
+        g_manaReserve = 0;
+        if (cast) return;
         bool blocked = hold && IsChannelSpell(spell) && g_areaBlockedByTroops;  // it had the mana, own troops in the way
-        if (!config::g.priority.saveMana && !hold) continue;
-        if (WouldCastWithMoreMana(w, caster, spell)) {  // short of mana only: the dry run found a clean target
-            if (config::g.priority.saveMana) {
-                NoteSaving(w, caster, kind, spell);
-                return;
+        bool better = settle && IsChannelSpell(spell) && g_areaBetterOut;
+        if (config::g.priority.saveMana || hold || (settle && IsChannelSpell(spell))) {
+            if (WouldCastWithMoreMana(w, caster, spell)) {  // short of mana only: the dry run found a clean target
+                if (config::g.priority.saveMana) {
+                    NoteSaving(w, caster, kind, spell);
+                    return;
+                }
+            } else if (IsChannelSpell(spell) && Field<uint8_t>(caster, kOffMana) < ManaNeed(spell)) {
+                blocked = blocked || (hold && g_areaBlockedByTroops);  // short of mana AND blocked: the dry run says why
+                better = better || (settle && g_areaBetterOut);
             }
-        } else if (hold && IsChannelSpell(spell) && Field<uint8_t>(caster, kOffMana) < ManaNeed(spell)) {
-            blocked = blocked || g_areaBlockedByTroops;  // short of mana AND blocked: the dry run says why
         }
         if (blocked) {
-            NoteHolding(w, caster, kind, spell);
+            NoteHolding(w, caster, kind, spell, "only your own units are in the way");
             return;
         }
+        if (better) {
+            char why[96];
+            sprintf_s(why, "a better target %d tiles away (%s)", g_areaBetterDistance, TypeName(g_areaBetterType));
+            NoteHolding(w, caster, kind, spell, why);
+            return;
+        }
+        if (reserve > 0 && !IsChannelSpell(spell) && spell != areaSpell) NoteReserve(w, caster, kind, areaSpell, reserve);
     }
 }
 
@@ -1490,6 +1634,7 @@ void OnNewMap() {
     memset(g_raiseNotes, 0, sizeof(g_raiseNotes));
     memset(g_areaNotes, 0, sizeof(g_areaNotes));
     memset(g_saveNotes, 0, sizeof(g_saveNotes));
+    memset(g_reserveNotes, 0, sizeof(g_reserveNotes));
     memset(g_holdNotes, 0, sizeof(g_holdNotes));
     g_channelCount = 0;
 }

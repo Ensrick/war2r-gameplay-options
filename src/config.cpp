@@ -704,6 +704,27 @@ static void ReadScouts(const toml::table& root, Config& c) {
     }
 }
 
+// [area_values]: unit or building name = multiplier (0 to 10). Unknown names and bad numbers are logged and skipped.
+static void ReadAreaValues(const toml::table& root, Config& c) {
+    const toml::table* t = root["area_values"].as_table();
+    if (!t) return;
+    for (const auto& [key, node] : *t) {
+        const std::string name(key.str());
+        const units::Entry* e = units::FindByName(name.c_str());
+        const units::Building* b = e ? nullptr : units::FindBuildingByName(name.c_str());
+        const auto v = node.value<double>();
+        if (!e && !b) {
+            logx::Write("config: [area_values] %s: unknown unit or building, ignored", name.c_str());
+            continue;
+        }
+        if (!v || *v < 0.0 || *v > 10.0) {
+            logx::Write("config: [area_values] %s must be a number from 0 to 10, ignored", name.c_str());
+            continue;
+        }
+        c.areaValues.pct[e ? e->id : b->id] = static_cast<uint16_t>(*v * 100.0 + 0.5);
+    }
+}
+
 // Every key the file may contain, so a typo is reported instead of silently doing nothing.
 static void WarnUnknownKeys(const toml::table& root) {
     static const struct {
@@ -712,7 +733,9 @@ static void WarnUnknownKeys(const toml::table& root) {
     } kKnown[] = {
         {"general", " enabled toggle_key interval_ticks log_casts log_ai fix_ai_after_load "},
         {"autocast", " search_radius combat_radius own_units_only cast_while_attacking channel_mana_reserve area_min_enemies "
-                     "area_building_value area_friendly_clearance fireball_min_enemies resume_orders "},
+                     "area_building_value area_friendly_clearance fireball_min_enemies resume_orders lookahead_tiles "
+                     "area_settle_percent area_reserve_value "},
+        {"area_values", nullptr},  // unit and building names, validated by the reader
         {"spells", " heal exorcism slow polymorph bloodlust death_coil haste unholy_armor raise_dead holy_vision flame_shield "
                    "fireball invisibility blizzard death_and_decay whirlwind runes "},
         {"heal", " min_missing_hp below_percent cooldown_seconds urgent_below_percent cooldown_for_computer "},
@@ -798,6 +821,14 @@ static bool Load() {
     ReadInt(root, "autocast", "area_min_enemies", 1, 50, c.areaMinEnemies);
     ReadInt(root, "autocast", "area_building_value", 1, 20, c.areaBuildingValue);
     ReadInt(root, "autocast", "area_friendly_clearance", 0, 6, c.areaFriendlyClearance);
+    ReadInt(root, "autocast", "lookahead_tiles", 0, 16, c.areaLookaheadTiles);
+    ReadInt(root, "autocast", "area_settle_percent", 0, 100, c.areaSettlePercent);
+    if (const auto node = root["autocast"]["area_reserve_value"]) {
+        const auto v = node.value<double>();
+        if (v && *v >= 0.0 && *v <= 100.0) c.areaReserveValue = *v;
+        else logx::Write("config: [autocast] area_reserve_value must be a number from 0 to 100, keeping %.1f", c.areaReserveValue);
+    }
+    ReadAreaValues(root, c);
     ReadBool(root, "autocast", "resume_orders", c.resumeOrders);
     ReadInt(root, "autocast", "fireball_min_enemies", 1, 50, c.fireballMinEnemies);
     for (int i = 0; i < kSpellCount; ++i) ReadBool(root, "spells", kSpellKeys[i], c.spell[i]);
