@@ -91,6 +91,35 @@ beat four units. One building is reason enough to cast; without a building it ta
 building and a unit are a valid target while two lone units are not. A building whose middle the waves cannot reach
 (only a corner is in range) is not a target at all.
 
+**Towers first, farms last.** What a target is worth depends on what it is: guard and cannon towers count three
+times, barracks, halls and every other building that trains or researches one and a half times, casters and siege
+too, while farms, scout towers, oil platforms and walls count only 0.3. Change any of it by name:
+
+```toml
+[area_values]
+human_guard_tower = 5.0   # any unit or building name from [unit.*] / [building.*], 0 to 10
+farm = 0.0                # never worth a blizzard of its own
+```
+
+**No blizzard on farms when a tower is right there.** The caster also looks `lookahead_tiles` (8) past its reach. When
+the best spot it can reach is worth less than `area_settle_percent` (50 %) of the best spot a little further out, it
+casts nothing at all and waits, and the log says why (`holding: mage ... for blizzard: a better target 11 tiles away
+(human_guard_tower)`). It does **not** walk there by itself: move the mage a few steps and the blizzard goes off.
+
+**Blizzard before everything else.** While there is a target worth `area_reserve_value` (4: one tower, a barracks, or
+four units) within reach plus the lookahead, the caster keeps the mana for one full Blizzard or Death and Decay (three
+waves) and its other spells only spend what is above that (`reserving: ...` in the log). With no such target around,
+the other spells work as before.
+
+```toml
+[autocast]
+lookahead_tiles = 8          # 0 = off
+area_settle_percent = 50     # 0 = take whatever is in reach
+area_reserve_value = 4.0     # 0 = never keep mana back
+```
+
+These values are estimates of what a wave does; an occasional odd pick is expected.
+
 **The aim steps around your own units.** Because the waves spread over 5x5 tiles, a spot a tile or two off the
 target still hits it. When your own army is in contact with the enemy, the mod takes the best spot with nothing of
 yours within `area_friendly_clearance` tiles of the aim, instead of giving the cast up. Only when no such spot is left
@@ -1233,6 +1262,10 @@ makes the log long.
 | autocast | area_min_enemies | 3 | Enemy units within 2 tiles of the target before Blizzard, Death and Decay or Whirlwind is cast, when no enemy building is in the blast (1 to 50) |
 | autocast | area_building_value | 3 | What an enemy building in the blast is worth in units when the spot is picked (1 to 20) |
 | autocast | area_friendly_clearance | 4 | Tiles around a Blizzard / Death and Decay aim tile that must hold nothing of yours (0 to 6) |
+| autocast | lookahead_tiles | 8 | How far past its reach a Blizzard / Death and Decay caster looks for a better spot (0 to 16, 0 = off) |
+| autocast | area_settle_percent | 50 | A spot in reach worth less than this share of the best one further out: hold instead (0 to 100, 0 = off) |
+| autocast | area_reserve_value | 4.0 | A target worth this many plain units within reach + lookahead keeps one full area cast's mana from the other spells (0 = off) |
+| area_values | (unit / building name) | towers 3, production buildings, casters, siege 1.5, farms, scout towers, platforms, walls 0.3, else 1 | What hitting that type with Blizzard / Death and Decay is worth (0 to 10) |
 | autocast | resume_orders | true | Give a caster its attack-move or patrol back once the spell is over |
 | autocast | fireball_min_enemies | 2 | Enemies the Fireball's burning line must hit; 1 = the computer's own rule (1 to 50) |
 | autocast | channel_mana_reserve | 0 | A Blizzard / Death and Decay the mod started stops below this mana; 0 = until empty (0 to 255) |

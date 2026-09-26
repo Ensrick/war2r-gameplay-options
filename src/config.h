@@ -2,6 +2,7 @@
 #include <cstdint>
 
 #include <cstring>
+#include <initializer_list>
 
 #include "units.h"
 
@@ -54,6 +55,21 @@ struct Scouts {
     int idleSeconds = 5;   // idle this long (after a player's order: again) before the mod sends it
     bool type[256];        // unit types that scout; default flying machine and zeppelin
     Scouts() : type{} { type[0x28] = type[0x29] = true; }
+};
+
+// [area_values]: what hitting an enemy unit or building with Blizzard / Death and Decay is worth, per type, in
+// percent of a plain target (100 = 1.0). Multiplies the target's share of the coverage score (src/autocast.cpp).
+struct AreaValues {
+    uint16_t pct[256];
+    AreaValues() {
+        for (uint16_t& v : pct) v = 100;
+        for (int t : {0x60, 0x61, 0x62, 0x63}) pct[t] = 300;  // guard and cannon towers, both races
+        for (int t : {0x3C, 0x3D, 0x3E, 0x3F, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E,
+                      0x4F, 0x50, 0x51, 0x52, 0x53, 0x58, 0x59, 0x5A, 0x5B})
+            pct[t] = 150;  // barracks and every building that trains or researches, halls, keeps, castles
+        for (int t : {0x3A, 0x3B, 0x40, 0x41, 0x56, 0x57, 0x67, 0x68}) pct[t] = 30;  // farms, scout towers, oil platforms, walls
+        for (int t : {0x04, 0x05, 0x0A, 0x0B, 0x0C, 0x0D, 0x15, 0x17, 0x18, 0x2C, 0x31}) pct[t] = 150;  // siege, casters, caster heroes
+    }
 };
 
 // [dodge]: the local player's units step out of Blizzard / Death and Decay and do not walk into one (src/dodge.cpp).
@@ -217,6 +233,11 @@ struct Config {
     int areaMinEnemies = 3;       // Blizzard, Death and Decay, Whirlwind: enemies within 2 tiles of the target tile
     int areaBuildingValue = 3;    // an enemy building in that blast is worth this many units when the tile is picked
     bool resumeOrders = true;     // hand an attack-move / patrol back to a caster once its spell is done
+    int areaLookaheadTiles = 8;     // Blizzard / Death and Decay also look this far past their reach for a better spot
+    int areaSettlePercent = 50;     // a spot in reach worth less than this share of the best one further out: hold
+    double areaReserveValue = 4.0;  // a target worth this many plain units within reach + lookahead keeps the mana
+                                    // for one full cast out of the other spells' hands (0 = off)
+    AreaValues areaValues;
     int areaFriendlyClearance = 4;  // tiles around a Blizzard / Death and Decay aim tile that must hold nothing of yours
     int fireballMinEnemies = 2;   // enemies the Fireball's splash line would hit; 1 = the computer's own rule
 

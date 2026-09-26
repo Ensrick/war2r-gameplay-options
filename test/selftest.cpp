@@ -130,12 +130,21 @@ static Unit* TargetOf(Unit* u) { return Field<Unit*>(u, kOffOrderTarget); }
 // The shipped defaults are conservative (4 spells + auto-repair). The behaviour scenarios below exercise every
 // feature, so they switch everything on; unholy armor stays off because several scenarios rely on that. The spells of
 // the "every spell" round (holy vision .. runes) have their own block and switch themselves on one at a time.
+static void SetLegacyAreaRules() {
+    for (uint16_t& v : config::g.areaValues.pct) v = 100;
+    config::g.areaLookaheadTiles = 0;
+    config::g.areaReserveValue = 0.0;
+}
+
 static void EnableEverythingForTests() {
     for (int i = 0; i < kSpellCount; ++i) config::g.spell[i] = i <= kSpellRaiseDead && i != kSpellUnholyArmor;
     config::g.eyeCast = config::g.eyeAutoScout = true;
     config::g.workerAutoHarvest = config::g.workerAutoRepair = true;
     config::g.heroRegen = true;
     config::g.heroRegenPerSecond = 1;
+    // The area-spell scenarios written before 1.32 measure coverage alone: no per-type values, no lookahead hold, no
+    // mana reserve. AreaValueTests switches those on.
+    SetLegacyAreaRules();
 }
 
 // ---- Tree regrowth fixtures (src/trees.cpp, docs/research/tree_regrowth.md) ----
@@ -2461,6 +2470,160 @@ static production::Plan ShipyardCase(int oil) {
 
 static bool g_fakeCtrl = false, g_fakeF10 = false;
 static bool FakeKeys(int vk) { return (vk == VK_CONTROL && g_fakeCtrl) || (vk == VK_F10 && g_fakeF10); }
+// [area_values], [autocast] lookahead_tiles / area_settle_percent / area_reserve_value (1.32): what a Blizzard target is
+// worth by type, no cheap cast when a better spot is a few tiles further, and mana kept back for a good area target.
+static void AreaValueTests(const wchar_t* dir, const wchar_t* ini) {
+    const AreaValues defaults;
+    CHECK(defaults.pct[0x60] == 300 && defaults.pct[0x63] == 300 && defaults.pct[0x3C] == 150 && defaults.pct[0x4A] == 150 &&
+              defaults.pct[0x3A] == 30 && defaults.pct[0x40] == 30 && defaults.pct[0x56] == 30 && defaults.pct[0x67] == 30 &&
+              defaults.pct[0x0A] == 150 && defaults.pct[0x05] == 150 && defaults.pct[0x01] == 100 && defaults.pct[0x5C] == 100,
+          "[area_values] defaults: towers 3, production 1.5, farms / scout towers / platforms / walls 0.3, casters / siege 1.5");
+    const Config shipped;
+    CHECK(shipped.areaLookaheadTiles == 8 && shipped.areaSettlePercent == 50 && shipped.areaReserveValue == 4.0,
+          "[autocast] lookahead_tiles 8, area_settle_percent 50, area_reserve_value 4 by default");
+
+    constexpr uint8_t kFarm = 0x3A, kTower = 0x60;
+    struct Sz { uint16_t w, h; };
+    Sz* sizes = At<Sz>(kRvaUnitSizeByType);
+    uint32_t* tf = At<uint32_t>(kRvaTypeFlags);
+    uint16_t* maxHp = At<uint16_t>(kRvaMaxHpByType);
+    const Sz savedSz[2] = {sizes[kFarm], sizes[kTower]};
+    const uint32_t savedTf[3] = {tf[kFarm], tf[kTower], tf[kGrunt]};
+    const uint16_t savedHp[2] = {maxHp[kFarm], maxHp[kTower]};
+    sizes[kFarm] = sizes[kTower] = {2, 2};
+    tf[kFarm] = tf[kTower] = kTfBuilding;
+    tf[kGrunt] = kTfFleshy | kTfAttacker;
+    maxHp[kFarm] = 400;
+    maxHp[kTower] = 130;
+    bool savedSpells[kSpellCount];
+    memcpy(savedSpells, config::g.spell, sizeof(savedSpells));
+    const Priority savedPriority = config::g.priority;
+    const bool savedLog = config::g.logCasts;
+    config::g.logCasts = true;
+    for (int i = 0; i < kSpellCount; ++i) config::g.spell[i] = i == kSpellBlizzard || i == kSpellSlow;
+    config::g.areaValues = defaults;
+    config::g.areaLookaheadTiles = 8;
+    config::g.areaSettlePercent = 50;
+    config::g.areaReserveValue = 4.0;
+    config::g.channelManaReserve = 0;
+    auto list = [&](int first, int second) {
+        int8_t* l = config::g.priority.list[kCasterMage];
+        l[0] = static_cast<int8_t>(first);
+        l[1] = static_cast<int8_t>(second);
+        l[2] = -1;
+    };
+    auto building = [&](uint8_t type, int x, int y, int hp) {
+        Unit* b = AddUnit(type, 1, x, y, hp, 0, kOrderStand);
+        Field<uint16_t>(b, kOffStateFlags) = kStateComplete;
+        for (int dy = 0; dy < 2; ++dy)
+            for (int dx = 0; dx < 2; ++dx) g_grid[(y + dy) * kMap + x + dx] = b;  // filed on every tile, as the game does
+        return b;
+    };
+    auto world = [&](int mana) {
+        ResetWorld();
+        Unit* m = AddUnit(kTypeMage, 0, 20, 20, 60, mana, kOrderStand);
+        AddUnit(kGrunt, 1, 18, 24, 60, 0, kOrderAttack);  // a slow target, out of every blast
+        return m;
+    };
+    auto ox = [](Unit* u) { return static_cast<int>(Field<int16_t>(u, kOffOrderX)); };
+    auto oy = [](Unit* u) { return static_cast<int>(Field<int16_t>(u, kOffOrderY)); };
+
+    // Two farms in reach, a guard tower 11 tiles out (its middle only reachable from aims 31 and up; reach is 8): the
+    // farms are worth 0.3 x 2 against the tower's 3.0, so the mage holds for the tower instead of blizzarding farms,
+    // and casts nothing else either.
+    list(kSpellBlizzard, kSpellSlow);
+    Unit* mg = world(255);
+    building(kFarm, 25, 20, 400);
+    building(kFarm, 25, 22, 400);
+    building(kTower, 33, 20, 130);
+    {
+        const int before = LogCount(dir, "holding: mage at 20,20 mana 255 for blizzard: a better target");
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand && LogCount(dir, "holding: mage at 20,20 mana 255 for blizzard: a better target") == before + 1,
+              "farms in reach, a guard tower further out: the mage must hold (order %u at %d,%d)", OrderOf(mg), ox(mg), oy(mg));
+        CHECK(LogContains(dir, "tiles away (human_guard_tower)"), "the hold must name the better target");
+    }
+    config::g.areaSettlePercent = 0;  // off: the farms get the blizzard, as before
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == kOrderBlizzard && ox(mg) <= 28, "area_settle_percent = 0: blizzard at the farms (order %u at %d,%d)",
+          OrderOf(mg), ox(mg), oy(mg));
+    config::g.areaSettlePercent = 50;
+    config::g.areaLookaheadTiles = 0;  // no lookahead: nothing is seen past the reach
+    mg = world(255);
+    building(kFarm, 25, 20, 400);
+    building(kFarm, 25, 22, 400);
+    building(kTower, 33, 20, 130);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == kOrderBlizzard, "lookahead_tiles = 0: blizzard at the farms (order %u)", OrderOf(mg));
+    config::g.areaLookaheadTiles = 8;
+
+    // The tower in reach wins over the farms, and the cast line says what it was worth.
+    mg = world(255);
+    building(kFarm, 25, 20, 400);
+    building(kFarm, 25, 22, 400);
+    building(kTower, 26, 26, 130);
+    {
+        const int before = LogCount(dir, "units (human_guard_tower)");
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderBlizzard && oy(mg) >= 24 && LogCount(dir, "units (human_guard_tower)") == before + 1,
+              "a guard tower in reach must win over two farms (order %u at %d,%d)", OrderOf(mg), ox(mg), oy(mg));
+    }
+
+    // The reserve: slow comes first in the list, the tower is out of reach. With 100 mana a slow would leave 50, less
+    // than the 75 of one full blizzard: no slow. With 125 it leaves 75: slow. Nothing is written by the probe.
+    list(kSpellSlow, kSpellBlizzard);
+    mg = world(100);
+    building(kTower, 33, 20, 130);
+    {
+        const int before = LogCount(dir, "reserving: mage at 20,20 keeps 75 mana for blizzard");
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand && autocast::ChannelCount() == 0 &&
+                  LogCount(dir, "reserving: mage at 20,20 keeps 75 mana for blizzard") == before + 1,
+              "a guard tower near: slow must not eat the blizzard's 75 mana (order %u)", OrderOf(mg));
+    }
+    Field<uint8_t>(mg, kOffMana) = 125;
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == 0x2C, "125 mana: slow spends only what is above the reserve (order %u)", OrderOf(mg));
+    config::g.areaReserveValue = 0.0;
+    mg = world(100);
+    building(kTower, 33, 20, 130);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == 0x2C, "area_reserve_value = 0: slow at 100 mana as before (order %u)", OrderOf(mg));
+    config::g.areaReserveValue = 4.0;
+    // Only farms around (0.3 x 3 = 0.9 units each): no reserve, slow as before.
+    mg = world(100);
+    building(kFarm, 33, 20, 400);
+    building(kFarm, 33, 23, 400);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == 0x2C, "no good area target: slow at 100 mana as before (order %u)", OrderOf(mg));
+
+    // The reader.
+    WriteFileText(ini, "[autocast]\nlookahead_tiles = 12\narea_settle_percent = 70\narea_reserve_value = 2.5\n"
+                       "[area_values]\nfarm = 2.5\nbogus_thing = 1\nhuman_guard_tower = 11\ngrunt = 0\n");
+    CHECK(config::Init(dir), "[area_values] config rejected");
+    CHECK(config::g.areaLookaheadTiles == 12 && config::g.areaSettlePercent == 70 && config::g.areaReserveValue == 2.5 &&
+              config::g.areaValues.pct[kFarm] == 250 && config::g.areaValues.pct[kGrunt] == 0 && config::g.areaValues.pct[kTower] == 300,
+          "[area_values] reader: farm 2.5, grunt 0, the tower's 11 refused");
+    CHECK(LogContains(dir, "[area_values] bogus_thing: unknown unit or building") &&
+              LogContains(dir, "[area_values] human_guard_tower must be a number from 0 to 10"),
+          "[area_values] reader must name what it refused");
+    WriteFileText(ini, "");
+    config::Init(dir);
+
+    config::g.priority = savedPriority;
+    memcpy(config::g.spell, savedSpells, sizeof(savedSpells));
+    config::g.logCasts = savedLog;
+    SetLegacyAreaRules();
+    sizes[kFarm] = savedSz[0];
+    sizes[kTower] = savedSz[1];
+    tf[kFarm] = savedTf[0];
+    tf[kTower] = savedTf[1];
+    tf[kGrunt] = savedTf[2];
+    maxHp[kFarm] = savedHp[0];
+    maxHp[kTower] = savedHp[1];
+    ResetWorld();
+}
+
 
 // [dodge] (src/dodge.cpp): the player's units step out of a falling Blizzard / Death and Decay and hold at its edge
 // instead of walking in, and get their order back once it is gone.
@@ -7308,6 +7471,7 @@ int wmain(int argc, wchar_t** argv) {
     ProductionTests(dir, ini);
     ScoutTests(dir, ini);
     DodgeTests(dir);
+    AreaValueTests(dir, ini);
 
     // TOML config: a custom file is honoured, typos and bad values are survivable, a syntax error keeps old settings.
     WriteFileText(ini,
