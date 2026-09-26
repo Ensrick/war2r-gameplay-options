@@ -792,6 +792,22 @@ static void WarnUnknownKeys(const toml::table& root) {
     }
 }
 
+// Keys that moved to the AI Fixes mod (ai_fixes.toml) when the two split. They are still accepted without an "unknown key"
+// line until the next major version, so a config written before the split keeps loading quietly; they do nothing
+// here any more. One line per session says so.
+static void NoteMovedKeys(const toml::table& root) {
+    static const char* const kMoved[][2] = {
+        {"general", "log_ai"}, {"general", "fix_ai_after_load"}, {"heal", "cooldown_for_computer"}};
+    static bool noted = false;
+    if (noted) return;
+    std::string found;
+    for (const auto& k : kMoved)
+        if (root[k[0]][k[1]]) found += std::string(found.empty() ? "" : ", ") + "[" + k[0] + "] " + k[1];
+    if (found.empty()) return;
+    noted = true;
+    logx::Write("config: %s moved to AI Fixes (ai_fixes.toml); ignored here", found.c_str());
+}
+
 static bool Load() {
     toml::parse_result result = toml::parse_file(std::wstring_view(g_path));
     if (!result) {
@@ -807,12 +823,11 @@ static bool Load() {
     SetPolymorphTargets(c, kDefaultPolymorphTargets, sizeof(kDefaultPolymorphTargets) / sizeof(kDefaultPolymorphTargets[0]));
     SetDefaultHeroes(c);
     WarnUnknownKeys(root);
+    NoteMovedKeys(root);
     ReadBool(root, "general", "enabled", c.enabled);
     ReadToggleKey(root, "general", c.toggleKey);
     ReadInt(root, "general", "interval_ticks", 1, 500, c.intervalTicks);
     ReadBool(root, "general", "log_casts", c.logCasts);
-    ReadBool(root, "general", "log_ai", c.logAi);
-    ReadBool(root, "general", "fix_ai_after_load", c.fixAiAfterLoad);
     ReadInt(root, "autocast", "search_radius", 1, 15, c.searchRadius);
     ReadInt(root, "autocast", "combat_radius", 1, 15, c.combatRadius);
     ReadBool(root, "autocast", "own_units_only", c.ownUnitsOnly);
@@ -836,7 +851,6 @@ static bool Load() {
     ReadInt(root, "heal", "below_percent", 1, 100, c.healBelowPct);
     ReadInt(root, "heal", "cooldown_seconds", 0, 600, c.healCooldownSeconds);
     ReadInt(root, "heal", "urgent_below_percent", 0, 100, c.healUrgentBelowPercent);
-    ReadBool(root, "heal", "cooldown_for_computer", c.healCooldownForComputer);
     ReadPolymorphTargets(root, c);
     ReadBool(root, "haste", "flyers_only", c.hasteFlyersOnly);
     ReadBool(root, "eye_of_kilrogg", "cast", c.eyeCast);

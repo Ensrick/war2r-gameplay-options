@@ -41,8 +41,9 @@ NEW IN 1.11: [priority]. You decide the order each caster tries its spells in, a
 for the spell at the top of its list instead of spending on the cheap ones. Put "death_and_decay" or "blizzard" first
 to see them used.
 
-NEW IN 1.10: [general] log_ai. A read-only log of what each computer player is doing and waiting for, once a minute,
-for finding out why a computer stopped attacking. Off by default.
+MOVED: the fixes for the computer players (log_ai, fix_ai_after_load, the computer paladins' heal cooldown) are a
+separate mod now, AI Fixes (winmm.dll, settings in ai_fixes.toml). It installs next to this one. An old
+gameplay_options.toml with those keys still loads; the log says once that they moved.
 
 NEW IN 1.7: AUTO-PRODUCTION. Switch [auto_production] enabled on (or press Ctrl+F10 in game) and every idle building
 of yours trains by itself: workers up to 12 / 16 / 24 by hall tier, and an army whose mix follows the map (how much water and

@@ -17,6 +17,11 @@ Ensrick/war2r-gameplay-options (public since 2026-09-18).
 - "The mod does nothing" report: FIRST check that `x86\gameplay_options.log` exists and is newer than the session. No
   log = the DLL never activated = wrong exe (a second install elsewhere on the disk, started from an old shortcut, is
   the usual reason); compare the file LastAccessTime of both installs to see which one ran.
+- The computer-player fixes (fix_ai_after_load, log_ai, the computer paladins' cooldown) live in the AI Fixes mod
+  (`war2r-ai-fixes`, a winmm.dll proxy, installed next to this one). Do not add computer-AI features here, and
+  never patch its call sites (its `docs/research/hook_sites.md`: 0x4C5001, 0x4C51A8, 0x4C460D, 0x4C466E, 0x4CB309,
+  0x4CB323, 0x4CB35E). A new patch site here goes into its `kGameplayOptionsSites` list too. The three old keys are
+  accepted silently (one "moved to AI Fixes" log line) until the next major version.
 - Multiplayer gates (`kRvaNetGame` per tick, `kRvaNetGameAtLoad` at map load) are hard safety rules. Never remove them
   or make them configurable.
 - Units sit in TWO tile grids: land / sea at `0x91AD6C`, flyers ONLY in the air grid `0x91AD70`. Any per-tile lookup

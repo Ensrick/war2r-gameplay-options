@@ -570,6 +570,9 @@ the mod must keep using its own claim list instead of writing unit fields.
 
 ## 3a. The computer's paladin, and where the mod's cooldown goes in
 
+> Moved with `[heal] cooldown_for_computer` to the AI Fixes mod (`[paladins]` there); Gameplay Options no
+> longer hooks the three calls below. Kept as the record of the finding.
+
 `FUN_004cb2f0(caster)` is the whole paladin AI. The dispatcher `FUN_004ca4a0` calls it for unit types 0x0C (paladin)
 and 0x2C (Turalyon), so these call sites are paladins and nothing else. It tries, in order:
 
