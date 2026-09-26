@@ -116,6 +116,9 @@ constexpr uint32_t kRvaUnitSizeByType = 0x517AD0;    // {uint16 w, uint16 h}[uni
 constexpr uint32_t kRvaPlayerGold = 0x519128;        // int32[16]
 constexpr uint32_t kRvaPlayerLumber = 0x5190E8;      // int32[16]
 constexpr uint32_t kRvaRuleset = 0x51C178;           // uint32, nonzero enables the Remastered resume-order byte (+0x8D)
+constexpr uint32_t kRvaSightFunctions = 0x4C1E28;    // u32[10] (.data): the reveal function for sight 0..9, what FinalizeTables
+                                                     // (FUN_004c4ba0) writes into kRvaSightByType; the panel and the save writer
+                                                     // look pointers up here, so only these values may ever stand there
 constexpr uint32_t kRvaSightByType = 0x517608;       // uint32[110]: range 0..9 until FinalizeTables, a function pointer after
 constexpr uint32_t kRvaBuildTimeByType = 0x517910;   // uint8[110], doubled into the production timer
 constexpr uint32_t kRvaAttackRangeByType = 0x517E40; // uint8[110], tiles; GetAttackRange 0x4EE660 and both panels

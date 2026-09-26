@@ -1402,6 +1402,200 @@ static void FarmTests() {
     ResetWorld();
 }
 
+// ---------------------------------------------------------------------------------------------------------------
+// Live unit stats (datatweaks::OnConfigReloaded): a config reload mid-game puts the tables back to the copy the
+// new-map pass took and applies the pass again. Never twice on top of itself, never after a savegame load.
+// ---------------------------------------------------------------------------------------------------------------
+
+struct LiveTables {
+    uint16_t hp[110];
+    uint8_t gold[110], lumber[110], oil[110], buildTime[110], armor[110], basic[110], piercing[110], range[110];
+    uint8_t reactC[110], reactH[110];
+    uint32_t sight[110];
+    uint16_t rGold[52], rLumber[52], rOil[52];
+    uint8_t rTime[52];
+};
+
+static void LiveRead(LiveTables& t) {
+    memcpy(t.hp, At<uint16_t>(kRvaMaxHpByType), sizeof t.hp);
+    memcpy(t.gold, At<uint8_t>(kRvaGoldCostByType), 110);
+    memcpy(t.lumber, At<uint8_t>(kRvaLumberCostByType), 110);
+    memcpy(t.oil, At<uint8_t>(kRvaOilCostByType), 110);
+    memcpy(t.buildTime, At<uint8_t>(kRvaBuildTimeByType), 110);
+    memcpy(t.armor, At<uint8_t>(kRvaArmorByType), 110);
+    memcpy(t.basic, At<uint8_t>(kRvaBasicDamageByType), 110);
+    memcpy(t.piercing, At<uint8_t>(kRvaPiercingDamageByType), 110);
+    memcpy(t.range, At<uint8_t>(kRvaAttackRangeByType), 110);
+    memcpy(t.reactC, At<uint8_t>(kRvaReactRangeComputer), 110);
+    memcpy(t.reactH, At<uint8_t>(kRvaReactRangeHuman), 110);
+    memcpy(t.sight, At<uint32_t>(kRvaSightByType), sizeof t.sight);
+    memcpy(t.rGold, At<uint16_t>(kRvaUpgradeGold), sizeof t.rGold);
+    memcpy(t.rLumber, At<uint16_t>(kRvaUpgradeLumber), sizeof t.rLumber);
+    memcpy(t.rOil, At<uint16_t>(kRvaUpgradeOil), sizeof t.rOil);
+    memcpy(t.rTime, At<uint8_t>(kRvaResearchTime), sizeof t.rTime);
+}
+
+static void LiveWrite(const LiveTables& t) {
+    memcpy(At<uint16_t>(kRvaMaxHpByType), t.hp, sizeof t.hp);
+    memcpy(At<uint8_t>(kRvaGoldCostByType), t.gold, 110);
+    memcpy(At<uint8_t>(kRvaLumberCostByType), t.lumber, 110);
+    memcpy(At<uint8_t>(kRvaOilCostByType), t.oil, 110);
+    memcpy(At<uint8_t>(kRvaBuildTimeByType), t.buildTime, 110);
+    memcpy(At<uint8_t>(kRvaArmorByType), t.armor, 110);
+    memcpy(At<uint8_t>(kRvaBasicDamageByType), t.basic, 110);
+    memcpy(At<uint8_t>(kRvaPiercingDamageByType), t.piercing, 110);
+    memcpy(At<uint8_t>(kRvaAttackRangeByType), t.range, 110);
+    memcpy(At<uint8_t>(kRvaReactRangeComputer), t.reactC, 110);
+    memcpy(At<uint8_t>(kRvaReactRangeHuman), t.reactH, 110);
+    memcpy(At<uint32_t>(kRvaSightByType), t.sight, sizeof t.sight);
+    memcpy(At<uint16_t>(kRvaUpgradeGold), t.rGold, sizeof t.rGold);
+    memcpy(At<uint16_t>(kRvaUpgradeLumber), t.rLumber, sizeof t.rLumber);
+    memcpy(At<uint16_t>(kRvaUpgradeOil), t.rOil, sizeof t.rOil);
+    memcpy(At<uint8_t>(kRvaResearchTime), t.rTime, sizeof t.rTime);
+}
+
+static bool LiveSame(const LiveTables& a, const LiveTables& b) { return memcmp(&a, &b, sizeof a) == 0; }
+
+// What FinalizeTables (FUN_004c4ba0) does right after the new-map pass: sight 0..9 -> reveal-function pointer.
+static void LiveFinalize() {
+    uint32_t* sight = At<uint32_t>(kRvaSightByType);
+    for (int t = 0; t < 110; ++t) sight[t] = At<uint32_t>(kRvaSightFunctions)[sight[t]];
+}
+
+static void LiveStatsTests(const wchar_t* dir) {
+    static LiveTables saved, pristine, pristineFinal, once, now;
+    static Config savedConfig;
+    savedConfig = config::g;
+    LiveRead(saved);
+
+    // Plausible "game" tables: every cell non-zero so every multiplier shows.
+    for (int t = 0; t < 110; ++t) {
+        pristine.hp[t] = static_cast<uint16_t>(60 + t);
+        pristine.gold[t] = static_cast<uint8_t>(10 + t % 50);
+        pristine.lumber[t] = static_cast<uint8_t>(5 + t % 20);
+        pristine.oil[t] = static_cast<uint8_t>(1 + t % 7);
+        pristine.buildTime[t] = static_cast<uint8_t>(30 + t % 60);
+        pristine.armor[t] = static_cast<uint8_t>(t % 10);
+        pristine.basic[t] = static_cast<uint8_t>(3 + t % 9);
+        pristine.piercing[t] = static_cast<uint8_t>(2 + t % 6);
+        pristine.range[t] = static_cast<uint8_t>(1 + t % 5);
+        pristine.reactC[t] = static_cast<uint8_t>(4 + t % 4);
+        pristine.reactH[t] = static_cast<uint8_t>(3 + t % 4);
+        pristine.sight[t] = static_cast<uint32_t>(t % 10);
+    }
+    for (int i = 0; i < 52; ++i) {
+        pristine.rGold[i] = static_cast<uint16_t>(500 + i * 10);
+        pristine.rLumber[i] = static_cast<uint16_t>(100 + i);
+        pristine.rOil[i] = static_cast<uint16_t>(i);
+        pristine.rTime[i] = static_cast<uint8_t>(60 + i);
+    }
+    pristineFinal = pristine;
+    for (int t = 0; t < 110; ++t) pristineFinal.sight[t] = At<uint32_t>(kRvaSightFunctions)[pristine.sight[t]];
+
+    auto setConfig = [](double health, double costs, int footmanHp) {
+        config::g = Config();
+        config::g.health.all = health;
+        config::g.costs.all = costs;
+        config::g.time.all = costs;
+        config::g.unitStat[0][kStatHitPoints] = footmanHp;  // -1 = the game's own
+    };
+    auto newMap = [&]() {  // the new-map hook, then the game's FinalizeTables
+        LiveWrite(pristine);
+        *At<uint16_t>(kRvaGameFromSave) = 0;
+        *At<uint8_t>(kRvaNetGameAtLoad) = 0;
+        datatweaks::ResetForTests();
+        datatweaks::OnNewMapTablesLoaded();
+        LiveFinalize();
+    };
+
+    // 1. A reload with the same settings, twice, leaves exactly what the map load made: nothing is applied twice.
+    setConfig(2.0, 1.5, -1);
+    newMap();
+    LiveRead(once);
+    CHECK(once.hp[0] == 120 && once.gold[5] == 23, "live stats setup: health x2 / costs x1.5 applied at map load (%u, %u)",
+          once.hp[0], once.gold[5]);
+    datatweaks::OnConfigReloaded(false);
+    datatweaks::OnConfigReloaded(false);
+    LiveRead(now);
+    CHECK(LiveSame(now, once), "live stats: two reloads with the same settings must give the map-load tables (hp %u, gold %u)",
+          now.hp[0], now.gold[5]);
+
+    // 2. Back to every multiplier 1.0 and no own numbers: the game's own tables, sight as its reveal pointers.
+    setConfig(1.0, 1.0, -1);
+    datatweaks::OnConfigReloaded(false);
+    LiveRead(now);
+    CHECK(LiveSame(now, pristineFinal), "live stats: all 1.0 restores the pristine tables (hp %u want %u)", now.hp[0],
+          pristineFinal.hp[0]);
+
+    // 3. An own sight number mid-game goes in as the matching reveal pointer, never as a plain number.
+    config::g.unitStat[3][kStatSight] = 7;
+    datatweaks::OnConfigReloaded(false);
+    CHECK(At<uint32_t>(kRvaSightByType)[3] == At<uint32_t>(kRvaSightFunctions)[7],
+          "live stats: sight 7 is written as the sight-7 reveal function");
+    config::g.unitStat[3][kStatSight] = -1;
+
+    // 4. Units alive keep their share of hit points; a building under construction is left alone.
+    setConfig(1.0, 1.0, -1);
+    newMap();
+    ResetWorld();
+    AddUnit(kTypeMage, 0, 10, 10, 30, 255, kOrderStand);  // the player, for BuildWorld
+    Unit* hurt = AddUnit(0, 0, 12, 10, 30, 0, kOrderStand);      // footman 30 of 60
+    Unit* full = AddUnit(0, 1, 14, 10, 60, 0, kOrderStand);      // 60 of 60, a computer's
+    Unit* site = AddUnit(0x3A, 0, 20, 20, 50, 0, 0);             // a farm under construction
+    Unit* over = AddUnit(0, 0, 16, 10, 70, 0, kOrderStand);      // above its maximum (a modded save): 70 of 60
+    const uint32_t savedFarmFlags = At<uint32_t>(kRvaTypeFlags)[0x3A];
+    At<uint32_t>(kRvaTypeFlags)[0x3A] = kTfBuilding;
+    config::g.unitStat[0][kStatHitPoints] = 120;
+    config::g.unitStat[0x3A][kStatHitPoints] = 400;  // the farm's maximum changes too
+    datatweaks::OnConfigReloaded(false);
+    CHECK(At<uint16_t>(kRvaMaxHpByType)[0] == 120 && Field<uint16_t>(hurt, kOffHp) == 60 && Field<uint16_t>(full, kOffHp) == 120,
+          "live stats: max 60 -> 120 keeps the share (%u, %u)", Field<uint16_t>(hurt, kOffHp), Field<uint16_t>(full, kOffHp));
+    CHECK(Field<uint16_t>(site, kOffHp) == 50, "live stats: a building under construction keeps its hit points (%u)",
+          Field<uint16_t>(site, kOffHp));
+    CHECK(Field<uint16_t>(over, kOffHp) == 120, "live stats: never above the new maximum (%u)", Field<uint16_t>(over, kOffHp));
+    Field<uint16_t>(hurt, kOffHp) = 1;
+    config::g.unitStat[0][kStatHitPoints] = 10;  // 120 -> 10: never 0, never above the new maximum
+    datatweaks::OnConfigReloaded(false);
+    CHECK(Field<uint16_t>(hurt, kOffHp) == 1 && Field<uint16_t>(full, kOffHp) == 10, "live stats: 120 -> 10 clamps (%u, %u)",
+          Field<uint16_t>(hurt, kOffHp), Field<uint16_t>(full, kOffHp));
+    At<uint32_t>(kRvaTypeFlags)[0x3A] = savedFarmFlags;
+    ResetWorld();
+
+    // 5. A game loaded from a save, or without a copy from its start, or multiplayer: the tables stay as they are.
+    setConfig(2.0, 1.0, -1);
+    newMap();
+    LiveRead(once);
+    setConfig(3.0, 1.0, -1);
+    *At<uint16_t>(kRvaGameFromSave) = 1;
+    datatweaks::OnConfigReloaded(false);
+    LiveRead(now);
+    CHECK(LiveSame(now, once), "live stats: a game loaded from a save is never reloaded");
+    CHECK(LogContains(dir, "unit stats reload at the next new map (game loaded from a save)"), "live stats: says why, once");
+    *At<uint16_t>(kRvaGameFromSave) = 0;
+    datatweaks::OnConfigReloaded(true);
+    LiveRead(now);
+    CHECK(LiveSame(now, once), "live stats: never in multiplayer");
+    datatweaks::ResetForTests();
+    datatweaks::OnConfigReloaded(false);
+    LiveRead(now);
+    CHECK(LiveSame(now, once), "live stats: no copy of this game's start, no reload");
+    // A multiplayer map load drops the copy too.
+    setConfig(2.0, 1.0, -1);
+    newMap();
+    LiveRead(once);
+    setConfig(3.0, 1.0, -1);
+    *At<uint8_t>(kRvaNetGameAtLoad) = 1;
+    datatweaks::OnNewMapTablesLoaded();
+    *At<uint8_t>(kRvaNetGameAtLoad) = 0;
+    datatweaks::OnConfigReloaded(false);
+    LiveRead(now);
+    CHECK(LiveSame(now, once), "live stats: after a multiplayer map load there is nothing to reload from");
+
+    config::g = savedConfig;
+    LiveWrite(saved);
+    datatweaks::ResetForTests();
+}
+
 static void SpellNumberTests(const wchar_t* dir, const wchar_t* ini) {
     // The real exe: every patch site and the 19 cost words are what the research found.
     for (int i = 0; i < kSpellSiteCount; ++i) CHECK(SiteIsGame(i), "spell patch site %d at RVA 0x%X is not the game's instruction", i, kSpellSites[i].rva);
@@ -7555,6 +7749,7 @@ int wmain(int argc, wchar_t** argv) {
     AiWatchTests();
     AiJobsTests();
     FarmTests();
+    LiveStatsTests(dir);
     SpellNumberTests(dir, ini);
     UpgradeTests(dir, ini);
     DamageTypeTests(dir, ini);

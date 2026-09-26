@@ -35,6 +35,71 @@ constexpr int kMaxTypeCost = 255;        // unit / structure prices are a BYTE h
 constexpr int kMaxResearchCost = 65535;  // research prices are plain 16-bit words
 constexpr int kMaxTime = 255;            // build and research times are bytes (the game doubles them into its timer)
 
+// The tables the new-map pass edits, as the game had them before the pass: the base a live reload starts from again.
+// Sight is kept as the plain 0..9 the pass sees; after FinalizeTables the live table holds the matching pointers.
+struct Snapshot {
+    bool valid;
+    uint16_t hp[units::kTypeCount];
+    uint8_t gold[units::kTypeCount], lumber[units::kTypeCount], oil[units::kTypeCount], buildTime[units::kTypeCount];
+    uint8_t armor[units::kTypeCount], basic[units::kTypeCount], piercing[units::kTypeCount], range[units::kTypeCount];
+    uint8_t reactComputer[units::kTypeCount], reactHuman[units::kTypeCount];
+    uint32_t sight[units::kTypeCount];
+    uint16_t researchGold[units::kResearchCount], researchLumber[units::kResearchCount], researchOil[units::kResearchCount];
+    uint8_t researchTime[units::kResearchCount];
+};
+Snapshot g_snap;
+bool g_notNowLogged = false;
+constexpr int kMaxSight = 9;  // the pointer table has 10 entries
+
+template <typename T, size_t N>
+void Copy(T (&to)[N], const T* from) { memcpy(to, from, sizeof(to)); }
+template <typename T, size_t N>
+void Put(T* to, const T (&from)[N]) { memcpy(to, from, sizeof(from)); }
+
+void TakeSnapshot() {
+    Copy(g_snap.hp, At<uint16_t>(kRvaMaxHpByType));
+    Copy(g_snap.gold, At<uint8_t>(kRvaGoldCostByType));
+    Copy(g_snap.lumber, At<uint8_t>(kRvaLumberCostByType));
+    Copy(g_snap.oil, At<uint8_t>(kRvaOilCostByType));
+    Copy(g_snap.buildTime, At<uint8_t>(kRvaBuildTimeByType));
+    Copy(g_snap.armor, At<uint8_t>(kRvaArmorByType));
+    Copy(g_snap.basic, At<uint8_t>(kRvaBasicDamageByType));
+    Copy(g_snap.piercing, At<uint8_t>(kRvaPiercingDamageByType));
+    Copy(g_snap.range, At<uint8_t>(kRvaAttackRangeByType));
+    Copy(g_snap.reactComputer, At<uint8_t>(kRvaReactRangeComputer));
+    Copy(g_snap.reactHuman, At<uint8_t>(kRvaReactRangeHuman));
+    Copy(g_snap.sight, At<uint32_t>(kRvaSightByType));
+    Copy(g_snap.researchGold, At<uint16_t>(kRvaUpgradeGold));
+    Copy(g_snap.researchLumber, At<uint16_t>(kRvaUpgradeLumber));
+    Copy(g_snap.researchOil, At<uint16_t>(kRvaUpgradeOil));
+    Copy(g_snap.researchTime, At<uint8_t>(kRvaResearchTime));
+    // A value outside 0..9 means this is not the raw table the loader leaves (it would be a pointer): no live reload.
+    g_snap.valid = true;
+    for (int t = 0; t < units::kTypeCount; ++t)
+        if (g_snap.sight[t] > kMaxSight) g_snap.valid = false;
+}
+
+// Back to the snapshot. Sight goes in as the reveal-function pointer FinalizeTables would have made of it.
+void RestoreSnapshot() {
+    Put(At<uint16_t>(kRvaMaxHpByType), g_snap.hp);
+    Put(At<uint8_t>(kRvaGoldCostByType), g_snap.gold);
+    Put(At<uint8_t>(kRvaLumberCostByType), g_snap.lumber);
+    Put(At<uint8_t>(kRvaOilCostByType), g_snap.oil);
+    Put(At<uint8_t>(kRvaBuildTimeByType), g_snap.buildTime);
+    Put(At<uint8_t>(kRvaArmorByType), g_snap.armor);
+    Put(At<uint8_t>(kRvaBasicDamageByType), g_snap.basic);
+    Put(At<uint8_t>(kRvaPiercingDamageByType), g_snap.piercing);
+    Put(At<uint8_t>(kRvaAttackRangeByType), g_snap.range);
+    Put(At<uint8_t>(kRvaReactRangeComputer), g_snap.reactComputer);
+    Put(At<uint8_t>(kRvaReactRangeHuman), g_snap.reactHuman);
+    uint32_t* sight = At<uint32_t>(kRvaSightByType);
+    for (int t = 0; t < units::kTypeCount; ++t) sight[t] = At<uint32_t>(kRvaSightFunctions)[g_snap.sight[t]];
+    Put(At<uint16_t>(kRvaUpgradeGold), g_snap.researchGold);
+    Put(At<uint16_t>(kRvaUpgradeLumber), g_snap.researchLumber);
+    Put(At<uint16_t>(kRvaUpgradeOil), g_snap.researchOil);
+    Put(At<uint8_t>(kRvaResearchTime), g_snap.researchTime);
+}
+
 // Scales a stored value. Zero stays zero (free stays free, "no build time" stays none), anything else stays >= 1.
 template <typename T>
 void ScaleCell(T& cell, double factor, int cap) {
@@ -115,7 +180,8 @@ void ScaleResearch() {
 // [unit.<name>] / [building.<name>]: the player's own base numbers replace the game's before any multiplier.
 // Sight is still a plain range 0..9 here: FinalizeTables turns it into a reveal-function pointer right after us,
 // and 9 is the engine's maximum (there is no reveal function for more).
-int ApplyUnitStats() {
+// `live`: the tables are already finalized, so a sight number is written as its reveal-function pointer.
+int ApplyUnitStats(bool live) {
     uint8_t* byteTables[kStatCount] = {};
     byteTables[kStatArmor] = At<uint8_t>(kRvaArmorByType);
     byteTables[kStatBasicDamage] = At<uint8_t>(kRvaBasicDamageByType);
@@ -134,7 +200,9 @@ int ApplyUnitStats() {
             if (v < 0) continue;
             ++changed;
             if (stat == kStatHitPoints) At<uint16_t>(kRvaMaxHpByType)[t] = static_cast<uint16_t>(v);
-            else if (stat == kStatSight) At<uint32_t>(kRvaSightByType)[t] = static_cast<uint32_t>(v);  // still a plain 0..9 here
+            else if (stat == kStatSight)  // a plain 0..9 at map load, the matching pointer once finalized
+                At<uint32_t>(kRvaSightByType)[t] = live ? At<uint32_t>(kRvaSightFunctions)[v > kMaxSight ? kMaxSight : v]
+                                                        : static_cast<uint32_t>(v);
             else if (stat >= kStatGold && stat <= kStatOil) byteTables[stat][t] = static_cast<uint8_t>(v / 10);
             else if (stat == kStatReactRange) reactComputer[t] = reactHuman[t] = static_cast<uint8_t>(v);
             else byteTables[stat][t] = static_cast<uint8_t>(v);
@@ -159,7 +227,7 @@ int ApplyUnitStats() {
             strcat_s(detail, yours);
             reactHuman[t] = static_cast<uint8_t>(range);
         }
-        if (!*detail) continue;  // the game already looks at least that far: nothing to raise, nothing to say
+        if (!*detail || live) continue;  // nothing raised, or a live reload (one summary line, not one per type)
         const units::Entry* unit = units::FindById(static_cast<uint8_t>(t));
         const units::Building* building = unit ? nullptr : units::FindBuildingById(static_cast<uint8_t>(t));
         char fallback[16];
@@ -186,9 +254,12 @@ void OnNewMapTablesLoaded() {
     spells::OnNewMap(multiplayer);
     upgrades::OnNewMap(multiplayer);
     if (multiplayer) {
+        g_snap.valid = false;
         logx::Write("map load: multiplayer game, data tables left alone");
         return;
     }
+    TakeSnapshot();
+    g_notNowLogged = false;
     tweaks::OnNewMap();
     autocast::OnNewMap();
     scouts::OnNewMap();
@@ -197,7 +268,7 @@ void OnNewMapTablesLoaded() {
     trees::OnNewMap();
     aiwatch::OnNewMap();
     production::OnNewMap();  // the water / oil profile is counted again on the first pass of the new map
-    const int statsSet = ApplyUnitStats();
+    const int statsSet = ApplyUnitStats(false);
     ScaleUnits();
     ScaleStructures();
     ScaleResearch();
@@ -207,6 +278,58 @@ void OnNewMapTablesLoaded() {
     DescribeTree(config::g.time, time, sizeof(time));
     logx::Write("map load: %d unit stats set, health [%s] costs [%s] time [%s] (group values on top)",
                 statsSet, health, costs, time);
+}
+
+void OnConfigReloaded(bool multiplayer) {
+    if (multiplayer) return;
+    const bool fromSave = *At<uint16_t>(kRvaGameFromSave) != 0;
+    if (!g_snap.valid || fromSave) {
+        if (!g_notNowLogged)
+            logx::Write("unit stats reload at the next new map (%s)",
+                        fromSave ? "game loaded from a save" : "this game did not start in this session");
+        g_notNowLogged = true;
+        return;
+    }
+    uint16_t oldMax[units::kTypeCount];
+    memcpy(oldMax, At<uint16_t>(kRvaMaxHpByType), sizeof oldMax);
+    RestoreSnapshot();
+    const int statsSet = ApplyUnitStats(true);
+    ScaleUnits();
+    ScaleStructures();
+    ScaleResearch();
+
+    // Units alive keep their share of the (new) maximum. A building under construction is left alone: its hit points
+    // are the construction progress (FUN_004ed4e0), and they go on growing towards the new maximum.
+    int rescaled = 0;
+    World w;
+    const uint16_t* newMax = At<uint16_t>(kRvaMaxHpByType);
+    if (BuildWorld(w)) {
+        for (unsigned i = 0; i < w.unitCount; ++i) {
+            Unit* u = UnitAt(w, i);
+            const uint8_t t = TypeOf(u);
+            if (t >= units::kTypeCount || (Field<uint8_t>(u, kOffStateFlags) & 0x07) || oldMax[t] == newMax[t] || !oldMax[t]) continue;
+            if ((w.typeFlags[t] & kTfBuilding) && !(Field<uint16_t>(u, kOffStateFlags) & kStateComplete)) continue;
+            const int hp = Field<uint16_t>(u, kOffHp);
+            if (!hp) continue;
+            long long scaled = (static_cast<long long>(hp) * newMax[t] + oldMax[t] / 2) / oldMax[t];
+            if (scaled < 1) scaled = 1;
+            if (scaled > newMax[t]) scaled = newMax[t];
+            Field<uint16_t>(u, kOffHp) = static_cast<uint16_t>(scaled);
+            ++rescaled;
+        }
+    }
+    char health[96], costs[96], time[96];
+    DescribeTree(config::g.health, health, sizeof(health));
+    DescribeTree(config::g.costs, costs, sizeof(costs));
+    DescribeTree(config::g.time, time, sizeof(time));
+    logx::Write("settings reloaded: unit stats applied again from this map's own tables: %d unit stats set, health [%s] "
+                "costs [%s] time [%s], %d unit(s) kept their share of hit points",
+                statsSet, health, costs, time, rescaled);
+}
+
+void ResetForTests() {
+    g_snap.valid = false;
+    g_notNowLogged = false;
 }
 
 // Longbow / Lighter Axes: GetAttackRange (FUN_004ee660) ends its upgraded branch with `inc al` (FE C0). The same two

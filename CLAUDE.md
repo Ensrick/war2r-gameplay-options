@@ -42,7 +42,8 @@ Ensrick/war2r-gameplay-options (public since 2026-09-18).
   map's units-allowed mask, "already researched" or units in training: `src/production.cpp` must keep doing that.
 - Orders: `SetOrder` writes the NEXT-order byte (+0x2F). Always read orders through `game::EffectiveOrder`.
 - Map-start data tweaks run ONLY from the new-map hook (0x4D2C46). Never apply table edits from the tick: savegames
-  store the tables, so that double-applies.
+  store the tables, so that double-applies. The one exception is `datatweaks::OnConfigReloaded`: it first restores the
+  copy the new-map hook took, never runs after a savegame load, and writes sight only as `0x8C1E28` pointers.
 - Versioning (repo PUBLIC since 2026-09-18, author: "increment the changelog properly"): semantic versioning. Patch =
   fixes / docs, minor = new settings or features, major = breaks existing config files. EVERY change gets its own
   version in CMakeLists.txt, a dated entry in `CHANGELOG.md` (keep its "On Nexus Mods right now" line true), the same

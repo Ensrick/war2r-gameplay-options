@@ -338,6 +338,21 @@ Consequences:
   of `FUN_004c57f0`, which runs after the load. Gate table edits on `0x922F5B == 0`, otherwise a multiplayer game
   would desync.
 
+## 3b. Live reload (mod design)
+
+`datatweaks::OnConfigReloaded` (called on every successful config reload, single player only). At the new-map hook,
+before any edit, the mod copies every table it edits (HP, gold / lumber / oil, build time, armor, basic / piercing
+damage, range, both react ranges, sight as the raw 0..9, research gold / lumber / oil / time). A reload restores that
+copy and runs the same pass again, so the result never depends on how often the file was saved. Sight: the live table
+already holds FinalizeTables' pointers, so both the restore and a `[unit.*] sight` write use `*(0x8C1E28 + 4 * n)`, the
+exact pointer FinalizeTables would have made (only table pointers ever stand there: the panel and the save writer
+search that table). FinalizeTables itself is not called again: it would treat the pointers as indices.
+No copy exists after a savegame load (`0x91BFB0` = 1) or after a multiplayer map load. The save does not record whether
+its map had its own UDTA section, nor what the mod had applied when it was written, so the originals cannot be
+rebuilt from `unitdata.dat`: those games keep their numbers until the next new map, and the log says so once.
+Units alive with (state & 7) == 0 whose type's maximum changed get `hp * new / old`, rounded, clamped to 1..new; a
+building under construction (0x80 clear) is skipped because its HP is its construction progress (`FUN_004ed4e0`).
+
 ## 4. Sight
 
 `FUN_004c4ba0` replaces each raw sight value with a function pointer:
