@@ -1611,85 +1611,10 @@ void PassImpl(const World& w) {
 
 void Pass(const game::World& w) { PassImpl(w); }
 
-// ---- The computer's paladins (src/hook.cpp calls these from the three call sites of FUN_004cb2f0) ----
-//
-// The game's own paladin AI heals any allied unit missing a single hit point, as often as its mana allows, which is
-// what makes a computer paladin look like it does nothing else. These two give it the player's own [heal] timer.
-
-namespace {
-
-unsigned g_computerBlocked = 0;      // casts held back since the map started (tests + the throttled log line)
-unsigned g_computerBlockedLogged = 0;
-uint32_t g_computerLogMs = 0;
-
-// The timer is per caster, so it needs the unit array the notes are indexed by; without a world there is no cooldown.
-bool ComputerCooldownOver(Unit* caster, const World& w) {
-    const unsigned slot = NoteSlot(w, caster);
-    if (slot >= kMaxNoteSlots) return true;
-    const CastNote& n = g_healNotes[slot];
-    if (!n.used || n.serial != Field<uint32_t>(caster, kOffSerial)) return true;
-    return g_playMs - n.lastMs >= static_cast<uint32_t>(config::g.healCooldownSeconds) * 1000;
-}
-
-// The player's rule, applied to the computer: a friend at or below urgent_below_percent cannot wait for the timer.
-// The AI looks in a 31x31 box around the caster (FUN_004cb3e0), so this does too.
-bool WoundedFriendNearby(Unit* caster, const World& w) {
-    if (config::g.healUrgentBelowPercent <= 0) return false;
-    const uint8_t me = OwnerOf(caster);
-    bool found = false;
-    ScanTileRaw(w, Field<int16_t>(caster, kOffX), Field<int16_t>(caster, kOffY), 15, [&](Unit* t) {
-        if (!IsActive(t) || !Allied(w, me, OwnerOf(t))) return false;
-        if (!(w.typeFlags[TypeOf(t)] & kTfFleshy)) return false;
-        const int hp = Field<uint16_t>(t, kOffHp), max = MaxHp(w, t);
-        if (hp >= max || hp * 100 > max * config::g.healUrgentBelowPercent) return false;
-        found = true;
-        return true;
-    });
-    return found;
-}
-
-bool ComputerMayCast(void* casterPtr, bool heal) {
-    if (config::g.healCooldownSeconds <= 0 || !config::g.healCooldownForComputer) return true;
-    if (*At<uint32_t>(kRvaNetGame) != 0) return true;  // a network game runs the AI on every machine: never touch it
-    auto* caster = static_cast<Unit*>(casterPtr);
-    World w;
-    if (!caster || !BuildWorld(w)) return true;
-    if (ComputerCooldownOver(caster, w)) return true;
-    if (heal && WoundedFriendNearby(caster, w)) return true;  // exorcism is never urgent: it only burns the undead
-    ++g_computerBlocked;
-    if (config::g.logCasts && g_playMs - g_computerLogMs >= 30000) {
-        g_computerLogMs = g_playMs;
-        logx::Write("computer paladins kept to the heal cooldown: %u cast(s) held back so far",
-                    g_computerBlocked);
-        ++g_computerBlockedLogged;
-    }
-    return false;
-}
-
-}  // namespace
-
-bool ComputerHealAllowed(void* caster) { return ComputerMayCast(caster, true); }
-bool ComputerExorcismAllowed(void* caster) { return ComputerMayCast(caster, false); }
-
-void NoteComputerCast(void* casterPtr) {
-    if (config::g.healCooldownSeconds <= 0 || !config::g.healCooldownForComputer) return;
-    if (*At<uint32_t>(kRvaNetGame) != 0) return;
-    auto* caster = static_cast<Unit*>(casterPtr);
-    World w;
-    if (!caster || !BuildWorld(w)) return;
-    const unsigned slot = NoteSlot(w, caster);
-    if (slot < kMaxNoteSlots) g_healNotes[slot] = {Field<uint32_t>(caster, kOffSerial), g_playMs, true};
-}
-
-unsigned ComputerBlockedCount() { return g_computerBlocked; }
-unsigned ComputerBlockedLogCount() { return g_computerBlockedLogged; }
-
 void AddPlayTime(unsigned ms) { g_playMs += ms; }
 
 void OnNewMap() {
     g_playMs = 0;
-    g_computerBlocked = g_computerBlockedLogged = 0;
-    g_computerLogMs = 0;
     memset(g_healNotes, 0, sizeof(g_healNotes));
     memset(g_raiseNotes, 0, sizeof(g_raiseNotes));
     memset(g_areaNotes, 0, sizeof(g_areaNotes));

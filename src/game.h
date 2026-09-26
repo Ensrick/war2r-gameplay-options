@@ -14,15 +14,6 @@ constexpr uint32_t kRvaTickCallee = 0xCA440;     // original target of that call
 constexpr uint32_t kRvaMapLoadCallSite = 0xD2C46; // `call 0x4c4ba0` on the NEW-map path only (the savegame path calls it from 0x4C4602)
 constexpr uint32_t kRvaFinalizeTables = 0xC4BA0;  // turns raw sight ranges into reveal-function pointers, last step of a data load
 constexpr uint32_t kRvaRangeBonusInsn = 0xEE689;  // `inc al` (FE C0) in GetAttackRange FUN_004ee660: the Longbow / Lighter Axes +1
-// The computer's paladin think function FUN_004cb2f0 (dispatcher FUN_004ca4a0, unit types 0x0C and 0x2C). Its three
-// spell attempts are three `call rel32` of their own, so the cooldown hooks reach paladins and nothing else. Order of
-// arguments on the stack at each callee's entry is in docs/research/autocast_all_spells.md 3a.
-constexpr uint32_t kRvaAiPaladinExorcismRandomSite = 0xCB309;  // call FUN_004cb030: exorcism while invisible, caster at [esp+4]
-constexpr uint32_t kRvaAiPaladinHealSite = 0xCB323;            // call FUN_004cb0e0: heal, caster at [esp+4]
-constexpr uint32_t kRvaAiPaladinExorcismScanSite = 0xCB35E;    // call FUN_004cb3e0: exorcism target scan, caster at [esp+8]
-constexpr uint32_t kRvaAiRandomTenCast = 0xCB030;  // (caster, upgradeMask, order, filter): ten random units must pass, then casts
-constexpr uint32_t kRvaAiCastIfFound = 0xCB0E0;    // (caster, upgradeMask, order, filter): scans the 31x31 box, casts, returns the target
-constexpr uint32_t kRvaAiScanBox = 0xCB3E0;        // (filter, caster): the 31x31 ground-grid scan itself, returns the first match
 constexpr uint32_t kRvaIssueOrder = 0xEF210;     // void __cdecl (Unit*, int16 x, int16 y, Unit* target, void (__cdecl*)(Unit*))
 constexpr uint32_t kRvaSpellOrderHandler = 0xE2970;  // handler passed to IssueOrder for every spell cast
 constexpr uint32_t kRvaMoveHandler = 0xD8690;        // order 3 entry of the handler table at 0x8C1498; x,y MUST be on the map
@@ -188,56 +179,6 @@ constexpr uint32_t kRvaUpgradeLevels = 0x518BEC;     // uint8[16] per line: +0x0
 constexpr uint32_t kRvaSelectedUnit = 0x5342EC;      // Unit*: the unit whose buttons are shown (every button condition reads it)
 constexpr uint32_t kRvaSelection = 0x5342F0;         // Unit*[12]: the selection list whose HP / mana the panel caches (FUN_004e6db0)
 constexpr uint32_t kRvaGameFromSave = 0x51BFB0;      // uint16: 1 while the running game came from a savegame (mov [0x91BFB0],si at 0x4C4295)
-// --- computer-player AI script interpreter, READ-ONLY (docs/research/ai_stall.md) ---
-// FUN_004ca440 runs a 4-opcode script per computer player every simulation step. Nothing in src/aiwatch.cpp writes
-// any of these; the mod must never drive the AI, only report on it.
-constexpr uint32_t kRvaAiScriptId = 0x51D640;        // uint8[16]: the map's AI number per player (PUD handler FUN_004d23e0)
-constexpr uint32_t kRvaAiState = 0x51D650;           // per-player block, kAiStateStride apart (FUN_004ca390 sets it up)
-constexpr uint32_t kRvaAiScriptBlob = 0x51D950;      // const uint8*: Rez\ai.bin as loaded (FUN_004ca360), an absolute pointer
-constexpr uint32_t kRvaAiScriptBlobSize = 0x51D954;  // uint32, the loader's third argument, an out-param
-                                                     // [unverified: taken to be the byte size; range-checked before use]
-constexpr uint32_t kRvaAiBuildDone = 0x534358;       // uint8[8][kAiBuildListMax]: build-list entries already started
-                                                     // (FUN_004da300, and the tick pass at 0x4E8A21)
-constexpr uint32_t kRvaPeasantCount = 0x51B66C;      // uint16[16]: peasants + peons, what WAITFOR condition 3 reads
-constexpr uint32_t kRvaLandForce = 0x51B9EC;         // uint16[16]: live land attackers, condition 4 (FUN_004b5220, 0x4B5281)
-constexpr uint32_t kRvaSeaForce = 0x51BA0C;          // uint16[16]: condition 5 (0x4B52A1)
-constexpr uint32_t kRvaAirForce = 0x51BA2C;          // uint16[16]: condition 6 (0x4B52C1)
-constexpr uint32_t kRvaAiFootCount = 0x51B86C;       // uint16[16], compared against st[0x14] by the barracks AI FUN_004ad700
-constexpr uint32_t kRvaAiArcherCount = 0x51B88C;     // against st[0x15]
-constexpr uint32_t kRvaAiSiegeCount = 0x51B8AC;      // against st[0x16]
-constexpr uint32_t kRvaAiKnightCount = 0x51B8CC;     // against st[0x17]
-
-// --- computer worker-job counters, WRITTEN only by src/aijobs.cpp (docs/research/ai_lumber.md) ---
-// The worker manager FUN_004dad80 adds one when it gives a computer worker a job (and sets the job bit in the unit's
-// +0x20 word); FUN_004db420 takes it off again and clears the bit. A savegame load zeroes all of them (0x4E895A ->
-// FUN_004dac70) but restores the bits (FUN_004abf10), so the next release wraps a counter to 65535.
-constexpr uint32_t kRvaAiGoldWorkers = 0x5231B8;     // uint16[16], bit kAiJobGold (0x4DA9B2 add, 0x4DB45F release)
-constexpr uint32_t kRvaAiLumberWorkers = 0x5231D8;   // uint16[16], bit kAiJobLumber; the lumber-first test 0x4DB0CB is unsigned
-constexpr uint32_t kRvaAiRepairWorkers = 0x5231F8;   // uint16[16], bit kAiJobRepair (cap test 0x4DB017)
-constexpr uint32_t kRvaAiBuilders = 0x523218;        // uint16[16][kAiBuildKinds], bits kAiJobBuildFarm / kAiJobBuild,
-                                                     // index = the worker's +0x76 word; the manager builds a kind only while its entry is 0
-constexpr int kAiBuildKinds = 0x2F;                  // per-player row length (FUN_004dac70 clears 16 * 0x2F * 2 = 0x5E0 bytes)
-constexpr int kOffAiJob = 0x20;                      // uint16 job bits of a computer worker
-constexpr int kOffAiBuildKind = 0x76;                // uint16, builders: the kAiBuildKinds index their job was counted under
-constexpr uint16_t kAiJobGold = 0x01, kAiJobLumber = 0x02, kAiJobBuildFarm = 0x08, kAiJobBuild = 0x10, kAiJobRepair = 0x20;
-
-constexpr int kAiPlayerCount = 8;     // FUN_004ca440 loops players 0..7 only
-constexpr int kAiStateStride = 0x30;
-constexpr int kAiBuildListMax = 0x40;  // the walk in FUN_004da300 stops at this index
-// Offsets inside one AI state block.
-constexpr int kAiOffWait = 0x00;          // uint32, decremented once per step; 0 = run opcodes now
-constexpr int kAiOffPc = 0x04;            // const uint8*, points into the ai.bin blob
-constexpr int kAiOffLandWaveSize = 0x0D, kAiOffLandWaveCount = 0x0E;
-constexpr int kAiOffSeaWaveSize = 0x0F, kAiOffSeaWaveCount = 0x10;
-constexpr int kAiOffAirWaveSize = 0x11, kAiOffAirWaveCount = 0x12;
-constexpr int kAiOffPeasantTarget = 0x13;
-constexpr int kAiOffFootTarget = 0x14, kAiOffArcherTarget = 0x15;
-constexpr int kAiOffSiegeTarget = 0x16, kAiOffKnightTarget = 0x17;
-constexpr int kAiOffBuildListLen = 0x22;
-// Script opcodes (table 0x8C3DE8) and wait conditions (table 0x8C3DC8).
-constexpr uint8_t kAiOpSet = 0, kAiOpJump = 1, kAiOpSleep = 2, kAiOpWaitFor = 3;
-constexpr uint8_t kAiCondCount = 8;
-constexpr int kAiMaxInstructionSize = 5;  // SLEEP: the opcode byte plus a uint32
 constexpr uint32_t kRvaNetGameAtLoad = 0x522F5B;     // uint8, network flag that is already valid while a map loads
 constexpr uint32_t kRvaNetGame = 0x51C6F4;            // nonzero while the game loop runs DONETWORKTURN (multiplayer)
 

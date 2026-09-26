@@ -1131,22 +1131,6 @@ Rules, all of them:
 - The mod writes one line to the log when it reads the config, so you can check what it understood:
   `damage types: weapon siege (4 units), armor structure (43), ship (14); 2 bonuses`.
 
-### The computer's paladins keep to the same timer
-
-The game's own paladin AI heals **any** allied unit that is missing a single hit point, as often as its mana allows,
-which is why a computer paladin looks like it never does anything else - and why it drains itself dry in a fight.
-The cooldown you set for your own casters is given to the computer's paladins as well:
-
-```toml
-[heal]
-cooldown_seconds = 8
-cooldown_for_computer = true    # the default; false leaves the computer's paladins exactly as the game plays them
-```
-
-It is the same timer with the same exception: a friend at or below `urgent_below_percent` is healed at once, while
-Exorcism always waits for the timer. Nothing else about the computer's AI is touched, and none of this happens in a
-network game. With `log_casts` on, one line per 30 seconds of play says how many casts have been held back.
-
 ### Casters go back to what they were doing
 
 A spell order replaces whatever the unit was doing, and in the Remastered ruleset it also has to clear the "resume"
@@ -1206,63 +1190,19 @@ Every cast is then written to `x86\gameplay_options.log` with the caster, the ta
 knight that could not raise the dead also says why ("not researched", "mana below the cost", "no corpse within 15
 tiles", "all corpses ... are claimed", "switched off"), at most once every 30 seconds of play per death knight.
 
-### The computer keeps cutting wood after you load a savegame
+### The computer players: moved to AI Fixes
 
-```toml
-[general]
-fix_ai_after_load = true    # the default
-```
+The fixes for the computer players are a mod of their own now, **AI Fixes** (`x86\winmm.dll`, settings in
+`x86\ai_fixes.toml`). It runs next to this mod or on its own. What moved:
 
-This fixes a bug in the game itself, not in the mod. The computer keeps a count of how many of its workers are on
-gold, on lumber and on repairs, and sends an idle worker to the trees while too few are cutting wood. Loading a
-savegame sets those counts to zero but leaves every worker's job as it was, so the first lumber worker that delivers
-takes the count below zero, where it reads as 65535. From then on the computer believes it has plenty of lumber
-workers and sends every worker to gold. Its lumber stops for the rest of the game, it can never afford a keep or a
-castle, and a script that waits for one never attacks again. With more gold in the mines (`[gold_mines] amount`) or
-mines that never run out, the mines near its base do not run dry, and in the game that is the only thing that sends
-the workers back to the trees.
+- `[general] fix_ai_after_load`: the computer keeps cutting wood after you load a savegame.
+- `[general] log_ai`: once a minute, what every computer player is doing and waiting for.
+- `[heal] cooldown_for_computer`: the computer's paladins keep to a Heal / Exorcism cooldown. In AI Fixes this is
+  `[paladins] cooldown_seconds` and `urgent_below_percent`, with numbers of their own.
 
-With this setting on, the mod counts the computer's workers again whenever the counts do not match the workers, which
-only happens after a load. The count is written back and one line goes to the log:
-
-```
-ai: recounted workers after load: player 0 gold 0 lumber 65535 repair 0 build 0 -> gold 4 lumber 3 repair 0 build 0
-```
-
-It only corrects those numbers: it gives no orders and changes nothing for your own workers. Like everything that
-changes the game, it is off in multiplayer. `false` leaves the game's bug as it is.
-
-### See what the computer player is doing
-
-```toml
-[general]
-log_ai = true
-```
-
-For working out why a computer player stopped attacking. Once a minute of play, every computer player that still has
-units writes one line to `x86\gameplay_options.log`:
-
-```
-ai: player 3 script 41 pc 0x3058 WAITFOR have_castle same pc for 12m | gold 3750 lum 1000 oil 4700 | food 24/60 |
-force land 13 sea 0 air 0 | foot 6/6 arch 3/3 siege 0/0 knight 4/4 | workers 8/8 | buildlist 9/13 |
-jobs gold 4 lum 3 rep 0
-```
-
-The computer runs a small script per player. `WAITFOR` is the one instruction that can block: it re-checks its
-condition every step for ever, so a computer that is waiting for something it can no longer get never attacks again
-while still gathering and building. The line says which instruction it is on, how long it has been there, and the
-numbers that instruction is waiting for, so you can see what is missing (in the example: a castle it cannot start
-because a castle costs 1200 lumber and it has 1000). After five minutes on the same instruction there is also a
-`ai: player 3 has been on WAITFOR have_castle for 5 min` line, repeated every five minutes.
-
-A script also sleeps on purpose between its steps. The line then reads `sleeping 9000 steps, then WAITFOR ...`, and
-sleeping never counts as being stuck: the five minutes only run while the script is awake and waiting.
-
-`jobs` is how many of its workers the computer believes are on gold, lumber and repairs. A number far above its worker
-count, such as 65535, is the savegame bug described above, left in place because `fix_ai_after_load` is off.
-
-This setting only reads: it never changes anything, for you or for the computer. Leave it off for normal play, it
-makes the log long.
+A `gameplay_options.toml` that still has these three keys keeps loading without complaint: the log says once that
+they moved to AI Fixes, and they do nothing here. Your own `[heal] cooldown_seconds` and `urgent_below_percent` stay
+here and are for your paladins only.
 
 ## Every setting
 
@@ -1275,8 +1215,6 @@ makes the log long.
 | priority | save_mana | true | A caster keeps its mana for a spell higher in its list instead of casting a cheaper one |
 | priority | hold_for_blocked_area | true | A Blizzard / Death and Decay with a target that only your own units block holds the caster: nothing further down its list is cast |
 | priority | paladin, mage, ogre_mage, death_knight | today's order | The order each caster tries its spells in, by `[spells]` name |
-| general | log_ai | false | Write what each computer player's script is waiting for, once a minute (read-only diagnostic) |
-| general | fix_ai_after_load | true | Put the computer's worker counts right after a savegame load, so it keeps cutting wood (a bug in the game) |
 | autocast | search_radius | 8 | Tiles a caster searches for targets (Raise Dead always looks 15 tiles around, like the computer) |
 | autocast | combat_radius | 6 | A unit counts as fighting when an enemy is this close to it |
 | autocast | own_units_only | true | Friendly spells skip allies' units |
@@ -1297,7 +1235,6 @@ makes the log long.
 | heal | min_missing_hp | 10 | Heal only units missing at least this many HP |
 | heal | cooldown_seconds | 0 | Seconds a paladin waits between Heal / Exorcism casts (0 to 600, 0 = off) |
 | heal | urgent_below_percent | 10 | A heal target at or below this share of its health ignores the cooldown (0 to 100) |
-| heal | cooldown_for_computer | true | The computer's paladins keep to cooldown_seconds as well |
 | heal | below_percent | 100 | Also require HP at or below this percent. 100 = off |
 | polymorph | targets | flyers, casters, big ground units | Valid targets in priority order |
 | haste | flyers_only | true | Haste only your air units |

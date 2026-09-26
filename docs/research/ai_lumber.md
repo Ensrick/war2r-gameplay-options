@@ -1,5 +1,8 @@
 # Why the computer stops cutting lumber (static RE, Warcraft II: Remastered 1.0.2.2818)
 
+> The code this describes moved to the AI Fixes mod (war2r-ai-fixes) when the computer-player fixes were split
+> out of Gameplay Options; this copy stays as the history of the finding.
+
 Issue #24 follow-up. Fixed by `[general] fix_ai_after_load` (last section). Static analysis only (Ghidra headless, capstone, the 1.23.0 `log_ai` session log); nothing here was
 run in the game. Inferred points are marked `[unverified]`. VA = RVA + 0x400000.
 

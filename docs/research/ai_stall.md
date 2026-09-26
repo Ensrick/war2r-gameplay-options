@@ -1,5 +1,8 @@
 # Why the computer player stops attacking (static RE, Warcraft II: Remastered 1.0.2.2818)
 
+> The code this describes moved to the AI Fixes mod (war2r-ai-fixes) when the computer-player fixes were split
+> out of Gameplay Options; this copy stays as the history of the finding.
+
 Target: `Warcraft II.exe` 1.0.2.2818, PE timestamp 1771967463, 32-bit, preferred base 0x400000; RVA = VA - 0x400000.
 Static analysis only: Ghidra 12.1.3 headless, capstone disassembly, raw dumps of `Data\Rez\ai.bin` and
 `Data\Rez\unitdata.dat`, and byte-level decoding of four savegames. **Nothing here was run in the game.** Anything

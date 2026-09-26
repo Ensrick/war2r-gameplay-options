@@ -3,7 +3,6 @@
 #include <windows.h>
 #include <cstring>
 
-#include "autocast.h"
 #include "config.h"
 #include "datatweaks.h"
 #include "game.h"
@@ -12,9 +11,6 @@
 
 static void* g_origTickCallee = nullptr;
 static void* g_origFinalizeTables = nullptr;
-static void* g_origAiExorcismRandom = nullptr;
-static void* g_origAiHeal = nullptr;
-static void* g_origAiExorcismScan = nullptr;
 
 // "mod" is an operator in MSVC inline assembly, so the stubs cannot name mod::OnTick directly.
 static void __cdecl TickThunk() { mod::OnTick(); }
@@ -44,122 +40,6 @@ static __declspec(naked) void MapLoadHookStub() {
         popad
         jmp dword ptr [g_origFinalizeTables]
     }
-}
-
-// --- The computer's paladins: the same [heal] cooldown as the player's ---
-//
-// These three stand in for a `call` inside the game's paladin AI (FUN_004cb2f0). Each one asks whether the caster may
-// cast, and either returns 0 in EAX without calling the game's function at all (the AI reads that as "nothing found"
-// and moves on) or calls it and, when it reports a cast, starts the timer. Only EAX carries a result at all three
-// sites - the game re-tests it right after the call - and a __cdecl thunk preserves EBX / ESI / EDI / EBP for us, so
-// nothing else has to be saved. The arguments stay untouched on the stack, where the game's function expects them.
-static int __cdecl AiHealAllowThunk(void* caster) { return autocast::ComputerHealAllowed(caster) ? 1 : 0; }
-static int __cdecl AiExorcismAllowThunk(void* caster) { return autocast::ComputerExorcismAllowed(caster) ? 1 : 0; }
-static void __cdecl AiCastThunk(void* caster) { autocast::NoteComputerCast(caster); }
-
-// Heal, `call FUN_004cb0e0` at 0x4CB323: the caster is the first argument, at [esp+4] once we are in here.
-static __declspec(naked) void AiHealStub() {
-    __asm {
-        pushfd
-        cld
-        mov eax, [esp + 8]
-        push eax
-        call AiHealAllowThunk
-        add esp, 4
-        popfd
-        test eax, eax
-        jz deny
-        call dword ptr [g_origAiHeal]
-        test eax, eax
-        jz done
-        push eax
-        pushfd
-        cld
-        mov eax, [esp + 0xC]
-        push eax
-        call AiCastThunk
-        add esp, 4
-        popfd
-        pop eax
-done:
-        ret
-deny:
-        xor eax, eax
-        ret
-    }
-}
-
-// Exorcism while the paladin is invisible, `call FUN_004cb030` at 0x4CB309: the caster is again the first argument.
-static __declspec(naked) void AiExorcismRandomStub() {
-    __asm {
-        pushfd
-        cld
-        mov eax, [esp + 8]
-        push eax
-        call AiExorcismAllowThunk
-        add esp, 4
-        popfd
-        test eax, eax
-        jz deny
-        call dword ptr [g_origAiExorcismRandom]
-        test eax, eax
-        jz done
-        push eax
-        pushfd
-        cld
-        mov eax, [esp + 0xC]
-        push eax
-        call AiCastThunk
-        add esp, 4
-        popfd
-        pop eax
-done:
-        ret
-deny:
-        xor eax, eax
-        ret
-    }
-}
-
-// Exorcism, `call FUN_004cb3e0` at 0x4CB35E: this one takes the filter first, so the caster is the SECOND argument,
-// at [esp+8]. A target found here is always cast at, right after the call.
-static __declspec(naked) void AiExorcismScanStub() {
-    __asm {
-        pushfd
-        cld
-        mov eax, [esp + 0xC]
-        push eax
-        call AiExorcismAllowThunk
-        add esp, 4
-        popfd
-        test eax, eax
-        jz deny
-        call dword ptr [g_origAiExorcismScan]
-        test eax, eax
-        jz done
-        push eax
-        pushfd
-        cld
-        mov eax, [esp + 0x10]
-        push eax
-        call AiCastThunk
-        add esp, 4
-        popfd
-        pop eax
-done:
-        ret
-deny:
-        xor eax, eax
-        ret
-    }
-}
-
-// True when the five bytes at siteRva are still `call calleeRva`.
-static bool CallSiteMatches(uintptr_t base, uint32_t siteRva, uint32_t calleeRva) {
-    const auto* site = reinterpret_cast<const uint8_t*>(base + siteRva);
-    int32_t rel;
-    memcpy(&rel, site + 1, sizeof(rel));
-    return site[0] == 0xE8 && reinterpret_cast<uintptr_t>(site) + 5 + rel == base + calleeRva;
 }
 
 // Redirects one `call rel32` after checking that it still calls what we expect.
@@ -200,32 +80,7 @@ bool Install(uintptr_t base) {
     // Optional second hook: without it only the map-start data tweaks (health, costs, vision) are lost.
     if (RedirectCall(base, game::kRvaMapLoadCallSite, game::kRvaFinalizeTables, &MapLoadHookStub, &g_origFinalizeTables, "map load"))
         logx::Write("map load hook installed");
-    // Optional, and all three or none: a paladin AI with only part of its spell attempts hooked would keep the
-    // cooldown for one spell and not the other.
-    if (AiPaladinSitesMatch(base)) {
-        RedirectCall(base, game::kRvaAiPaladinHealSite, game::kRvaAiCastIfFound, &AiHealStub, &g_origAiHeal, "AI heal");
-        RedirectCall(base, game::kRvaAiPaladinExorcismRandomSite, game::kRvaAiRandomTenCast, &AiExorcismRandomStub,
-                     &g_origAiExorcismRandom, "AI exorcism (invisible)");
-        RedirectCall(base, game::kRvaAiPaladinExorcismScanSite, game::kRvaAiScanBox, &AiExorcismScanStub,
-                     &g_origAiExorcismScan, "AI exorcism");
-        logx::Write("computer paladin hooks installed");
-    } else {
-        logx::Write("the computer's paladin AI does not look like the supported build: [heal] cooldown_for_computer is ignored");
-    }
     return true;
-}
-
-bool AiPaladinSiteMatches(uintptr_t base, int which) {
-    switch (which) {
-        case 0: return CallSiteMatches(base, game::kRvaAiPaladinHealSite, game::kRvaAiCastIfFound);
-        case 1: return CallSiteMatches(base, game::kRvaAiPaladinExorcismRandomSite, game::kRvaAiRandomTenCast);
-        case 2: return CallSiteMatches(base, game::kRvaAiPaladinExorcismScanSite, game::kRvaAiScanBox);
-        default: return false;
-    }
-}
-
-bool AiPaladinSitesMatch(uintptr_t base) {
-    return AiPaladinSiteMatches(base, 0) && AiPaladinSiteMatches(base, 1) && AiPaladinSiteMatches(base, 2);
 }
 
 }  // namespace hook

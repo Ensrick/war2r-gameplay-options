@@ -24,8 +24,6 @@
 #include "../src/scouts.h"
 #include "../src/spells.h"
 #include "../src/upgrades.h"
-#include "../src/aijobs.h"
-#include "../src/aiwatch.h"
 #include "../src/farms.h"
 #include "../src/trees.h"
 
@@ -438,402 +436,6 @@ static int LogCount(const wchar_t* dir, const char* text) {
     int hits = 0;
     for (const char* p = strstr(buf, text); p; p = strstr(p + 1, text)) ++hits;
     return hits;
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// [general] log_ai: the read-only computer-player diagnostic (src/aiwatch.cpp, docs/research/ai_stall.md).
-// A fake ai.bin blob and fake AI state blocks are written into the mapped image's own globals, so the decoding, the
-// range check and the two timers are exercised without any of the game running.
-// ---------------------------------------------------------------------------------------------------------------
-
-static char g_aiLines[8][512];
-static int g_aiLineCount = 0;
-static int g_aiStalls = 0;
-
-static void AiSink(const char* line) {
-    if (g_aiLineCount < 8) strcpy_s(g_aiLines[g_aiLineCount], sizeof g_aiLines[0], line);
-    ++g_aiLineCount;
-    if (strstr(line, "has been on")) {
-        strcpy_s(g_aiLines[7], sizeof g_aiLines[0], line);  // the newest stall line, whatever the report count
-        ++g_aiStalls;
-    }
-}
-
-static uint8_t g_aiBlob[256];
-
-// Points player `p`'s script at blob offset `off` and fills the fields the line prints.
-static void AiScript(int p, uint32_t off, uint8_t peasantTarget, uint8_t landSize, uint8_t landCount) {
-    uint8_t* st = At<uint8_t>(kRvaAiState) + p * kAiStateStride;
-    memset(st, 0, kAiStateStride);
-    *reinterpret_cast<const uint8_t**>(st + kAiOffPc) = g_aiBlob + off;
-    st[kAiOffPeasantTarget] = peasantTarget;
-    st[kAiOffLandWaveSize] = landSize;
-    st[kAiOffLandWaveCount] = landCount;
-    st[kAiOffFootTarget] = 6;
-    st[kAiOffArcherTarget] = 3;
-    st[kAiOffSiegeTarget] = 0;
-    st[kAiOffKnightTarget] = 4;
-    st[kAiOffBuildListLen] = 13;
-}
-
-static void AiReset() {
-    g_aiLineCount = 0;
-    g_aiStalls = 0;
-    aiwatch::ResetForTests();
-}
-
-// One tick of `ms` milliseconds of play through the real entry point.
-static void AiTick(unsigned ms) {
-    World w;
-    if (!BuildWorld(w)) {
-        CHECK(false, "aiwatch test: BuildWorld failed");
-        return;
-    }
-    aiwatch::OnTick(w, ms);
-}
-
-static void AiWatchTests() {
-    const bool savedLogAi = config::g.logAi;
-    aiwatch::SetSinkForTests(&AiSink);
-
-    memset(g_aiBlob, 0, sizeof g_aiBlob);
-    g_aiBlob[0x10] = kAiOpWaitFor;  g_aiBlob[0x11] = 2;      // WAITFOR have_castle
-    g_aiBlob[0x20] = kAiOpWaitFor;  g_aiBlob[0x21] = 4;      // WAITFOR landForce >= count * size
-    g_aiBlob[0x30] = kAiOpSleep;    *reinterpret_cast<uint32_t*>(g_aiBlob + 0x31) = 8000;
-    g_aiBlob[0x40] = kAiOpSet;      g_aiBlob[0x41] = 0x0D; g_aiBlob[0x42] = 6;
-    g_aiBlob[0x50] = kAiOpJump;     *reinterpret_cast<uint16_t*>(g_aiBlob + 0x51) = 0x0020;
-    g_aiBlob[0x60] = kAiOpWaitFor;  g_aiBlob[0x61] = 99;     // condition the report does not know
-    g_aiBlob[0x70] = 77;                                     // opcode the report does not know
-
-    *At<const uint8_t*>(kRvaAiScriptBlob) = g_aiBlob;
-    *At<uint32_t>(kRvaAiScriptBlobSize) = sizeof g_aiBlob;
-    *At<uint16_t>(kRvaGameFromSave) = 0;
-    memset(At<uint8_t>(kRvaController), 0, kMaxPlayers);
-    memset(At<uint8_t>(kRvaAiBuildDone), 0, kAiPlayerCount * kAiBuildListMax);
-    memset(At<uint8_t>(kRvaAiScriptId), 0, kMaxPlayers);
-    At<uint8_t>(kRvaController)[3] = 1;  // player 3 is the computer
-    At<uint8_t>(kRvaAiScriptId)[3] = 41;
-    At<int32_t>(kRvaPlayerGold)[3] = 3750;
-    At<int32_t>(kRvaPlayerLumber)[3] = 1000;
-    At<int32_t>(kRvaPlayerOil)[3] = 4700;
-    At<uint16_t>(kRvaFoodSupply)[3] = 60;
-    At<uint16_t>(kRvaUnitsCounted)[3] = 24;
-    At<uint16_t>(kRvaFoodFreeUnits)[3] = 0;
-    At<uint16_t>(kRvaLandForce)[3] = 13;
-    At<uint16_t>(kRvaSeaForce)[3] = 0;
-    At<uint16_t>(kRvaAirForce)[3] = 0;
-    At<uint16_t>(kRvaAiFootCount)[3] = 6;
-    At<uint16_t>(kRvaAiArcherCount)[3] = 3;
-    At<uint16_t>(kRvaAiSiegeCount)[3] = 0;
-    At<uint16_t>(kRvaAiKnightCount)[3] = 4;
-    At<uint16_t>(kRvaPeasantCount)[3] = 8;
-    for (int i = 0; i < 9; ++i) At<uint8_t>(kRvaAiBuildDone)[3 * kAiBuildListMax + i] = 1;  // buildlist 9/13
-    At<uint16_t>(kRvaAiGoldWorkers)[3] = 4;  // the worker-job counters, one of them wrapped by a load
-    At<uint16_t>(kRvaAiLumberWorkers)[3] = 0xFFFF;
-    At<uint16_t>(kRvaAiRepairWorkers)[3] = 1;
-
-    ResetWorld();
-    AddUnit(kTypeMage, 0, 10, 10, 60, 255, kOrderStand);  // the human, so BuildWorld succeeds
-    AddUnit(kGrunt, 3, 20, 20, 60, 0, kOrderStand);       // the computer still owns a unit
-    AiScript(3, 0x10, 8, 5, 1);
-
-    // The expected line, verbatim.
-    const char* kExpected =
-        "ai: player 3 script 41 pc 0x0010 WAITFOR have_castle same pc for 1m | gold 3750 lum 1000 oil 4700 | "
-        "food 24/60 | force land 13 sea 0 air 0 | foot 6/6 arch 3/3 siege 0/0 knight 4/4 | workers 8/8 | "
-        "buildlist 9/13 | jobs gold 4 lum 65535 rep 1";
-
-    // 1. Nothing before a minute of play, exactly one line at the minute, with the expected text.
-    config::g.logAi = true;
-    AiReset();
-    for (int i = 0; i < 59; ++i) AiTick(1000);
-    CHECK(g_aiLineCount == 0, "log_ai must not write before a minute of play (%d line(s))", g_aiLineCount);
-    AiTick(1000);
-    CHECK(g_aiLineCount == 1, "log_ai must write one line per computer player per minute (%d)", g_aiLineCount);
-    CHECK(g_aiLineCount == 1 && strcmp(g_aiLines[0], kExpected) == 0, "log_ai line text\n  want: %s\n  got:  %s",
-          kExpected, g_aiLineCount ? g_aiLines[0] : "(none)");
-
-    // 2. log_ai = false writes nothing at all.
-    config::g.logAi = false;
-    AiReset();
-    for (int i = 0; i < 120; ++i) AiTick(1000);
-    CHECK(g_aiLineCount == 0, "log_ai = false must log nothing (%d line(s))", g_aiLineCount);
-    config::g.logAi = true;
-
-    // 3. A program counter outside the blob is refused: no line, and nothing is read through it.
-    AiReset();
-    uint8_t* st = At<uint8_t>(kRvaAiState) + 3 * kAiStateStride;
-    *reinterpret_cast<const uint8_t**>(st + kAiOffPc) = g_aiBlob - 1;
-    for (int i = 0; i < 120; ++i) AiTick(1000);
-    CHECK(g_aiLineCount == 0, "a pc below the blob must produce no line (%d)", g_aiLineCount);
-    AiReset();
-    // The last kAiMaxInstructionSize bytes cannot hold a whole instruction either.
-    *reinterpret_cast<const uint8_t**>(st + kAiOffPc) = g_aiBlob + sizeof g_aiBlob - 2;
-    for (int i = 0; i < 120; ++i) AiTick(1000);
-    CHECK(g_aiLineCount == 0, "a pc without room for an instruction must produce no line (%d)", g_aiLineCount);
-    AiReset();
-    *reinterpret_cast<const uint8_t**>(st + kAiOffPc) = nullptr;
-    for (int i = 0; i < 120; ++i) AiTick(1000);
-    CHECK(g_aiLineCount == 0, "a null pc must produce no line (%d)", g_aiLineCount);
-
-    // 4. A blob the game has not loaded, and an unbelievable size, are both refused.
-    AiScript(3, 0x10, 8, 5, 1);
-    AiReset();
-    *At<const uint8_t*>(kRvaAiScriptBlob) = nullptr;
-    for (int i = 0; i < 120; ++i) AiTick(1000);
-    CHECK(g_aiLineCount == 0, "no script blob must produce no line (%d)", g_aiLineCount);
-    *At<const uint8_t*>(kRvaAiScriptBlob) = g_aiBlob;
-    AiReset();
-    *At<uint32_t>(kRvaAiScriptBlobSize) = 0x7FFFFFFF;
-    for (int i = 0; i < 120; ++i) AiTick(1000);
-    CHECK(g_aiLineCount == 0, "an out-of-range blob size must produce no line (%d)", g_aiLineCount);
-    *At<uint32_t>(kRvaAiScriptBlobSize) = sizeof g_aiBlob;
-
-    // 5. The stall line: after five minutes on the same instruction, not before, and then every five minutes.
-    AiScript(3, 0x10, 8, 5, 1);
-    AiReset();
-    for (int i = 0; i < 299; ++i) AiTick(1000);
-    CHECK(g_aiStalls == 0, "no stall line before five minutes (%d)", g_aiStalls);
-    AiTick(1000);
-    CHECK(g_aiStalls == 1, "one stall line at five minutes (%d)", g_aiStalls);
-    CHECK(strcmp(g_aiLines[7], "ai: player 3 has been on WAITFOR have_castle for 5 min") == 0,
-          "stall line text: %s", g_aiLines[7]);
-    for (int i = 0; i < 299; ++i) AiTick(1000);  // five minutes minus one step later
-    CHECK(g_aiStalls == 1, "the stall line must not repeat before another five minutes (%d)", g_aiStalls);
-    AiTick(1000);
-    CHECK(g_aiStalls == 2, "the stall line repeats every five minutes (%d)", g_aiStalls);
-    CHECK(strcmp(g_aiLines[7], "ai: player 3 has been on WAITFOR have_castle for 10 min") == 0,
-          "second stall line text: %s", g_aiLines[7]);
-
-    // 6. Moving the program counter clears the stall timer.
-    AiReset();
-    for (int i = 0; i < 299; ++i) AiTick(1000);
-    AiScript(3, 0x20, 8, 5, 1);  // the script moved on
-    for (int i = 0; i < 299; ++i) AiTick(1000);
-    CHECK(g_aiStalls == 0, "a moving pc must not report a stall (%d)", g_aiStalls);
-
-    // 6a. A SLEEP counting down is not a stall: the wait word is above the 1 a failed WAITFOR leaves, the program
-    // counter already points at the next instruction, and the stall clock only starts once the script is awake.
-    {
-        AiScript(3, 0x10, 8, 5, 1);
-        uint32_t steps = 9000;
-        memcpy(At<uint8_t>(kRvaAiState) + 3 * kAiStateStride + kAiOffWait, &steps, sizeof steps);
-        AiReset();
-        for (int i = 0; i < 400; ++i) AiTick(1000);
-        CHECK(g_aiStalls == 0, "a sleeping script must not be reported as stalled (%d)", g_aiStalls);
-        CHECK(g_aiLineCount >= 1 && strstr(g_aiLines[0], "sleeping 9000 steps, then WAITFOR have_castle same pc for 0m"),
-              "status line of a sleeping script: %s", g_aiLineCount ? g_aiLines[0] : "(no line)");
-        steps = 1;  // the sleep ran out, the WAITFOR now fails every step
-        memcpy(At<uint8_t>(kRvaAiState) + 3 * kAiStateStride + kAiOffWait, &steps, sizeof steps);
-        for (int i = 0; i < 299; ++i) AiTick(1000);
-        CHECK(g_aiStalls == 0, "the stall clock starts when the sleep ends, not before (%d)", g_aiStalls);
-        AiTick(1000);
-        CHECK(g_aiStalls == 1, "five minutes awake on the same WAITFOR is a stall (%d)", g_aiStalls);
-    }
-
-    // 7. Every opcode and condition decodes, and unknown ones print their number instead of a guess.
-    struct { uint32_t off; uint8_t size, count; const char* want; } kOps[] = {
-        {0x20, 6, 2, "WAITFOR landForce >= 12"},
-        {0x30, 0, 0, "SLEEP 8000"},
-        {0x40, 0, 0, "SET st[0x0D] = 6"},
-        {0x50, 0, 0, "JUMP 0x0020"},
-        {0x60, 0, 0, "WAITFOR cond 99"},
-        {0x70, 0, 0, "op 77"},
-    };
-    for (const auto& k : kOps) {
-        AiScript(3, k.off, 8, k.size, k.count);
-        AiReset();
-        for (int i = 0; i < 60; ++i) AiTick(1000);
-        CHECK(g_aiLineCount == 1 && strstr(g_aiLines[0], k.want) != nullptr,
-              "decoding %s from offset 0x%02X: %s", k.want, k.off, g_aiLineCount ? g_aiLines[0] : "(no line)");
-    }
-
-    // 8. A computer player with no live unit left is not reported; a human player never is.
-    AiScript(3, 0x10, 8, 5, 1);
-    ResetWorld();
-    AddUnit(kTypeMage, 0, 10, 10, 60, 255, kOrderStand);
-    AiReset();
-    for (int i = 0; i < 60; ++i) AiTick(1000);
-    CHECK(g_aiLineCount == 0, "a computer with no unit left must not be reported (%d)", g_aiLineCount);
-    At<uint8_t>(kRvaController)[3] = 0;
-    ResetWorld();
-    AddUnit(kTypeMage, 0, 10, 10, 60, 255, kOrderStand);
-    AddUnit(kGrunt, 3, 20, 20, 60, 0, kOrderStand);
-    AiReset();
-    for (int i = 0; i < 60; ++i) AiTick(1000);
-    CHECK(g_aiLineCount == 0, "a human player must never be reported (%d)", g_aiLineCount);
-
-    // Leave the image as the other tests expect it.
-    At<uint8_t>(kRvaController)[3] = 0;
-    memset(At<uint8_t>(kRvaAiState) + 3 * kAiStateStride, 0, kAiStateStride);
-    *At<const uint8_t*>(kRvaAiScriptBlob) = nullptr;
-    *At<uint32_t>(kRvaAiScriptBlobSize) = 0;
-    aiwatch::SetSinkForTests(nullptr);
-    aiwatch::ResetForTests();
-    config::g.logAi = savedLogAi;
-    ResetWorld();
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// [general] fix_ai_after_load (src/aijobs.cpp, docs/research/ai_lumber.md): a savegame load zeroes the computer's
-// worker-job counters but keeps the job bits, and the first release wraps a counter to 65535. The fix sets every
-// counter back to the number of units carrying its bit.
-// ---------------------------------------------------------------------------------------------------------------
-
-static char g_jobLines[4][768];
-static int g_jobLineCount = 0;
-
-static void JobSink(const char* line) {
-    if (g_jobLineCount < 4) strcpy_s(g_jobLines[g_jobLineCount], sizeof g_jobLines[0], line);
-    ++g_jobLineCount;
-}
-
-static Unit* AddWorker(uint8_t owner, uint16_t job, uint16_t kind, uint16_t state) {
-    Unit* u = AddUnit(kPeon, owner, 20 + g_unitCount % 40, 20 + g_unitCount / 40, 30, 0, kOrderStand);
-    Field<uint16_t>(u, kOffAiJob) = job;
-    Field<uint16_t>(u, kOffAiBuildKind) = kind;
-    Field<uint16_t>(u, kOffStateFlags) = state;
-    return u;
-}
-
-static uint16_t* JobGold() { return At<uint16_t>(kRvaAiGoldWorkers); }
-static uint16_t* JobLumber() { return At<uint16_t>(kRvaAiLumberWorkers); }
-static uint16_t* JobRepair() { return At<uint16_t>(kRvaAiRepairWorkers); }
-static uint16_t* JobBuild(int p) { return At<uint16_t>(kRvaAiBuilders) + p * kAiBuildKinds; }
-
-static void ClearJobCounters() {
-    memset(JobGold(), 0, kMaxPlayers * 2);
-    memset(JobLumber(), 0, kMaxPlayers * 2);
-    memset(JobRepair(), 0, kMaxPlayers * 2);
-    memset(JobBuild(0), 0, kMaxPlayers * kAiBuildKinds * 2);
-}
-
-// Player 3's counters as a savegame load leaves them after the first lumber worker delivered: everything zeroed,
-// then the lumber counter and one builder entry taken below zero.
-static void WrapJobCounters() {
-    ClearJobCounters();
-    JobLumber()[3] = 0xFFFF;
-    JobBuild(3)[5] = 0xFFFF;
-    JobGold()[0] = 7;  // the human's words: never read by the game, must never be touched
-    JobLumber()[0] = 9;
-}
-
-static void JobTick() {
-    World w;
-    if (!BuildWorld(w)) {
-        CHECK(false, "aijobs test: BuildWorld failed");
-        return;
-    }
-    aijobs::OnTick(w);
-}
-
-static bool JobsAreFixed() {
-    const uint16_t* b = JobBuild(3);
-    int others = 0;
-    for (int k = 0; k < kAiBuildKinds; ++k)
-        if (k != 0 && k != 5) others += b[k];
-    return JobGold()[3] == 2 && JobLumber()[3] == 3 && JobRepair()[3] == 1 && b[0] == 1 && b[5] == 1 && others == 0;
-}
-
-static void AiJobsTests() {
-    const bool savedFix = config::g.fixAiAfterLoad;
-    uint32_t* tf = At<uint32_t>(kRvaTypeFlags);
-    const uint32_t savedPeon = tf[kPeon], savedGrunt = tf[kGrunt];
-    tf[kPeon] = kTfFleshy | kTfWorker;
-    tf[kGrunt] = kTfFleshy | kTfAttacker;
-    memset(At<uint8_t>(kRvaController), 0, kMaxPlayers);
-    At<uint8_t>(kRvaController)[3] = 1;  // player 3 is the computer, player 0 the human
-    aijobs::SetSinkForTests(&JobSink);
-
-    ResetWorld();
-    AddUnit(kTypeMage, 0, 10, 10, 60, 255, kOrderStand);  // the human, so BuildWorld succeeds
-    AddWorker(3, kAiJobGold, 0, 0);
-    AddWorker(3, kAiJobGold, 0, 0x08);          // inside the mine: the removal path still releases it, so it counts
-    AddWorker(3, kAiJobLumber, 0, 0);
-    AddWorker(3, kAiJobLumber, 0, 0x80);        // other state bits above 7 do not matter either
-    AddWorker(3, kAiJobRepair, 0, 0);
-    AddWorker(3, kAiJobBuild, 5, 0);            // builder of kind 5
-    AddWorker(3, kAiJobBuildFarm, 0, 0);        // farm builder, kind 0
-    AddWorker(3, kAiJobLumber, 0, kStateDying); // dying: already released by FUN_004ee380, not counted
-    AddWorker(3, kAiJobLumber | kAiJobBuild, kAiBuildKinds, 0);  // lumber counts, a kind past the row does not
-    AddWorker(3, 0, 5, 0);                      // no job at all
-    Unit* grunt = AddUnit(kGrunt, 3, 50, 50, 60, 0, kOrderStand);
-    Field<uint16_t>(grunt, kOffAiJob) = kAiJobLumber;  // not a worker type: the game never releases it
-    AddWorker(0, kAiJobGold | kAiJobLumber, 0, 0);     // the human's peon: not the computer's business
-
-    // 1. The wrapped counters are put back, the human's words stay, and one line says what changed.
-    config::g.fixAiAfterLoad = true;
-    g_jobLineCount = 0;
-    WrapJobCounters();
-    JobTick();
-    CHECK(JobsAreFixed(), "recount after load: gold %u lumber %u repair %u build0 %u build5 %u", JobGold()[3],
-          JobLumber()[3], JobRepair()[3], JobBuild(3)[0], JobBuild(3)[5]);
-    CHECK(JobGold()[0] == 7 && JobLumber()[0] == 9, "the human player's counters must not be touched (%u %u)",
-          JobGold()[0], JobLumber()[0]);
-    const char* kWant =
-        "ai: recounted workers after load: player 3 gold 0 lumber 65535 repair 0 build 65535 -> gold 2 lumber 3 "
-        "repair 1 build 2";
-    CHECK(g_jobLineCount == 1 && strcmp(g_jobLines[0], kWant) == 0, "recount line\n  want: %s\n  got:  %s", kWant,
-          g_jobLineCount ? g_jobLines[0] : "(none)");
-
-    // 2. Idempotent: the next steps find nothing to do and say nothing.
-    for (int i = 0; i < 10; ++i) JobTick();
-    CHECK(JobsAreFixed() && g_jobLineCount == 1, "a second pass must change nothing (%d lines)", g_jobLineCount);
-
-    // 3. A fresh map, where the counters already match the units: not one write, not one line.
-    g_jobLineCount = 0;
-    for (int i = 0; i < 10; ++i) JobTick();
-    CHECK(JobsAreFixed() && g_jobLineCount == 0, "matching counters must be left alone (%d lines)", g_jobLineCount);
-
-    // 4. The off switch leaves the wrapped counters as the game has them.
-    config::g.fixAiAfterLoad = false;
-    WrapJobCounters();
-    for (int i = 0; i < 10; ++i) JobTick();
-    CHECK(JobLumber()[3] == 0xFFFF && JobBuild(3)[5] == 0xFFFF && JobGold()[3] == 0 && g_jobLineCount == 0,
-          "fix_ai_after_load = false must not write (lumber %u, %d lines)", JobLumber()[3], g_jobLineCount);
-    config::g.fixAiAfterLoad = true;
-
-    // 5. Multiplayer: the real entry point never gets as far as the recount.
-    WrapJobCounters();
-    *At<uint32_t>(kRvaNetGame) = 1;
-    for (int i = 0; i < 10; ++i) mod::OnTick();
-    *At<uint32_t>(kRvaNetGame) = 0;
-    CHECK(JobLumber()[3] == 0xFFFF && JobGold()[3] == 0 && g_jobLineCount == 0,
-          "a network game must not be touched (lumber %u, %d lines)", JobLumber()[3], g_jobLineCount);
-
-    // 6. ...and in single player the same entry point does run it.
-    mod::OnTick();
-    CHECK(JobsAreFixed() && g_jobLineCount == 1, "mod::OnTick must run the recount in single player (lumber %u)",
-          JobLumber()[3]);
-
-    // 7. A human player's slot is never recounted, even with job bits on its units.
-    At<uint8_t>(kRvaController)[3] = 0;
-    WrapJobCounters();
-    g_jobLineCount = 0;
-    JobTick();
-    CHECK(JobLumber()[3] == 0xFFFF && g_jobLineCount == 0, "a human slot must not be recounted (lumber %u)",
-          JobLumber()[3]);
-
-    // 8. A drift that comes back on every step is logged 20 times, then once more to say it stops logging.
-    At<uint8_t>(kRvaController)[3] = 1;
-    g_jobLineCount = 0;
-    for (int i = 0; i < 30; ++i) {
-        JobLumber()[3] = 0xFFFF;
-        JobTick();
-    }
-    CHECK(g_jobLineCount == 21 && JobsAreFixed(), "a repeating drift must stop logging after 20 lines (%d)",
-          g_jobLineCount);
-
-    // The log_ai line shows the three counters.
-    // (checked in AiWatchTests through the expected line)
-
-    ClearJobCounters();
-    memset(At<uint8_t>(kRvaController), 0, kMaxPlayers);
-    tf[kPeon] = savedPeon;
-    tf[kGrunt] = savedGrunt;
-    aijobs::SetSinkForTests(nullptr);
-    config::g.fixAiAfterLoad = savedFix;
-    ResetWorld();
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1828,84 +1430,6 @@ static void SpellNumberTests(const wchar_t* dir, const wchar_t* ini) {
     CHECK(AllSitesAreGame() && CostsAreGame(), "the test must leave the image as the game made it");
 }
 
-// ---- [heal] cooldown_for_computer: the computer's paladins keep to the same timer (src/hook.cpp) ----
-static void ComputerPaladinTests(const wchar_t* dir) {
-    // The hooks are three call sites inside the game's paladin AI. If a game patch moves any of them the mod must
-    // notice here, not in someone's game: Install() hooks all three or none.
-    const int savedCooldown = config::g.healCooldownSeconds, savedUrgent = config::g.healUrgentBelowPercent;
-    const bool savedForComputer = config::g.healCooldownForComputer, savedLog = config::g.logCasts;
-    ResetWorld();
-    autocast::OnNewMap();
-    Unit* pal = AddUnit(kTypePaladin, 1, 20, 20, 90, 255, kOrderStand);  // owner 1 is a computer player
-    Unit* friendly = AddUnit(kFootman, 1, 21, 20, 55, 0, kOrderStand);   // 55 of 60: worth healing, not urgent
-    Field<uint32_t>(pal, kOffSerial) = 4242;
-    At<uint16_t>(kRvaMaxHpByType)[kFootman] = 60;  // the data-table tests leave their own numbers behind
-    At<uint16_t>(kRvaMaxHpByType)[kTypePaladin] = 90;
-    config::g.logCasts = true;
-    config::g.healUrgentBelowPercent = 10;
-
-    config::g.healCooldownSeconds = 0;
-    CHECK(autocast::ComputerHealAllowed(pal), "without a cooldown the computer is never held back");
-    config::g.healCooldownSeconds = 5;
-    config::g.healCooldownForComputer = true;
-    CHECK(autocast::ComputerHealAllowed(pal) && autocast::ComputerExorcismAllowed(pal), "the first cast is allowed");
-
-    const unsigned blocked = autocast::ComputerBlockedCount();
-    autocast::NoteComputerCast(pal);
-    CHECK(!autocast::ComputerHealAllowed(pal) && !autocast::ComputerExorcismAllowed(pal),
-          "heal and exorcism share one timer");
-    CHECK(autocast::ComputerBlockedCount() == blocked + 2, "held-back casts are counted (%u)",
-          autocast::ComputerBlockedCount());
-
-    // A friend about to die is the player's own exception, and it is the computer's too. Exorcism has none.
-    Field<uint16_t>(friendly, kOffHp) = 5;  // 5 of 60
-    CHECK(autocast::ComputerHealAllowed(pal), "a nearly dead friend cannot wait for the timer");
-    CHECK(!autocast::ComputerExorcismAllowed(pal), "exorcism is never urgent");
-    Field<uint16_t>(friendly, kOffHp) = 55;
-    CHECK(!autocast::ComputerHealAllowed(pal), "a scratch waits for the timer");
-
-    autocast::AddPlayTime(5000);
-    CHECK(autocast::ComputerHealAllowed(pal), "the timer must run out");
-
-    // The paladin dies and its slot is reused: the new unit starts with a clean timer.
-    autocast::NoteComputerCast(pal);
-    CHECK(!autocast::ComputerHealAllowed(pal), "the timer is running again");
-    Field<uint32_t>(pal, kOffSerial) = 4243;
-    CHECK(autocast::ComputerHealAllowed(pal), "another unit in the same slot must not inherit the timer");
-    Field<uint32_t>(pal, kOffSerial) = 4242;
-
-    // Switched off, and never in a network game.
-    config::g.healCooldownForComputer = false;
-    CHECK(autocast::ComputerHealAllowed(pal), "cooldown_for_computer = false leaves the computer alone");
-    config::g.healCooldownForComputer = true;
-    CHECK(!autocast::ComputerHealAllowed(pal), "and true puts it back");
-    *At<uint32_t>(kRvaNetGame) = 1;
-    CHECK(autocast::ComputerHealAllowed(pal), "a network game runs the AI on every machine and must not be touched");
-    const unsigned held = autocast::ComputerBlockedCount();
-    autocast::NoteComputerCast(pal);
-    *At<uint32_t>(kRvaNetGame) = 0;
-    CHECK(autocast::ComputerBlockedCount() == held, "nothing is counted in a network game");
-
-    // The log line is throttled to one per 30 s of play.
-    const unsigned lines = autocast::ComputerBlockedLogCount();
-    for (int i = 0; i < 5; ++i) autocast::ComputerHealAllowed(pal);
-    CHECK(autocast::ComputerBlockedLogCount() == lines, "the log line must not repeat within 30 s (%u)",
-          autocast::ComputerBlockedLogCount());
-    autocast::AddPlayTime(30000);
-    autocast::NoteComputerCast(pal);
-    autocast::ComputerHealAllowed(pal);
-    CHECK(autocast::ComputerBlockedLogCount() == lines + 1 && LogContains(dir, "computer paladins kept to the heal cooldown"),
-          "one line per 30 s of play, and it says what it is");
-
-    config::g.healCooldownSeconds = savedCooldown;
-    config::g.healUrgentBelowPercent = savedUrgent;
-    config::g.healCooldownForComputer = savedForComputer;
-    config::g.logCasts = savedLog;
-    ResetWorld();
-    autocast::OnNewMap();
-    EnableEverythingForTests();
-}
-
 // ---- [autocast] resume_orders: give the attack-move back after the cast (src/resume.cpp) ----
 static void ResumeOrderTests(const wchar_t* dir) {
     const bool savedResume = config::g.resumeOrders, savedLog = config::g.logCasts;
@@ -2139,21 +1663,27 @@ static void HealCooldownTests(const wchar_t* dir, const wchar_t* ini) {
     CHECK(OrderOf(pal4) == 0x27, "cooldown 0 must heal again at once (order %u)", OrderOf(pal4));
 
     // The reader.
-    WriteFileText(ini, "[heal]\ncooldown_seconds = 601\nurgent_below_percent = 25\nbogus = 1\n"
-                       "cooldown_for_computer = false\n[unit.ballista]\nreact_range = 11\n");
+    WriteFileText(ini, "[general]\nlog_ai = true\nfix_ai_after_load = false\n[heal]\ncooldown_seconds = 601\n"
+                       "urgent_below_percent = 25\nbogus = 1\ncooldown_for_computer = false\n[unit.ballista]\nreact_range = 11\n");
     CHECK(config::Init(dir), "[heal] cooldown config rejected");
     CHECK(config::g.healCooldownSeconds == 600 && config::g.healUrgentBelowPercent == 25 &&
               LogContains(dir, "unknown key [heal] bogus"),
           "[heal] cooldown_seconds clamps to 600 and urgent_below_percent reads (%d %d)", config::g.healCooldownSeconds,
           config::g.healUrgentBelowPercent);
-    CHECK(!config::g.healCooldownForComputer && config::g.unitStat[4][kStatReactRange] == 11 &&
+    // The three keys that moved to AI Fixes: accepted without a typo line, named once as moved.
+    CHECK(LogCount(dir, "config: [general] log_ai, [general] fix_ai_after_load, [heal] cooldown_for_computer moved to "
+                        "AI Fixes (ai_fixes.toml); ignored here") == 1 &&
+              !LogContains(dir, "unknown key [general] log_ai") && !LogContains(dir, "unknown key [general] fix_ai_after_load"),
+          "the keys that moved to AI Fixes must be named once, not reported as typos");
+    CHECK(config::Init(dir) && LogCount(dir, "moved to AI Fixes") == 1, "the moved-keys line comes once per session");
+    CHECK(config::g.unitStat[4][kStatReactRange] == 11 &&
               !LogContains(dir, "unknown key [heal] cooldown_for_computer") &&
               !LogContains(dir, "unknown key [unit.ballista] react_range"),
           "every key the reader accepts must be in the known-key list, or the player is told it is a typo");
     DeleteFileW(ini);
     CHECK(config::Init(dir), "the default config did not come back");
-    CHECK(config::g.healCooldownSeconds == 0 && config::g.healUrgentBelowPercent == 10 && config::g.healCooldownForComputer,
-          "the shipped defaults are cooldown 0, urgent 10 %% and the computer on the same timer");
+    CHECK(config::g.healCooldownSeconds == 0 && config::g.healUrgentBelowPercent == 10,
+          "the shipped defaults are cooldown 0 and urgent 10 %%");
 
     maxHp[kFootman] = savedFootmanHp;
     maxHp[kSkeleton] = savedSkeletonHp;
@@ -4796,11 +4326,18 @@ int wmain(int argc, wchar_t** argv) {
     mod::SetModuleBase(g_base, dir);
 
     // 1. Hook install against the real bytes.
-    for (int i = 0; i < 3; ++i)
-        CHECK(hook::AiPaladinSiteMatches(g_base, i), "paladin AI call site %d moved (FUN_004cb2f0, see game.h)", i);
     CHECK(hook::Install(g_base), "hook::Install rejected the supported exe");
-    for (int i = 0; i < 3; ++i)
-        CHECK(!hook::AiPaladinSiteMatches(g_base, i), "Install left paladin AI call site %d unhooked", i);
+    // The computer's paladin AI moved to AI Fixes: Install must leave its three calls to the game (and to that mod).
+    {
+        const uint32_t sites[3][2] = {{0xCB309, 0xCB030}, {0xCB323, 0xCB0E0}, {0xCB35E, 0xCB3E0}};
+        for (const auto& s : sites) {
+            const auto* at = reinterpret_cast<const uint8_t*>(g_base + s[0]);
+            int32_t r;
+            memcpy(&r, at + 1, 4);
+            CHECK(at[0] == 0xE8 && reinterpret_cast<uintptr_t>(at) + 5 + r == g_base + s[1],
+                  "Install touched the paladin AI call at 0x%06X, which belongs to AI Fixes now", 0x400000 + s[0]);
+        }
+    }
     const auto* site = reinterpret_cast<const uint8_t*>(g_base + kRvaTickCallSite);
     int32_t rel;
     memcpy(&rel, site + 1, 4);
@@ -7746,8 +7283,6 @@ int wmain(int argc, wchar_t** argv) {
         ResetWorld();
     }
 
-    AiWatchTests();
-    AiJobsTests();
     FarmTests();
     LiveStatsTests(dir);
     SpellNumberTests(dir, ini);
@@ -7755,7 +7290,6 @@ int wmain(int argc, wchar_t** argv) {
     DamageTypeTests(dir, ini);
     HealCooldownTests(dir, ini);
     ResumeOrderTests(dir);
-    ComputerPaladinTests(dir);
     ProductionTests(dir, ini);
     ScoutTests(dir, ini);
     DodgeTests(dir);

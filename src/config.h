@@ -221,8 +221,6 @@ struct Config {
     int toggleKey = 0x78;         // VK_F9, pressed together with Ctrl
     int intervalTicks = 10;       // game steps between autocast passes
     bool logCasts = false;
-    bool logAi = false;           // read-only diagnostic for the computer players, see src/aiwatch.cpp
-    bool fixAiAfterLoad = true;   // recount the computer's worker-job counters a savegame load wiped, see src/aijobs.cpp
 
     // [autocast]
     int searchRadius = 8;         // tiles around the caster
@@ -251,7 +249,6 @@ struct Config {
     int healMinMissingHp = 10;    // a scratch is not worth a paladin's attention
     int healBelowPct = 100;
     int healCooldownSeconds = 0;   // shared by Heal and Exorcism, per caster, 0 = no cooldown
-    bool healCooldownForComputer = true;  // the computer's paladins keep to the same timer
     int healUrgentBelowPercent = 10;  // a heal target at or below this share of its maximum hit points cannot wait       // optional extra gate, 100 = off
 
     // [polymorph] targets: rank by unit type, 1 = first choice, 0 = never

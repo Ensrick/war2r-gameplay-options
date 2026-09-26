@@ -2,8 +2,6 @@
 
 #include <windows.h>
 
-#include "aijobs.h"
-#include "aiwatch.h"
 #include "autocast.h"
 #include "config.h"
 #include "datatweaks.h"
@@ -132,7 +130,6 @@ void __cdecl OnTick() {
 
     World w;
     if (!BuildWorld(w)) return;
-    aijobs::OnTick(w);  // a game bug: a savegame load leaves the computer's worker-job counters out of step
     tweaks::OnTick(w, elapsedMs);
     workers::OnTick(w, elapsedMs);
     farms::OnTick(w, elapsedMs);
@@ -140,7 +137,6 @@ void __cdecl OnTick() {
     dodge::OnTick(w, elapsedMs);
     production::OnTick(w, elapsedMs);
     trees::OnTick(w, elapsedMs);
-    aiwatch::OnTick(w, elapsedMs);  // reads only: never drives the computer player
     autocast::AddPlayTime(elapsedMs);
     if (g_tick % static_cast<unsigned>(config::g.intervalTicks) == 0) {
         if (config::g.enabled) {
