@@ -17,6 +17,22 @@ turn it on.
    is reported in the log as "unknown key" instead of being silently ignored.
 3. **Delete to reset.** Delete `gameplay_options.toml` and the default file is written again the next time a game starts.
 
+### When do changes apply?
+
+Almost everything applies the moment you save. The unit and building numbers (`[health]`, `[costs]`, `[time]`,
+`[unit.*]`, `[building.*]`: hit points, armor, damage, range, sight, prices, build and research times) apply right away
+too, **in a game that started as a new map while the mod was running** (new mission, custom game, restart): the mod
+kept a copy of the game's own numbers from that map's start, puts them back and applies your settings to them again,
+so saving the same file ten times changes nothing, and setting a multiplier back to 1.0 gives you the game's own value
+again. Units already on the map keep the same share of their hit points (a footman at half health stays at half
+health of the new maximum); a building still under construction keeps its progress; units in training come out with
+the new numbers. The log gets one line per reload: `settings reloaded: unit stats applied again ...`.
+
+**After loading a savegame**, the unit and building numbers wait for the next new map: a savegame carries the numbers
+it was made with, and the mod has no copy of that map's original numbers to start from. The log says so once:
+`unit stats reload at the next new map (game loaded from a save)`. Gold in the mines (`[gold_mines] amount`) is only
+ever multiplied when a new map starts. Nothing of this happens in multiplayer.
+
 ## How the file is written (TOML in one minute)
 
 ```toml
@@ -498,9 +514,10 @@ unlimited = true
 
 ### Health, prices, build times: the multipliers
 
-`[health]`, `[costs]` and `[time]` change the game's unit, structure and research data. They are read **when a new map
-starts** (new mission, custom game, restart), not in the middle of a game, and a savegame keeps the numbers it was made
-with. The computer plays by the same numbers.
+`[health]`, `[costs]` and `[time]` change the game's unit, structure and research data. They apply when a new map
+starts and again every time you save the file during that game (see "When do changes apply?" above); after a savegame
+load they wait for the next new map, because a savegame keeps the numbers it was made with. The computer plays by the
+same numbers.
 
 All three share one layout, and the values **multiply into each other from the top down**:
 

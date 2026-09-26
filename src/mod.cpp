@@ -106,7 +106,10 @@ void __cdecl OnTick() {
     ++g_tick;
     if (g_tick % 64 == 0) {
         const int reloaded = config::ReloadIfChanged();
-        if (reloaded > 0) ShowMessage("Gameplay Options: settings reloaded");
+        if (reloaded > 0) {
+            ShowMessage("Gameplay Options: settings reloaded");
+            datatweaks::OnConfigReloaded(*At<uint32_t>(kRvaNetGame) != 0);
+        }
         if (reloaded < 0) ShowMessage("Gameplay Options: gameplay_options.toml has an error, see gameplay_options.log");
     }
     PollToggleKeys();
