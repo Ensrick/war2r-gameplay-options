@@ -106,6 +106,11 @@ the best spot it can reach is worth less than `area_settle_percent` (50 %) of th
 casts nothing at all and waits, and the log says why (`holding: mage ... for blizzard: a better target 11 tiles away
 (human_guard_tower)`). It does **not** walk there by itself: move the mage a few steps and the blizzard goes off.
 
+A blizzard that is already falling moves too: when the spot it is on has become worth less than
+`area_settle_percent` of the best spot in reach (the targets there died or walked off, or a bigger group arrived
+next to it), the mod stops it and casts again at the better spot (`channel stopped: ... re-aiming: better spot at
+x,y` in the log). At most once every 5 seconds per caster, and never to a spot right next to the current one.
+
 **Blizzard before everything else.** While there is a target worth `area_reserve_value` (4: one tower, a barracks, or
 four units) within reach plus the lookahead, the caster keeps the mana for one full Blizzard or Death and Decay (three
 waves) and its other spells only spend what is above that (`reserving: ...` in the log). With no such target around,

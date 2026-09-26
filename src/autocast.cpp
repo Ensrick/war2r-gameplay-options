@@ -1272,7 +1272,67 @@ BlastLeft WhatIsLeft(const World& w, const Channel& c) {
     return b;
 }
 
-const char* StopReason(const World& w, const Channel& c) {
+// What one more wave at x, y is worth by the pick's own measure (PickCoverageAim's value): every enemy the pattern
+// reaches, expected damage capped at the hit points it has left, times area_building_value and [area_values].
+int AimValueRaw(const World& w, uint8_t order, int x, int y) {
+    const Size* sizes = At<Size>(kRvaUnitSizeByType);
+    Unit* seen[kMaxAreaEnemies];
+    int n = 0, value = 0;
+    ScanTileRaw(w, x, y, kPatternHalf + 1 + kMaxBuildingSize - 1, [&](Unit* u) {
+        if (!IsTarget(w, w.localPlayer, u)) return false;
+        for (int i = 0; i < n; ++i)
+            if (seen[i] == u) return false;
+        if (n >= kMaxAreaEnemies) return true;
+        seen[n++] = u;
+        const Size s = sizes[TypeOf(u)];
+        const int c2x = 2 * X(u) + (s.w ? s.w : 1), c2y = 2 * Y(u) + (s.h ? s.h : 1);
+        const AxisHits hx = HitsOnAxis(x, c2x), hy = HitsOnAxis(y, c2y);
+        if (!hx.any || !hy.any) return false;
+        const bool building = (w.typeFlags[TypeOf(u)] & kTfBuilding) != 0;
+        const int weight = (building ? config::g.areaBuildingValue : 1) * config::g.areaValues.pct[TypeOf(u)];
+        const int expected = ExpectedTenths(order, hx, hy), left = 10 * Field<uint16_t>(u, kOffHp);
+        value += weight * (expected < left ? expected : left) / 100;
+        return false;
+    });
+    return value;
+}
+
+// Re-aiming: a channel stays on its first tile, often the nearest thing, while the targets there die or walk off and
+// a bigger group stands a few tiles away. Once the current tile is worth less than area_settle_percent of the best
+// spot in reach (the same pick a new cast would make: friendly clearance, claims, gate, overkill), the channel is
+// stopped and the next pass casts there. Never for a spot within 2 tiles of the current one (the claim of the running
+// channel keeps them 5 tiles apart anyway), and at most once per 5 s of play per caster.
+constexpr uint32_t kReaimEveryMs = 5000;
+constexpr int kReaimMinDistance = 2;
+struct ReaimNote {
+    uint32_t serial;
+    uint32_t lastMs;
+    bool used;
+};
+ReaimNote g_reaimNotes[kMaxNoteSlots];
+char g_reaimWhy[128];
+
+const char* ReaimReason(const World& w, const Channel& c) {
+    if (config::g.areaSettlePercent <= 0) return nullptr;
+    const unsigned slot = NoteSlot(w, c.caster);
+    if (slot >= kMaxNoteSlots) return nullptr;
+    ReaimNote& n = g_reaimNotes[slot];
+    if (n.used && n.serial == c.serial && g_playMs - n.lastMs < kReaimEveryMs) return nullptr;
+    AreaWhy why;
+    const AreaPick pick = PickCoverageAim(w, c.caster, c.order, Reach(c.order), config::g.areaFriendlyClearance, kChannelWalls,
+                                          WaveDamage(c.order), why);
+    if (!pick.found) return nullptr;
+    const int dx = abs(pick.x - c.x), dy = abs(pick.y - c.y);
+    if ((dx > dy ? dx : dy) <= kReaimMinDistance) return nullptr;
+    const int now = AimValueRaw(w, c.order, c.x, c.y);
+    if (static_cast<long long>(now) * 100 >= static_cast<long long>(config::g.areaSettlePercent) * pick.raw) return nullptr;
+    n = {c.serial, g_playMs, true};
+    sprintf_s(g_reaimWhy, "re-aiming: better spot at %d,%d worth %d (this one %d)", pick.x, pick.y, (pick.raw + 5) / 10,
+              (now + 5) / 10);
+    return g_reaimWhy;
+}
+
+const char* StopReason(const World& w, const Channel& c, bool reaim) {
     if (FriendlyInDanger(w, c.x, c.y, config::g.areaFriendlyClearance, c.caster, -1))
         return "a friendly unit or building is in the area";
     if (CountEnemies(w, w.localPlayer, c.x, c.y, kChannelReach, false) == 0) return "no enemy left in reach";
@@ -1296,11 +1356,11 @@ const char* StopReason(const World& w, const Channel& c) {
                 return "the buildings in the area are covered by the waves already cast";
         }
     }
-    return nullptr;
+    return reaim ? ReaimReason(w, c) : nullptr;
 }
 
 // Stops (stop handler, positional at the caster's own tile) every channel the mod started that turned unsafe or useless.
-void GuardChannelsImpl(const World& w) {
+void GuardChannelsImpl(const World& w, bool reaim) {
     int kept = 0;
     for (int i = 0; i < g_channelCount; ++i) {
         const Channel c = g_channels[i];
@@ -1310,7 +1370,7 @@ void GuardChannelsImpl(const World& w) {
         if (!InUnitArray(w, u) || Field<uint32_t>(u, kOffSerial) != c.serial || !IsActive(u) || OrderOf(u) != c.order ||
             Field<int16_t>(u, kOffOrderX) != c.x || Field<int16_t>(u, kOffOrderY) != c.y)
             continue;
-        const char* why = StopReason(w, c);
+        const char* why = StopReason(w, c, reaim);
         if (!why) {
             g_channels[kept++] = c;
             continue;
@@ -1535,7 +1595,7 @@ void PassImpl(const World& w) {
         g_claims[g_claimCount++] = {order, Field<Unit*>(u, kOffOrderTarget), Field<int16_t>(u, kOffOrderX),
                                     Field<int16_t>(u, kOffOrderY)};
     }
-    GuardChannelsImpl(w);
+    GuardChannelsImpl(w, true);  // re-aiming only here: the next lines of this pass cast at the better spot
 
     for (unsigned i = 0; i < w.unitCount; ++i) {
         Unit* u = UnitAt(w, i);
@@ -1634,6 +1694,7 @@ void OnNewMap() {
     memset(g_raiseNotes, 0, sizeof(g_raiseNotes));
     memset(g_areaNotes, 0, sizeof(g_areaNotes));
     memset(g_saveNotes, 0, sizeof(g_saveNotes));
+    memset(g_reaimNotes, 0, sizeof(g_reaimNotes));
     memset(g_reserveNotes, 0, sizeof(g_reserveNotes));
     memset(g_holdNotes, 0, sizeof(g_holdNotes));
     g_channelCount = 0;
@@ -1645,7 +1706,7 @@ const char* LastRaiseDeadNote() { return g_lastRaiseNote; }
 
 void GuardChannels(const game::World& w) {
     CollectFriendlyBuildings(w);
-    GuardChannelsImpl(w);
+    GuardChannelsImpl(w, false);  // autocast is off: nothing would cast at a better spot, so never stop for one
 }
 
 }  // namespace autocast

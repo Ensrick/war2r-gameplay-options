@@ -2624,6 +2624,99 @@ static void AreaValueTests(const wchar_t* dir, const wchar_t* ini) {
     ResetWorld();
 }
 
+// Re-aiming a running channel (1.33): the watchdog stops a Blizzard whose tile has become worth less than
+// area_settle_percent of the best spot in reach, and the same pass casts there. At most once per 5 s per caster.
+static void ReaimTests(const wchar_t* dir) {
+    constexpr uint8_t kFarm = 0x3A, kTower = 0x60;
+    struct Sz { uint16_t w, h; };
+    Sz* sizes = At<Sz>(kRvaUnitSizeByType);
+    uint32_t* tf = At<uint32_t>(kRvaTypeFlags);
+    const Sz savedSz[2] = {sizes[kFarm], sizes[kTower]};
+    const uint32_t savedTf[3] = {tf[kFarm], tf[kTower], tf[kGrunt]};
+    sizes[kFarm] = sizes[kTower] = {2, 2};
+    tf[kFarm] = tf[kTower] = kTfBuilding;
+    tf[kGrunt] = kTfFleshy | kTfAttacker;
+    bool savedSpells[kSpellCount];
+    memcpy(savedSpells, config::g.spell, sizeof(savedSpells));
+    const Priority savedPriority = config::g.priority;
+    const bool savedLog = config::g.logCasts;
+    config::g.logCasts = true;
+    for (int i = 0; i < kSpellCount; ++i) config::g.spell[i] = i == kSpellBlizzard;
+    config::g.areaValues = AreaValues();  // farms 0.3, towers 3
+    config::g.areaSettlePercent = 50;
+    config::g.channelManaReserve = 0;
+    int8_t* l = config::g.priority.list[kCasterMage];
+    l[0] = kSpellBlizzard;
+    l[1] = -1;
+    auto building = [&](uint8_t type, int x, int y, int hp) {
+        Unit* b = AddUnit(type, 1, x, y, hp, 0, kOrderStand);
+        Field<uint16_t>(b, kOffStateFlags) = kStateComplete;
+        for (int dy = 0; dy < 2; ++dy)
+            for (int dx = 0; dx < 2; ++dx) g_grid[(y + dy) * kMap + x + dx] = b;
+        return b;
+    };
+    auto ox = [](Unit* u) { return static_cast<int>(Field<int16_t>(u, kOffOrderX)); };
+    auto oy = [](Unit* u) { return static_cast<int>(Field<int16_t>(u, kOffOrderY)); };
+
+    // The nearest thing, a farm, gets the channel; then three grunts gather 6 tiles off, worth well over twice as much.
+    ResetWorld();
+    autocast::OnNewMap();
+    Unit* mg = AddUnit(kTypeMage, 0, 20, 20, 60, 255, kOrderStand);
+    Field<uint32_t>(mg, kOffSerial) = 8801;
+    building(kFarm, 23, 19, 400);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == kOrderBlizzard && oy(mg) <= 22 && autocast::ChannelCount() == 1,
+          "re-aim setup: blizzard at the farm (order %u at %d,%d)", OrderOf(mg), ox(mg), oy(mg));
+    const int farmX = ox(mg), farmY = oy(mg);
+    Unit* g1 = AddUnit(kGrunt, 1, 26, 25, 60, 0, kOrderAttack);
+    AddUnit(kGrunt, 1, 27, 25, 60, 0, kOrderAttack);
+    AddUnit(kGrunt, 1, 26, 26, 60, 0, kOrderAttack);
+    config::g.areaSettlePercent = 0;  // off: the channel stays on the farm
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == kOrderBlizzard && ox(mg) == farmX && oy(mg) == farmY,
+          "area_settle_percent = 0: the channel must stay on the farm (order %u at %d,%d)", OrderOf(mg), ox(mg), oy(mg));
+    config::g.areaSettlePercent = 50;
+    {
+        World w;
+        BuildWorld(w);
+        autocast::GuardChannels(w);  // autocast switched off (Ctrl+F9): the watchdog never stops for a better spot
+    }
+    CHECK(OrderOf(mg) == kOrderBlizzard && ox(mg) == farmX, "with autocast off the watchdog must not re-aim (order %u)", OrderOf(mg));
+    {
+        const int before = LogCount(dir, "re-aiming: better spot at");
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderBlizzard && oy(mg) >= 24 && LogCount(dir, "re-aiming: better spot at") == before + 1,
+              "the channel must move from the farm to the grunts (order %u at %d,%d)", OrderOf(mg), ox(mg), oy(mg));
+    }
+    // Within 5 s no second re-aim, even for a far better spot: a guard tower appears and the grunts are made worthless.
+    const int groupX = ox(mg), groupY = oy(mg);
+    config::g.areaValues.pct[kGrunt] = 10;
+    building(kTower, 17, 13, 130);
+    autocast::AddPlayTime(4000);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == kOrderBlizzard && ox(mg) == groupX && oy(mg) == groupY,
+          "a second re-aim within 5 s (order %u at %d,%d)", OrderOf(mg), ox(mg), oy(mg));
+    autocast::AddPlayTime(1000);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == kOrderBlizzard && oy(mg) <= 16, "after 5 s the channel goes to the tower (order %u at %d,%d)", OrderOf(mg),
+          ox(mg), oy(mg));
+    (void)g1;
+
+    config::g.priority = savedPriority;
+    memcpy(config::g.spell, savedSpells, sizeof(savedSpells));
+    config::g.logCasts = savedLog;
+    SetLegacyAreaRules();
+    config::g.areaValues = AreaValues();
+    for (uint16_t& v : config::g.areaValues.pct) v = 100;
+    sizes[kFarm] = savedSz[0];
+    sizes[kTower] = savedSz[1];
+    tf[kFarm] = savedTf[0];
+    tf[kTower] = savedTf[1];
+    tf[kGrunt] = savedTf[2];
+    autocast::OnNewMap();
+    ResetWorld();
+}
+
 
 // [dodge] (src/dodge.cpp): the player's units step out of a falling Blizzard / Death and Decay and hold at its edge
 // instead of walking in, and get their order back once it is gone.
@@ -7472,6 +7565,7 @@ int wmain(int argc, wchar_t** argv) {
     ScoutTests(dir, ini);
     DodgeTests(dir);
     AreaValueTests(dir, ini);
+    ReaimTests(dir);
 
     // TOML config: a custom file is honoured, typos and bad values are survivable, a syntax error keeps old settings.
     WriteFileText(ini,
