@@ -1,3 +1,8 @@
+[size=4][b]1.33.0[/b][/size]
+[list]
+[*]A running Blizzard or Death and Decay no longer burns the whole mana bar on the first spot it chose: when a spot worth at least twice as much is in reach (area_settle_percent), the caster stops and casts there instead. At most once per 5 seconds per caster, never for a spot within 2 tiles, and the log says why.
+[/list]
+
 [size=4][b]1.32.0[/b][/size]
 [list]
 [*]Blizzard and Death and Decay now value what they hit: guard and cannon towers count 3x, barracks, halls and other production buildings, casters and siege 1.5x, farms, walls, scout towers and oil platforms 0.3x ([area_values] changes any of them).

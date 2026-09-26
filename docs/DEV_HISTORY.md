@@ -15,6 +15,13 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.33.0 (2026-09-25, UNTESTED in game, NOT released)
+
+- Author: "when groups of objects are together sometimes they waste all mana on one that's close by". The 1.30.0 log:
+  37 of 105 channels ran to empty mana with no stop, 13 on spots of 1-2 building tiles; the watchdog never compared the
+  running tile with anything else. Now it does (settle rule), with a 2-tile and 5 s guard. Other spells are one-shot and
+  re-pick every pass, so they cannot get stuck the same way. 4 of 5 mutations caught, the survivor is equivalent.
+
 ## 1.32.0 (2026-09-25, UNTESTED in game, NOT released)
 
 - Author, after a 1.30.0 game (112 blizzards, many on 8-12 building tiles and 0 units): "Blizzard/death and decay should

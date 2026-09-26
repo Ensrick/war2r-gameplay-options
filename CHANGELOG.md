@@ -7,6 +7,12 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.33.0 - 2026-09-25
+
+- A running Blizzard or Death and Decay no longer burns the whole mana bar on the first spot it chose: when a spot
+  worth at least twice as much is in reach (area_settle_percent), the caster stops and casts there instead. At most
+  once per 5 seconds per caster, never for a spot within 2 tiles, and the log says why.
+
 ## 1.32.0 - 2026-09-25
 
 - Blizzard and Death and Decay now value what they hit: guard and cannon towers count 3x, barracks, halls and other
