@@ -132,8 +132,21 @@ area_building_value = 3
 # gives a cast up, the mod moves the aim a tile or two off the target, away from your units: the waves scatter widely
 # enough to keep hitting it. The watchdog that stops a running channel uses the same number.
 area_friendly_clearance = 4
+# Blizzard / Death and Decay also look this many tiles past their reach for a better spot. When the best spot in reach
+# is worth less than area_settle_percent of that one, the caster casts nothing and waits: move it a few steps closer.
+lookahead_tiles = 8
+area_settle_percent = 50
+# While a target worth this many plain units (a guard tower is 9, a barracks 4.5, a farm 0.9) is that close, the caster
+# keeps the mana for one full Blizzard / Death and Decay and its other spells only spend what is above it. 0 = off.
+area_reserve_value = 4.0
 # Fireball needs at least this many enemies along its path (1 = the computer's own rule).
 fireball_min_enemies = 2
+
+# What hitting a type is worth to Blizzard / Death and Decay, 0 to 10. Defaults: guard and cannon towers 3; barracks,
+# halls and other production buildings, casters and siege 1.5; farms, scout towers, oil platforms and walls 0.3;
+# everything else 1. Add a line to change one:
+# [area_values]
+# human_guard_tower = 3.0
 
 [priority]
 # The order each caster tries its spells in, by [spells] name. These lists are the defaults. A misspelled name, or one

@@ -15,6 +15,16 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.32.0 (2026-09-25, UNTESTED in game, NOT released)
+
+- Author, after a 1.30.0 game (112 blizzards, many on 8-12 building tiles and 0 units): "Blizzard/death and decay should
+  be ... higher than all the others", "they'll often waste it on farms or other innocuous buildings when there are enemy
+  towers and troops nearby". Agent aoe-aim: per-type values, a lookahead of 8 tiles past reach with a 50 % settle rule
+  (hold instead of casting on the cheap spot), and a mana reserve for one full area cast while a worthwhile target is
+  near. 7 mutations, 7 caught. Old area-spell tests pinned to the legacy rules via SetLegacyAreaRules.
+- His other point ("units still getting caught in blizzards") came from a game that ran 1.30.0: dodge was installed
+  only afterwards.
+
 ## 1.31.1 (2026-09-25, UNTESTED in game)
 
 - Writing the two missing tests exposed a real bug: "away from the aim" ranked by Chebyshev distance, which is equal on

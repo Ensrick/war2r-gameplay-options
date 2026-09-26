@@ -7,6 +7,17 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.32.0 - 2026-09-25
+
+- Blizzard and Death and Decay now value what they hit: guard and cannon towers count 3x, barracks, halls and other
+  production buildings, casters and siege 1.5x, farms, walls, scout towers and oil platforms 0.3x (`[area_values]`
+  changes any of them).
+- No more wasted Blizzards on a pair of farms when a tower or an army is a few tiles further: when the best spot in
+  reach is worth less than `area_settle_percent` (50) of the best one within `lookahead_tiles` (8) more, the caster
+  waits; move it a few steps closer. The log says what it waits for.
+- Area spells come first: while a target worth `area_reserve_value` (4, one barracks or four units) is that close, the
+  caster keeps the mana for one full Blizzard or Death and Decay and only spends the rest on other spells.
+
 ## 1.31.1 - 2026-09-25
 
 - Fixed in `[dodge]`: units stepping out of a Blizzard or Death and Decay now leave on the side away from its middle;
