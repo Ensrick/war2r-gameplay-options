@@ -378,6 +378,16 @@ lookahead; at `area_reserve_value` or more, every other spell of the caster must
 (`ManaNeed`, three waves) untouched: `g_manaReserve`, applied in `ManaOk` and the raise-dead mana test, found by a dry
 run of the area spell (nothing written). Budget now up to 63 x 63 aims (search_radius 15 + lookahead 16).
 
+Re-aiming (1.33): the channel watchdog, on autocast passes only (not while autocast is off), re-scores the running
+channel's tile with the pick's own measure (`AimValueRaw`: expected damage capped at hit points left, times
+area_building_value and `[area_values]`) and runs the pick for the caster; when the tile is worth less than
+`area_settle_percent` of that pick (which is at least 5 tiles away: the running channel's own claim keeps new aims 5
+tiles off, and the code refuses anything within 2), the channel is stopped with "re-aiming: better spot at x,y worth N"
+and the caster, idle again, casts at the pick later in the same pass. At most once per 5 s of play per caster. The
+1.30.0 log of the author's game: 37 of 105 channels ran to the end of the mana without a stop line, 13 of them on spots
+worth 446 or less (one or two building tiles). Single-cast spells (slow, fireball, polymorph, death coil...) have no
+such shape: every pass picks the best target afresh, and a cast is one action, not a channel.
+
 Budget per caster per pass: at most 31 x 31 = 961 aim tiles (`search_radius` <= 15), at most 256 enemies gathered
 from the tiles within reach + 6, each adding to the at most (w + 6) x (h + 6) aims its pattern reaches, and at most
 256 friendly-fire checks. Whirlwind keeps the per-target aim: it lands on the aim and then wanders at random, so there
