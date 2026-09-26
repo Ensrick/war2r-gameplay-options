@@ -13,6 +13,8 @@ Steps (each one only when the file still needs it):
   1.29.0 adds [auto_production] reserve_navy_food = true after navy_max
   1.28.0 adds [farms] mine_clearance = 3 and workers = "idle_then_lumber" after free_percent
   1.27.0 adds the [farms] block (switched off) in front of [workers]
+  1.35.0 no longer adds log_ai, fix_ai_after_load or cooldown_for_computer: those moved to the AI Fixes mod
+         (ai_fixes.toml); an old file keeps them, Gameplay Options ignores them with one log line
   1.26.0 adds [general] fix_ai_after_load = true after log_ai
   1.25.0 adds the [scouts] block (switched off) in front of [workers]
   1.24.0 adds [priority] hold_for_blocked_area = true after save_mana
@@ -624,7 +626,6 @@ def main():
     add_regen(lines, before, notes)
     spells_150(lines, before, notes)
     area_building_value_190(lines, before, notes)
-    log_ai_1100(lines, before, notes)
     priority_1110(lines, before, notes)
     spell_power_160(lines, before, notes)
     auto_production_170(lines, before, notes)
@@ -637,11 +638,9 @@ def main():
     types_1160(lines, tomllib.loads(LF.join(lines)), notes)
     cooldown_1170(lines, before, notes)
     resume_1180(lines, before, notes)
-    ai_cooldown_1200(lines, tomllib.loads(LF.join(lines)), notes)
     class_bias_1210(lines, tomllib.loads(LF.join(lines)), notes)
     hold_1240(lines, tomllib.loads(LF.join(lines)), notes)
     scouts_1250(lines, tomllib.loads(LF.join(lines)), notes)
-    fix_ai_1260(lines, tomllib.loads(LF.join(lines)), notes)
     farms_1270(lines, tomllib.loads(LF.join(lines)), notes)
     farms2_1280(lines, tomllib.loads(LF.join(lines)), notes)
     navy_food_1290(lines, tomllib.loads(LF.join(lines)), notes)
@@ -672,7 +671,7 @@ def main():
     allowed = {('oil_platforms', 'unlimited'), ('oil_platforms', 'amount'), ('gold_mines', 'amount'), ('food', 'hall_food'),
                ('food', 'hall_food_amount'), ('heroes', 'regen'), ('unit_regen', 'enabled'), ('unit_regen', 'hp_per_second'),
                ('unit_regen', 'regen_for')} | {('spells', l.split('=')[0].strip()) for l in SPELLS_NEW if not l.startswith('#')} | {
-               ('autocast', l.split('=')[0].strip()) for l in AUTOCAST_NEW if not l.startswith('#')} | {('autocast', 'area_building_value'), ('general', 'log_ai'), ('auto_production', 'save_up_seconds'), ('upgrades', 'missile_damage'), ('upgrades', 'melee_damage'), ('upgrades', 'shields'), ('upgrades', 'ship_damage'), ('upgrades', 'ship_armor'), ('upgrades', 'siege_damage'), ('auto_production', 'plenty_units'), ('autocast', 'area_friendly_clearance'), ('heal', 'cooldown_seconds'), ('heal', 'urgent_below_percent'), ('autocast', 'resume_orders'), ('priority', 'hold_for_blocked_area'), ('scouts', 'enabled'), ('general', 'fix_ai_after_load'), ('farms', 'auto_build'), ('farms', 'free_min'), ('farms', 'free_percent'), ('farms', 'mine_clearance'), ('auto_production', 'reserve_navy_food'), ('auto_production', 'land_units_where_enemies'), ('dodge', 'enabled'), ('autocast', 'lookahead_tiles'), ('autocast', 'area_settle_percent'), ('autocast', 'area_reserve_value'), ('farms', 'workers'), ('scouts', 'units'), ('scouts', 'toggle_key'), ('scouts', 'idle_seconds'), ('heal', 'cooldown_for_computer')} | {('priority', k) for k in ('paladin', 'mage', 'ogre_mage', 'death_knight', 'save_mana')} | {
+               ('autocast', l.split('=')[0].strip()) for l in AUTOCAST_NEW if not l.startswith('#')} | {('autocast', 'area_building_value'), ('auto_production', 'save_up_seconds'), ('upgrades', 'missile_damage'), ('upgrades', 'melee_damage'), ('upgrades', 'shields'), ('upgrades', 'ship_damage'), ('upgrades', 'ship_armor'), ('upgrades', 'siege_damage'), ('auto_production', 'plenty_units'), ('autocast', 'area_friendly_clearance'), ('heal', 'cooldown_seconds'), ('heal', 'urgent_below_percent'), ('autocast', 'resume_orders'), ('priority', 'hold_for_blocked_area'), ('scouts', 'enabled'), ('farms', 'auto_build'), ('farms', 'free_min'), ('farms', 'free_percent'), ('farms', 'mine_clearance'), ('auto_production', 'reserve_navy_food'), ('auto_production', 'land_units_where_enemies'), ('dodge', 'enabled'), ('autocast', 'lookahead_tiles'), ('autocast', 'area_settle_percent'), ('autocast', 'area_reserve_value'), ('farms', 'workers'), ('scouts', 'units'), ('scouts', 'toggle_key'), ('scouts', 'idle_seconds'), ('heal', 'cooldown_for_computer')} | {('priority', k) for k in ('paladin', 'mage', 'ogre_mage', 'death_knight', 'save_mana')} | {
                (sec, l.split('=')[0].strip()) for sec in ('spell_damage', 'spell_cost', 'mana') for l in SPELL_POWER
                if l and not l.startswith(('#', '['))} | {
                k for k in AUTO_PRODUCTION_KEYS | {('auto_production', 'no_enemy_navy_cap', c) for c in

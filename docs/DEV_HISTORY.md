@@ -15,6 +15,13 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.35.0 (2026-09-26, NOT released)
+
+- Author: "separating out all these AI fixes into their own mod". AI Fixes 0.1.0 (repo war2r-ai-fixes, winmm.dll proxy,
+  its own hooks at the two AI-tick callers 0x4C5001 / 0x4C51A8 and after the unit restore 0x4C460D / 0x4C466E) takes
+  log_ai, fix_ai_after_load and the computer-paladin cooldown. Removed here with their code, tests and constants; the
+  old keys stay known so no typo line, one "moved" line instead. Minor version: every config still loads.
+
 ## 1.34.0 (2026-09-26, UNTESTED in game, NOT released)
 
 - Author: "The stats for units don't seem to reload mid-game" -> "Sure" to live reload. Snapshot of every edited table at

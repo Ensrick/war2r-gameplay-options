@@ -7,6 +7,13 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.35.0 - 2026-09-26
+
+- The computer-AI features moved to their own mod, AI Fixes (winmm.dll, settings in ai_fixes.toml): the AI log
+  (log_ai), the fix for the computer losing count of its wood cutters after a savegame load (fix_ai_after_load) and
+  the heal cooldown for the computer's paladins (cooldown_for_computer). Gameplay Options ignores those keys now and
+  says so once in its log. Everything that changes YOUR side stays here.
+
 ## 1.34.0 - 2026-09-26
 
 - Unit and building stats now reload mid-game: saving gameplay_options.toml re-applies your [unit.*] / [building.*]

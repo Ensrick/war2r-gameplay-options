@@ -26,14 +26,6 @@ toggle_key = "F9"
 interval_ticks = 10
 # true = write every cast and worker order to gameplay_options.log
 log_casts = false
-# true = once a minute, write what every computer player is doing to gameplay_options.log: where its script is, what
-# it is waiting for, its resources, food and army numbers, plus a line when it has not moved for 5 minutes. For
-# finding out why a computer stopped attacking. It only reads the game, it changes nothing.
-log_ai = false
-# true = fix a bug in the game: loading a savegame makes the computer lose count of its wood cutters, so it sends
-# every worker to gold, never affords a keep or castle and stops attacking. The mod counts its workers again after a
-# load. Changes no orders and nothing for you. Off in multiplayer.
-fix_ai_after_load = true
 
 # ==============================================================================================================
 #  2. AUTOCAST
@@ -137,9 +129,6 @@ cooldown_seconds = 0
 # Two things cannot wait: a heal target at or below this share of its maximum hit points, and an exorcism whose
 # target the paladin's mana can finish outright (hit points x the mana cost per hit point from [spell_cost]).
 urgent_below_percent = 10
-# The computer's paladins keep to the same cooldown (the game's own rule heals any unit missing a single hit point,
-# every think step, so with a cheap Heal they never stop). false plays them exactly as the game does.
-cooldown_for_computer = true
 
 [polymorph]
 # Valid Polymorph targets in priority order: the first type in this list that is in range gets sheeped,
