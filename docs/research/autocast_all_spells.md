@@ -452,6 +452,53 @@ first pass that holds, cleared by any that does not), then the best spot in reac
 is untouched: it keeps the player's own troops out of the blast. Selftest: a farm in reach and a tower 13 tiles off
 hold for 9.9 s and cast at the farm at 10 s.
 
+### 2.6d Polymorph instead of Slow / Fireball, and no fireball pile (after 1.35.1)
+
+The author (2026-09-27): "I've also seen them slow and spam several fireballs at a dragon despite having polymorph
+ready which would've saved more mana for the other mages." Same two logs as 2.6c. The author's numbers: `[spell_cost]
+fireball = 50`, slow and polymorph the game's 50 / 200, `[spell_damage]` fireball 40 -> 120 ("spells: damage fireball
+40->120"), health x2 (a dragon 200 hp), mage list `["blizzard", "fireball", "polymorph", "slow", ...]`, dragon (0x2B)
+third in `[polymorph] targets`. 54 fireballs, 18 slows (3 on a dragon), 2 polymorphs, 36 "saving: mage ... for
+polymorph (needs 200)" lines; 7 fireballs landed within 1 tile and 1.5 s of an earlier one.
+
+- 21:15:30.818 one mage polymorphed a dragon at 84,46; 1 ms later, same pass, another mage slowed the same dragon. The
+  Slow search only skipped units claimed for Slow.
+- 21:22:31.263 to 21:22:32.046: the mage at 63,24 put three fireballs on the dragon's tile 60,22 in 0.8 s (each one
+  cast after the last had left the caster: the hit frame clears the order, `FUN_004e20c0`, so its claim was gone, and
+  nothing looked at the missile in flight); the mage at 60,25 slowed the dragon. 200 mana on the dragon, and more
+  fireballs at the line at 21:22:32.046. The slowing mage had 206 mana (156 after the 50 of the slow) and a
+  `reserving: ... keeps 75 mana for blizzard` line in the same pass: `area_reserve_value` kept 75 back, so Polymorph
+  needed 275, more than any caster holds (255). With a Blizzard target within reach + lookahead, the 1.32 reserve
+  made Polymorph impossible while it let Slow and Fireball through.
+
+Rules now (`src/autocast.cpp`):
+
+- Slow skips a unit claimed for Polymorph.
+- Before Slow, or before a Fireball whose line holds a `[polymorph]` target (the best-ranked one on the line), the
+  mana the mages would still spend to kill that unit is estimated: fireballs of 0.75 x the live fireball damage each
+  (a full hit on the unit it is aimed at, 2.6a), after the fireball damage already on its way, times the fireball
+  cost, plus the Slow about to be cast. When one Polymorph costs no more (a tie goes to Polymorph: one cast, certain),
+  and the caster has it researched, switched on and the mana for it, the unit is polymorphed instead (log: `cast
+  polymorph: ... (instead of slow: 3 fireballs and the slow, 200 mana, to kill it)`). The `area_reserve_value` mana
+  does not hold that Polymorph back. The caster's `[priority]` list still decides everything else; the swap only
+  replaces a Slow or Fireball the list had already chosen, and not when `[spells] polymorph` is off or the unit is not
+  in `[polymorph] targets`.
+- Fireball damage on its way: fireball missiles in the pool (type 2; +0x37 damage, +0x38 counter: a splash every 8
+  updates, so counter / 8 of the five splashes are done; the rest land on the aimed tile +0x28 / +0x2A and every 1.5
+  tiles past it on the line from the source caster, 2.2), and fireball orders not yet at their hit frame (their
+  claims: the first splash). A splash on a unit's tile counts 0.75 x its damage, on a neighbouring tile 0.1875 x. A
+  unit whose hit points that covers is no Fireball target and does not count on a line.
+
+What the author's numbers give: a fresh 200 hp dragon takes ceil(200 / 90) = 3 fireballs, 150 mana: less than the
+200 of Polymorph, so the FIRST fireball at a lone dragon stays a fireball, but Slow plus fireballs (200) and anything
+tougher (deathwing, a hero) go to Polymorph. At the game's own numbers (fireball 100 mana, 30 expected damage) a
+100 hp dragon is 4 fireballs, 400 mana: Polymorph. The estimate ignores fireballs that miss a moving flyer, so it
+leans towards fireballs. Selftest `PolymorphTests` (game numbers): a 200 hp dragon is polymorphed instead of slowed
+(750 mana of fireballs and slow) and instead of fireballed (700); at 20 / 30 hp the slow / fireball stays; 199 mana or
+polymorph off: slow; a second mage does not slow a dragon being polymorphed; a guard tower out of reach (reserve on,
+checked with 110 mana: no slow) does not stop the polymorph at 210 mana; a fireball on its way (100 damage, 75
+expected) keeps a second one off a 60 hp grunt, but not once its splashes are done (counter 40) nor off a 100 hp one.
+
 ### 2.7 Whirlwind (0x34)
 
 ```c

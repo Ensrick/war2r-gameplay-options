@@ -2627,6 +2627,214 @@ static void GroupTests(const wchar_t* dir) {
     ResetWorld();
 }
 
+// Polymorph instead of Slow / Fireball, and no fireball pile (1.35.x). The author (2026-09-27): "I've also seen them
+// slow and spam several fireballs at a dragon despite having polymorph ready which would've saved more mana for the
+// other mages." Game numbers here: fireball 100 mana and 40 damage (0.75 x 40 = 30 expected on the unit it is aimed
+// at), slow 50, polymorph 200.
+static void PolymorphTests(const wchar_t* dir) {
+    constexpr uint8_t kTower = 0x60;
+    constexpr uint8_t kOrderSlow = 0x2C, kOrderPolymorph = 0x2E;
+    struct Sz { uint16_t w, h; };
+    Sz* sizes = At<Sz>(kRvaUnitSizeByType);
+    uint32_t* tf = At<uint32_t>(kRvaTypeFlags);
+    uint16_t* maxHp = At<uint16_t>(kRvaMaxHpByType);
+    const Sz savedSz = sizes[kTower];
+    const uint32_t savedTf[3] = {tf[kDragon], tf[kGrunt], tf[kTower]};
+    const uint16_t savedHp[3] = {maxHp[kDragon], maxHp[kGrunt], maxHp[kTower]};
+    tf[kDragon] = kTfFleshy | kTfAttacker | kTfFlyer;
+    tf[kGrunt] = kTfFleshy | kTfAttacker;
+    tf[kTower] = kTfBuilding;
+    sizes[kTower] = {2, 2};
+    maxHp[kDragon] = 200;
+    maxHp[kGrunt] = 60;
+    maxHp[kTower] = 130;
+    bool savedSpells[kSpellCount];
+    memcpy(savedSpells, config::g.spell, sizeof(savedSpells));
+    const Priority savedPriority = config::g.priority;
+    const bool savedLog = config::g.logCasts;
+    uint8_t savedRank[256];
+    memcpy(savedRank, config::g.polymorphRank, sizeof(savedRank));
+    const int savedMin = config::g.fireballMinEnemies;
+    uint8_t* const savedPool = *At<uint8_t*>(kRvaMissilePool);
+    const uint32_t savedSlots = *At<uint32_t>(kRvaMissileSlots);
+    static uint8_t missiles[16 * kMissileSize];
+    memset(missiles, 0, sizeof(missiles));
+    for (int i = 0; i < 16; ++i) missiles[i * kMissileSize + kMisOffFlags] = 1;  // all free
+    *At<uint8_t*>(kRvaMissilePool) = missiles;
+    *At<uint32_t>(kRvaMissileSlots) = 16;
+    uint16_t* cost = At<uint16_t>(kRvaManaCostByOrder);
+    const uint16_t savedCost[3] = {cost[kOrderFireball], cost[kOrderSlow], cost[kOrderPolymorph]};
+    cost[kOrderFireball] = 100;
+    cost[kOrderSlow] = 50;
+    cost[kOrderPolymorph] = 200;
+    const uint8_t fireballDmg = At<uint8_t>(kRvaFireballDamageInsn)[1];
+    CHECK(fireballDmg == 40, "polymorph tests expect the game's fireball damage 40 (%u)", fireballDmg);
+    config::g.logCasts = true;
+    memset(config::g.polymorphRank, 0, sizeof(config::g.polymorphRank));
+    config::g.polymorphRank[kDragon] = 1;
+    config::g.fireballMinEnemies = 1;
+    SetLegacyAreaRules();
+    int8_t* l = config::g.priority.list[kCasterMage];
+    auto list = [&](std::initializer_list<int> spells) {
+        int i = 0;
+        for (int s : spells) l[i++] = static_cast<int8_t>(s);
+        l[i] = -1;
+        for (int k = 0; k < kSpellCount; ++k) config::g.spell[k] = false;
+        for (int s : spells) config::g.spell[s] = true;
+    };
+    uint32_t serial = 9300;
+    auto mage = [&](int x, int y, int mana) {
+        Unit* m = AddUnit(kTypeMage, 0, x, y, 60, mana, kOrderStand);
+        Field<uint32_t>(m, kOffSerial) = ++serial;
+        return m;
+    };
+    auto world = [&]() {
+        ResetWorld();
+        autocast::OnNewMap();
+    };
+
+    // ---- Slow or Polymorph. A 200 hp dragon takes 7 fireballs (700 mana) plus the slow: one Polymorph (200) instead.
+    list({kSpellSlow, kSpellPolymorph});
+    world();
+    Unit* mg = mage(20, 20, 255);
+    Unit* dragon = AddUnit(kDragon, 1, 24, 20, 200, 0, kOrderAttack);
+    {
+        const int before = LogCount(dir, "(instead of slow: 7 fireballs and the slow, 750 mana, to kill it)");
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderPolymorph && TargetOf(mg) == dragon &&
+                  LogCount(dir, "(instead of slow: 7 fireballs and the slow, 750 mana, to kill it)") == before + 1,
+              "a mage with polymorph ready must polymorph the dragon instead of slowing it (order %u)", OrderOf(mg));
+    }
+    // A dragon at 20 hp: one fireball (100) and the slow (50) are cheaper than Polymorph: slow, as the list says.
+    world();
+    mg = mage(20, 20, 255);
+    dragon = AddUnit(kDragon, 1, 24, 20, 20, 0, kOrderAttack);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == kOrderSlow && TargetOf(mg) == dragon, "a nearly dead dragon is slowed, not polymorphed (order %u)",
+          OrderOf(mg));
+    // Without the mana for Polymorph (199), or with Polymorph switched off: slow.
+    world();
+    mg = mage(20, 20, 199);
+    AddUnit(kDragon, 1, 24, 20, 200, 0, kOrderAttack);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == kOrderSlow, "199 mana: slow (order %u)", OrderOf(mg));
+    list({kSpellSlow});
+    world();
+    mg = mage(20, 20, 255);
+    AddUnit(kDragon, 1, 24, 20, 200, 0, kOrderAttack);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == kOrderSlow, "[spells] polymorph off: slow (order %u)", OrderOf(mg));
+
+    // ---- No Slow on a dragon another mage is polymorphing (log 21:15:30: polymorph, then slow 1 ms later).
+    list({kSpellPolymorph, kSpellSlow});
+    world();
+    Unit* m1 = mage(20, 20, 255);
+    Unit* m2 = mage(20, 22, 150);  // no mana for polymorph: its list falls through to slow
+    dragon = AddUnit(kDragon, 1, 24, 20, 200, 0, kOrderAttack);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(m1) == kOrderPolymorph && TargetOf(m1) == dragon, "polymorph setup (order %u)", OrderOf(m1));
+    CHECK(OrderOf(m2) != kOrderSlow, "a second mage slowed the dragon being polymorphed (order %u)", OrderOf(m2));
+
+    // ---- Fireball or Polymorph: the fireball's line holds the dragon; 7 fireballs (700) against one Polymorph.
+    list({kSpellFireball, kSpellPolymorph});
+    world();
+    mg = mage(20, 20, 255);
+    dragon = AddUnit(kDragon, 1, 25, 20, 200, 0, kOrderAttack);
+    {
+        const int before = LogCount(dir, "(instead of fireball: 7 fireballs, 700 mana, to kill it)");
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderPolymorph && TargetOf(mg) == dragon &&
+                  LogCount(dir, "(instead of fireball: 7 fireballs, 700 mana, to kill it)") == before + 1,
+              "polymorph must replace the fireballs at a 200 hp dragon (order %u)", OrderOf(mg));
+    }
+    // One fireball finishes a 30 hp dragon: fireball.
+    world();
+    mg = mage(20, 20, 255);
+    AddUnit(kDragon, 1, 25, 20, 30, 0, kOrderAttack);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == kOrderFireball, "one fireball finishes it: fireball (order %u)", OrderOf(mg));
+
+    // ---- The mana reserve for Blizzard (area_reserve_value) does not keep Polymorph out: 200 + 75 is more than a
+    // mage holds, but slow was allowed through. The author's 21:22:31: a guard tower out of reach, 206 mana, a slow.
+    list({kSpellBlizzard, kSpellSlow, kSpellPolymorph});
+    config::g.areaValues = AreaValues();  // the tower is worth 3 x 3.0 = 9 >= 4
+    config::g.areaReserveValue = 4.0;
+    config::g.areaLookaheadTiles = 8;
+    auto towerWorld = [&](int mana) {
+        world();
+        Unit* m = mage(20, 20, mana);
+        dragon = AddUnit(kDragon, 1, 24, 20, 200, 0, kOrderAttack);
+        Unit* t = AddUnit(kTower, 1, 33, 20, 130, 0, kOrderStand);
+        Field<uint16_t>(t, kOffStateFlags) = kStateComplete;
+        for (int dy = 0; dy < 2; ++dy)
+            for (int dx = 0; dx < 2; ++dx) g_grid[(20 + dy) * kMap + 33 + dx] = t;
+        return m;
+    };
+    mg = towerWorld(110);  // the reserve is on: 110 - 75 leaves too little for a slow
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == kOrderStand, "reserve setup: 110 mana must not slow (order %u)", OrderOf(mg));
+    mg = towerWorld(210);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == kOrderPolymorph && TargetOf(mg) == dragon,
+          "a blizzard target out of reach must not turn a polymorph into a slow (order %u)", OrderOf(mg));
+    SetLegacyAreaRules();
+
+    // ---- No fireball pile: a fireball on its way (100 damage, nothing splashed yet) is aimed at a 60 hp grunt's tile:
+    // 0.75 x 100 = 75 is expected, so no second fireball goes after it.
+    list({kSpellFireball});
+    world();
+    mg = mage(20, 20, 255);
+    Unit* other = mage(20, 23, 0);
+    Unit* grunt = AddUnit(kGrunt, 1, 25, 20, 60, 0, kOrderAttack);
+    uint8_t* fb = missiles + 5 * kMissileSize;
+    fb[kMisOffFlags] = 0;
+    fb[kMisOffType] = 2;
+    *reinterpret_cast<int16_t*>(fb + 0x00) = static_cast<int16_t>(22 * 32);
+    *reinterpret_cast<int16_t*>(fb + 0x02) = static_cast<int16_t>(20 * 32);
+    *reinterpret_cast<int16_t*>(fb + 0x28) = static_cast<int16_t>(25 * 32 + 16);
+    *reinterpret_cast<int16_t*>(fb + 0x2A) = static_cast<int16_t>(20 * 32 + 16);
+    *reinterpret_cast<Unit**>(fb + kMisOffSource) = other;
+    fb[0x37] = 100;
+    fb[0x38] = 0;
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) != kOrderFireball, "a second fireball went after a grunt the first one already kills (order %u)",
+          OrderOf(mg));
+    // All five splashes done (counter 40): nothing on its way any more, so the grunt is a target again.
+    fb[0x38] = 40;
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == kOrderFireball, "the first fireball has splashed: fireball again (order %u)", OrderOf(mg));
+    // A 100 hp grunt outlasts the 75 on its way: fireball.
+    fb[0x38] = 0;
+    Idle(mg);
+    Field<uint16_t>(grunt, kOffHp) = 100;
+    maxHp[kGrunt] = 100;
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == kOrderFireball, "a grunt the fireball on its way does not finish is still a target (order %u)",
+          OrderOf(mg));
+    fb[kMisOffFlags] = 1;
+
+    cost[kOrderFireball] = savedCost[0];
+    cost[kOrderSlow] = savedCost[1];
+    cost[kOrderPolymorph] = savedCost[2];
+    *At<uint8_t*>(kRvaMissilePool) = savedPool;
+    *At<uint32_t>(kRvaMissileSlots) = savedSlots;
+    memcpy(config::g.polymorphRank, savedRank, sizeof(savedRank));
+    config::g.fireballMinEnemies = savedMin;
+    config::g.priority = savedPriority;
+    memcpy(config::g.spell, savedSpells, sizeof(savedSpells));
+    config::g.logCasts = savedLog;
+    SetLegacyAreaRules();
+    sizes[kTower] = savedSz;
+    tf[kDragon] = savedTf[0];
+    tf[kGrunt] = savedTf[1];
+    tf[kTower] = savedTf[2];
+    maxHp[kDragon] = savedHp[0];
+    maxHp[kGrunt] = savedHp[1];
+    maxHp[kTower] = savedHp[2];
+    autocast::OnNewMap();
+    ResetWorld();
+}
+
 // [dodge] (src/dodge.cpp): the player's units step out of a falling Blizzard / Death and Decay and hold at its edge
 // instead of walking in, and get their order back once it is gone.
 static void DodgeTests(const wchar_t* dir) {
@@ -7498,6 +7706,7 @@ int wmain(int argc, wchar_t** argv) {
     AreaValueTests(dir, ini);
     ReaimTests(dir);
     GroupTests(dir);
+    PolymorphTests(dir);
 
     // TOML config: a custom file is honoured, typos and bad values are survivable, a syntax error keeps old settings.
     WriteFileText(ini,
