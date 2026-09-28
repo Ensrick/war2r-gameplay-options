@@ -165,8 +165,12 @@ bool g_dryRun = false;
 // spend the mana above this (CasterThink sets it per spell; 0 for the area spells themselves).
 int g_manaReserve = 0;
 
+// The reserve never locks a spell out: a caster holds at most 255 mana, so a spell whose cost plus the reserve is more
+// than that (Polymorph's 200 + one blizzard's 75) keeps back only what is left above its cost.
+constexpr int kMaxMana = 255;  // the mana byte (+kOffMana)
 bool ManaOk(Unit* caster, int manaNeeded) {
-    return g_dryRun || Field<uint8_t>(caster, kOffMana) >= manaNeeded + g_manaReserve;
+    const int room = kMaxMana - manaNeeded, reserve = g_manaReserve < room ? g_manaReserve : (room > 0 ? room : 0);
+    return g_dryRun || Field<uint8_t>(caster, kOffMana) >= manaNeeded + reserve;
 }
 
 bool Ready(Unit* caster, Spell spell, int manaNeeded) {
@@ -491,6 +495,7 @@ bool IssueUnitCast(const World& w, Unit* caster, Spell spell, Unit* best, const 
 }
 
 bool PolymorphInstead(const World& w, Unit* caster, Unit* t, int alsoSpent, const char* instead);
+bool Doomed(const World& w, Unit* u);
 
 bool TryCast(const World& w, Unit* caster, Spell spell) {
     if (!config::g.spell[spell]) return false;
@@ -506,6 +511,7 @@ bool TryCast(const World& w, Unit* caster, Spell spell) {
         // No Slow on a unit another caster is turning into a critter right now (log of 2026-09-27: a dragon polymorphed
         // and slowed within the same millisecond).
         if (spell == kSpellSlow && IsClaimed(kSpells[kSpellPolymorph].order, t)) return false;
+        if (spell == kSpellSlow && Doomed(w, t)) return false;  // the fireballs on their way kill it anyway
         const int score = ScoreTarget(w, spell, caster, t);
         if (score > bestScore) {
             bestScore = score;
@@ -767,7 +773,13 @@ bool PolymorphInstead(const World& w, Unit* caster, Unit* t, int alsoSpent, cons
     const int polyCost = ManaCost(def.order);
     if (Field<uint8_t>(caster, kOffMana) < polyCost) return false;
     if (Distance(caster, t) > config::g.searchRadius || IsClaimed(def.order, t) || ScoreTarget(w, poly, caster, t) < 0) return false;
-    const int perFireball = FireballDamage() * 15 / 2;  // tenths
+    // A fireball does not follow its target: it bursts at the tile it was aimed at (2.2). A flyer, or a unit walking or
+    // on patrol, is counted at half the damage: the one measured dragon kill in the author's log (21:22:31) took three
+    // fireballs and a slow, 200 mana, where the full estimate says three fireballs, 150, and the mages there were
+    // still saving mana for a Polymorph target a second later. An estimate.
+    const uint8_t order = OrderOf(t);
+    const bool moving = (w.typeFlags[TypeOf(t)] & kTfFlyer) || order == kOrderMove || order == kOrderMovePatrol || order == kOrderPatrol;
+    const int perFireball = FireballDamage() * 15 / (moving ? 4 : 2);  // tenths
     if (perFireball <= 0) return false;
     const int left = 10 * Field<uint16_t>(t, kOffHp) - PendingFireballTenths(w, t);
     const int fireballs = left > 0 ? (left + perFireball - 1) / perFireball : 0;

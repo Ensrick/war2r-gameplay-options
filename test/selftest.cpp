@@ -2850,7 +2850,7 @@ static void GroupTests(const wchar_t* dir) {
 // Polymorph instead of Slow / Fireball, and no fireball pile (1.35.x). The author (2026-09-27): "I've also seen them
 // slow and spam several fireballs at a dragon despite having polymorph ready which would've saved more mana for the
 // other mages." Game numbers here: fireball 100 mana and 40 damage (0.75 x 40 = 30 expected on the unit it is aimed
-// at), slow 50, polymorph 200.
+// at, half that on a flyer or a walking unit: a fireball does not follow its target), slow 50, polymorph 200.
 static void PolymorphTests(const wchar_t* dir) {
     constexpr uint8_t kTower = 0x60;
     constexpr uint8_t kOrderSlow = 0x2C, kOrderPolymorph = 0x2E;
@@ -2913,22 +2913,22 @@ static void PolymorphTests(const wchar_t* dir) {
         autocast::OnNewMap();
     };
 
-    // ---- Slow or Polymorph. A 200 hp dragon takes 7 fireballs (700 mana) plus the slow: one Polymorph (200) instead.
+    // ---- Slow or Polymorph. A 200 hp dragon takes 14 fireballs (1400 mana) plus the slow: one Polymorph (200) instead.
     list({kSpellSlow, kSpellPolymorph});
     world();
     Unit* mg = mage(20, 20, 255);
     Unit* dragon = AddUnit(kDragon, 1, 24, 20, 200, 0, kOrderAttack);
     {
-        const int before = LogCount(dir, "(instead of slow: 7 fireballs and the slow, 750 mana, to kill it)");
+        const int before = LogCount(dir, "(instead of slow: 14 fireballs and the slow, 1450 mana, to kill it)");
         mod::RunAutocastPass();
         CHECK(OrderOf(mg) == kOrderPolymorph && TargetOf(mg) == dragon &&
-                  LogCount(dir, "(instead of slow: 7 fireballs and the slow, 750 mana, to kill it)") == before + 1,
+                  LogCount(dir, "(instead of slow: 14 fireballs and the slow, 1450 mana, to kill it)") == before + 1,
               "a mage with polymorph ready must polymorph the dragon instead of slowing it (order %u)", OrderOf(mg));
     }
-    // A dragon at 20 hp: one fireball (100) and the slow (50) are cheaper than Polymorph: slow, as the list says.
+    // A dragon at 10 hp: one fireball (100) and the slow (50) are cheaper than Polymorph: slow, as the list says.
     world();
     mg = mage(20, 20, 255);
-    dragon = AddUnit(kDragon, 1, 24, 20, 20, 0, kOrderAttack);
+    dragon = AddUnit(kDragon, 1, 24, 20, 10, 0, kOrderAttack);
     mod::RunAutocastPass();
     CHECK(OrderOf(mg) == kOrderSlow && TargetOf(mg) == dragon, "a nearly dead dragon is slowed, not polymorphed (order %u)",
           OrderOf(mg));
@@ -2955,24 +2955,50 @@ static void PolymorphTests(const wchar_t* dir) {
     CHECK(OrderOf(m1) == kOrderPolymorph && TargetOf(m1) == dragon, "polymorph setup (order %u)", OrderOf(m1));
     CHECK(OrderOf(m2) != kOrderSlow, "a second mage slowed the dragon being polymorphed (order %u)", OrderOf(m2));
 
-    // ---- Fireball or Polymorph: the fireball's line holds the dragon; 7 fireballs (700) against one Polymorph.
+    // ---- Fireball or Polymorph: the fireball's line holds the dragon; 14 fireballs (1400) against one Polymorph.
     list({kSpellFireball, kSpellPolymorph});
     world();
     mg = mage(20, 20, 255);
     dragon = AddUnit(kDragon, 1, 25, 20, 200, 0, kOrderAttack);
     {
-        const int before = LogCount(dir, "(instead of fireball: 7 fireballs, 700 mana, to kill it)");
+        const int before = LogCount(dir, "(instead of fireball: 14 fireballs, 1400 mana, to kill it)");
         mod::RunAutocastPass();
         CHECK(OrderOf(mg) == kOrderPolymorph && TargetOf(mg) == dragon &&
-                  LogCount(dir, "(instead of fireball: 7 fireballs, 700 mana, to kill it)") == before + 1,
+                  LogCount(dir, "(instead of fireball: 14 fireballs, 1400 mana, to kill it)") == before + 1,
               "polymorph must replace the fireballs at a 200 hp dragon (order %u)", OrderOf(mg));
     }
-    // One fireball finishes a 30 hp dragon: fireball.
+    // One fireball finishes a 15 hp dragon: fireball.
     world();
     mg = mage(20, 20, 255);
-    AddUnit(kDragon, 1, 25, 20, 30, 0, kOrderAttack);
+    AddUnit(kDragon, 1, 25, 20, 15, 0, kOrderAttack);
     mod::RunAutocastPass();
     CHECK(OrderOf(mg) == kOrderFireball, "one fireball finishes it: fireball (order %u)", OrderOf(mg));
+    // Fireballs at 25 mana: a 200 hp ogre standing still takes 7 (175 mana, cheaper than Polymorph: fireball), a 200 hp
+    // dragon counts half a fireball each, 14 (350 mana): Polymorph. The author's case: fireballs made cheap in
+    // [spell_cost], dragons that do not stand still.
+    {
+        const uint32_t savedOgreTf = tf[kOgre];
+        const uint16_t savedOgreHp = maxHp[kOgre];
+        tf[kOgre] = kTfFleshy | kTfAttacker;
+        maxHp[kOgre] = 200;
+        config::g.polymorphRank[kOgre] = 2;
+        cost[kOrderFireball] = 25;
+        world();
+        mg = mage(20, 20, 255);
+        AddUnit(kOgre, 1, 25, 20, 200, 0, kOrderStand);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderFireball, "a standing ogre 7 cheap fireballs kill: fireball (order %u)", OrderOf(mg));
+        world();
+        mg = mage(20, 20, 255);
+        dragon = AddUnit(kDragon, 1, 25, 20, 200, 0, kOrderAttack);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderPolymorph && TargetOf(mg) == dragon,
+              "a dragon at the same price: fireballs do not follow it, Polymorph (order %u)", OrderOf(mg));
+        cost[kOrderFireball] = 100;
+        config::g.polymorphRank[kOgre] = 0;
+        tf[kOgre] = savedOgreTf;
+        maxHp[kOgre] = savedOgreHp;
+    }
 
     // ---- The mana reserve for Blizzard (area_reserve_value) does not keep Polymorph out: 200 + 75 is more than a
     // mage holds, but slow was allowed through. The author's 21:22:31: a guard tower out of reach, 206 mana, a slow.
@@ -2997,6 +3023,15 @@ static void PolymorphTests(const wchar_t* dir) {
     mod::RunAutocastPass();
     CHECK(OrderOf(mg) == kOrderPolymorph && TargetOf(mg) == dragon,
           "a blizzard target out of reach must not turn a polymorph into a slow (order %u)", OrderOf(mg));
+    // Nor lock Polymorph out of the caster's own list: 200 + 75 is more than 255, so a full mage keeps back only 55.
+    list({kSpellBlizzard, kSpellPolymorph});
+    mg = towerWorld(255);
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == kOrderPolymorph && TargetOf(mg) == dragon,
+          "the blizzard reserve must not lock Polymorph out at full mana (order %u)", OrderOf(mg));
+    mg = towerWorld(254);  // 254 - 200 = 54 < 55 kept back
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == kOrderStand, "254 mana: the reserve still keeps 55 (order %u)", OrderOf(mg));
     SetLegacyAreaRules();
 
     // ---- No fireball pile: a fireball on its way (100 damage, nothing splashed yet) is aimed at a 60 hp grunt's tile:
@@ -3032,6 +3067,21 @@ static void PolymorphTests(const wchar_t* dir) {
     CHECK(OrderOf(mg) == kOrderFireball, "a grunt the fireball on its way does not finish is still a target (order %u)",
           OrderOf(mg));
     fb[kMisOffFlags] = 1;
+    // No Slow on a unit the fireball on its way kills (60 hp grunt, 75 expected).
+    list({kSpellSlow});
+    world();
+    mg = mage(20, 20, 255);
+    other = mage(20, 23, 0);
+    maxHp[kGrunt] = 60;
+    grunt = AddUnit(kGrunt, 1, 25, 20, 60, 0, kOrderAttack);
+    fb[kMisOffFlags] = 0;
+    fb[0x38] = 0;
+    *reinterpret_cast<Unit**>(fb + kMisOffSource) = other;
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) != kOrderSlow, "slowed a grunt the fireball on its way kills (order %u)", OrderOf(mg));
+    fb[kMisOffFlags] = 1;
+    mod::RunAutocastPass();
+    CHECK(OrderOf(mg) == kOrderSlow && TargetOf(mg) == grunt, "no fireball on its way: slow (order %u)", OrderOf(mg));
 
     cost[kOrderFireball] = savedCost[0];
     cost[kOrderSlow] = savedCost[1];

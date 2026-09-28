@@ -473,13 +473,14 @@ polymorph (needs 200)" lines; 7 fireballs landed within 1 tile and 1.5 s of an e
 
 Rules now (`src/autocast.cpp`):
 
-- Slow skips a unit claimed for Polymorph.
+- Slow skips a unit claimed for Polymorph (a polymorphed unit itself is gone: the spell kills it and creates a critter
+  0x39, spells.md, which no Slow rule accepts) and a unit the fireballs on their way already kill.
 - Before Slow, or before a Fireball whose line holds a `[polymorph]` target (the best-ranked one on the line), the
   mana the mages would still spend to kill that unit is estimated: fireballs of 0.75 x the live fireball damage each
-  (a full hit on the unit it is aimed at, 2.6a), after the fireball damage already on its way, times the fireball
-  cost, plus the Slow about to be cast. When one Polymorph costs no more (a tie goes to Polymorph: one cast, certain),
+  (a full hit on the unit it is aimed at, 2.6a), HALF that on a flyer or a unit on a move / patrol order, after the
+  fireball damage already on its way, times the fireball cost, plus the Slow about to be cast. When one Polymorph costs no more (a tie goes to Polymorph: one cast, certain),
   and the caster has it researched, switched on and the mana for it, the unit is polymorphed instead (log: `cast
-  polymorph: ... (instead of slow: 3 fireballs and the slow, 200 mana, to kill it)`). The `area_reserve_value` mana
+  polymorph: ... (instead of slow: 5 fireballs and the slow, 300 mana, to kill it)`). The `area_reserve_value` mana
   does not hold that Polymorph back. The caster's `[priority]` list still decides everything else; the swap only
   replaces a Slow or Fireball the list had already chosen, and not when `[spells] polymorph` is off or the unit is not
   in `[polymorph] targets`.
@@ -489,15 +490,27 @@ Rules now (`src/autocast.cpp`):
   claims: the first splash). A splash on a unit's tile counts 0.75 x its damage, on a neighbouring tile 0.1875 x. A
   unit whose hit points that covers is no Fireball target and does not count on a line.
 
-What the author's numbers give: a fresh 200 hp dragon takes ceil(200 / 90) = 3 fireballs, 150 mana: less than the
-200 of Polymorph, so the FIRST fireball at a lone dragon stays a fireball, but Slow plus fireballs (200) and anything
-tougher (deathwing, a hero) go to Polymorph. At the game's own numbers (fireball 100 mana, 30 expected damage) a
-100 hp dragon is 4 fireballs, 400 mana: Polymorph. The estimate ignores fireballs that miss a moving flyer, so it
-leans towards fireballs. Selftest `PolymorphTests` (game numbers): a 200 hp dragon is polymorphed instead of slowed
-(750 mana of fireballs and slow) and instead of fireballed (700); at 20 / 30 hp the slow / fireball stays; 199 mana or
+- The `area_reserve_value` mana never locks a spell out: a caster holds at most 255 mana, so for a spell whose cost
+  plus the reserve is more than that, only what is left above its cost is kept back (`ManaOk`). Polymorph (200) with
+  one blizzard's 75 kept back needed 275 before: from its own place in the list it could never be cast while a
+  Blizzard target was near. Now a mage at 255 casts it (254 still keeps the 55).
+
+Mana actually spent on a dragon, from the logs: slow / polymorph lines at a dragon (0x2B) and fireballs within 2 tiles
+of it within 15 s. Five such episodes; only one had fireballs: 21:22:31.263 to 21:22:32.046, three fireballs at the
+dragon's tile (150) and a slow (50), 200 mana, and the mages there logged "saving ... for polymorph" 0.6 to 1.1 s
+later, so a Polymorph target (the dragon or another listed unit; the log does not say which) was still in range. The
+full-damage estimate says three fireballs (150) kill a 200 hp dragon at 120 damage. The fireball bursts at the tile
+it was aimed at and does not follow its target (`FUN_004af0e0`: target point = order tile centre, 2.2), so a unit that
+does not stand still is counted at half the damage: a fresh 200 hp dragon at the author's numbers is ceil(200 / 45)
+= 5 fireballs, 250 mana, and Polymorph (200) wins for the first Fireball too, as for Slow. The half is an estimate
+that one episode supports, not a measurement: the log has no death lines and does not name a fireball's target. At
+the game's own numbers (fireball 100 mana, 30 expected damage) Polymorph wins anyway. Selftest `PolymorphTests` (game numbers): a 200 hp dragon is polymorphed instead of slowed
+(1450 mana of fireballs and slow) and instead of fireballed (1400); at 10 / 15 hp the slow / fireball stays; with
+fireballs at 25 mana a standing 200 hp ogre gets fireballs (175) and a 200 hp dragon Polymorph (350); 199 mana or
 polymorph off: slow; a second mage does not slow a dragon being polymorphed; a guard tower out of reach (reserve on,
-checked with 110 mana: no slow) does not stop the polymorph at 210 mana; a fireball on its way (100 damage, 75
-expected) keeps a second one off a 60 hp grunt, but not once its splashes are done (counter 40) nor off a 100 hp one.
+checked with 110 mana: no slow) does not stop the polymorph at 210 mana, and the mage's own Polymorph goes off at 255
+but not 254; a fireball on its way (100 damage, 75 expected) keeps a second fireball and a slow off a 60 hp grunt, but
+not once its splashes are done (counter 40) nor off a 100 hp one.
 
 ### 2.7 Whirlwind (0x34)
 
