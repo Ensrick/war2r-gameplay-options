@@ -7,6 +7,15 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.36.3 - 2026-09-27
+
+- A fireball bursts where it was aimed and does not follow its target, so a dragon or any other unit on the move now
+  counts as half a fireball's damage when mages weigh Polymorph against fireballs. At doubled unit health a fresh
+  dragon now gets Polymorph instead of a first Fireball.
+- The mana kept back for Blizzard (area_reserve_value) never locks a spell out: a mage with full mana can always cast
+  Polymorph.
+- No Slow on a unit that the fireballs already on their way will kill.
+
 ## 1.36.2 - 2026-09-27
 
 - A "destroy all enemy forces" mission now ends once the last enemy is gone. The game only declares the victory at a

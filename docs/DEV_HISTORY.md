@@ -15,6 +15,14 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.36.3 (2026-09-27, UNTESTED in game, NOT released)
+
+- Follow-up to 1.36.1 (agent blizz-groups). A fireball bursts at its aimed tile (research 2.2), and the one logged
+  dragon episode with fireballs spent 3 fireballs + a Slow = 200 mana without a confirmed kill, so flyers and units on
+  move / patrol count at half a fireball (an estimate, not a measurement): a fresh 200 hp dragon = 5 fireballs = 250 >
+  Polymorph 200. ManaOk caps the area reserve at 255 minus the spell cost. Slow skips units the in-flight fireballs
+  kill. 10 mutations, 10 caught.
+
 ## 1.36.2 (2026-09-27, UNTESTED in game, NOT released)
 
 - #31, hit again 2026-09-27 (production started an ogre with no enemies left). The victory check 0x4F42A0 (every 51

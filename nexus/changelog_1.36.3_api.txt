@@ -1,0 +1,3 @@
+A fireball bursts where it was aimed and does not follow its target, so a dragon or any other unit on the move now counts as half a fireball's damage when mages weigh Polymorph against fireballs. At doubled unit health a fresh dragon now gets Polymorph instead of a first Fireball.
+The mana kept back for Blizzard (area_reserve_value) never locks a spell out: a mage with full mana can always cast Polymorph.
+No Slow on a unit that the fireballs already on their way will kill.
