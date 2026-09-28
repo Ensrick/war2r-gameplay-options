@@ -25,6 +25,7 @@
 #include "../src/spells.h"
 #include "../src/upgrades.h"
 #include "../src/farms.h"
+#include "../src/fog.h"
 #include "../src/trees.h"
 
 using namespace game;
@@ -2350,6 +2351,186 @@ static void AreaValueTests(const wchar_t* dir, const wchar_t* ini) {
 
 // Re-aiming a running channel (1.33): the watchdog stops a Blizzard whose tile has become worth less than
 // area_settle_percent of the best spot in reach, and the same pass casts there. At most once per 5 s per caster.
+// [general] fog_of_war (docs/research/fog_of_war.md): the flag byte 0x918CCF is set once when a single-player game
+// starts (new map, savegame, the first tick of the session) and left alone afterwards, so the Options screen still
+// works for the rest of that game. "off" runs the game's own explored-to-visible copy FUN_004d3960.
+static uint8_t g_fogVisible[0x4000], g_fogExplored[0x4000], g_fogMask[0x4000];  // the game's buffers are 0x4000 too
+
+static void FogTests(const wchar_t* dir, const wchar_t* ini) {
+    // The exe still reads and writes these where the research says.
+    auto abs32 = [&](uint32_t rva) { uint32_t v; memcpy(&v, At<uint8_t>(rva), 4); return v; };
+    auto bytes = [&](uint32_t rva, const char* expect, size_t n) { return memcmp(At<uint8_t>(rva), expect, n) == 0; };
+    CHECK(bytes(0xD39D0, "\x80\x3D", 2) && abs32(0xD39D2) == g_base + kRvaFogOfWar && bytes(0xD39D6, "\x00\x74", 2) &&
+              abs32(0xD39E2) == g_base + kRvaVisibleMap && abs32(0xD39F7) == g_base + kRvaFogMaskMap,
+          "the re-fog pass FUN_004d39d0 no longer tests 0x918CCF and fills the visible / mask maps");
+    CHECK(bytes(0xCDC28, "\xC6\x05", 2) && abs32(0xCDC2A) == g_base + kRvaFogOfWar && bytes(0xCDC2E, "\x01", 1),
+          "the startup code no longer sets the fog flag to 1 at 0x4CDC28");
+    CHECK(bytes(0xC5059, "\xFF\x05", 2) && abs32(0xC505B) == g_base + kRvaGameStep && bytes(0xC527F, "\xC7\x05", 2) &&
+              abs32(0xC5281) == g_base + kRvaGameStep && abs32(0xC5285) == 0,
+          "the step counter is no longer counted at 0x4C5059 / reset at 0x4C527F");
+    CHECK(bytes(kRvaRevealExplored, "\x0F\xB6\x0D", 3) && abs32(kRvaRevealExplored + 3) == g_base + kRvaLocalPlayer &&
+              abs32(kRvaRevealExplored + 0x24) == g_base + kRvaExploredMap && abs32(kRvaRevealExplored + 0x2A) == g_base + kRvaVisibleMap &&
+              abs32(kRvaRevealExplored + 0x45) == g_base + kRvaFogMaskMap,
+          "FUN_004d3960 no longer copies the explored map into the visible map");
+    {
+        int32_t rel;
+        memcpy(&rel, At<uint8_t>(0xDF23F), 4);
+        CHECK(bytes(0xDF23E, "\xE8", 1) && g_base + 0xDF23E + 5 + rel == g_base + kRvaRevealExplored,
+              "the Options screen no longer calls FUN_004d3960 when fog goes off (0x4DF23E)");
+    }
+
+    // The key: three words, any case; anything else keeps what was there and says so.
+    WriteFileText(ini, "[general]\nfog_of_war = \"OFF\"\n");
+    CHECK(config::Init(dir) && config::g.fogOfWar == FogOfWar::Off, "fog_of_war = \"OFF\" not read");
+    CHECK(!LogContains(dir, "unknown key [general] fog_of_war"), "fog_of_war must be a known key");
+    WriteFileText(ini, "[general]\nfog_of_war = \"on\"\n");
+    CHECK(config::Init(dir) && config::g.fogOfWar == FogOfWar::On, "fog_of_war = \"on\" not read");
+    WriteFileText(ini, "[general]\nfog_of_war = \"never\"\n");
+    CHECK(config::Init(dir) && config::g.fogOfWar == FogOfWar::Game &&
+              LogContains(dir, "fog_of_war must be \"game\", \"off\" or \"on\", keeping \"game\""),
+          "a bad fog_of_war must keep the default and be logged");
+    DeleteFileW(ini);
+    CHECK(config::Init(dir) && config::g.fogOfWar == FogOfWar::Game, "the shipped default must be \"game\"");
+
+    uint8_t* const savedVisible = *At<uint8_t*>(kRvaVisibleMap);
+    uint8_t* const savedExplored = *At<uint8_t*>(kRvaExploredMap);
+    uint8_t* const savedMask = *At<uint8_t*>(kRvaFogMaskMap);
+    const uint8_t savedFlag = *At<uint8_t>(kRvaFogOfWar), savedLocal = *At<uint8_t>(kRvaLocalPlayer);
+    const uint16_t savedSize = *At<uint16_t>(kRvaMapSize);
+    const uint32_t savedStep = *At<uint32_t>(kRvaGameStep), savedRuleset = *At<uint32_t>(kRvaRuleset);
+    *At<uint8_t*>(kRvaVisibleMap) = g_fogVisible;
+    *At<uint8_t*>(kRvaExploredMap) = g_fogExplored;
+    *At<uint8_t*>(kRvaFogMaskMap) = g_fogMask;
+    *At<uint16_t>(kRvaMapSize) = kMap;
+    *At<uint8_t>(kRvaLocalPlayer) = 2;
+    *At<uint32_t>(kRvaRuleset) = 0;  // the mask bit is then 1 << local player (0x4D3975)
+    uint8_t& flag = *At<uint8_t>(kRvaFogOfWar);
+    uint32_t& step = *At<uint32_t>(kRvaGameStep);
+    auto freshMap = [&]() {  // left half explored, right half never; everything fogged, as after the game's re-fog
+        for (int i = 0; i < 0x4000; ++i) g_fogExplored[i] = (i % kMap) < kMap / 2 ? 0x00 : 0x10;
+        memset(g_fogVisible, 0x10, sizeof g_fogVisible);
+        memset(g_fogMask, 0xFF, sizeof g_fogMask);
+    };
+    auto revealed = [&]() {  // what FUN_004d3960 leaves behind
+        if (memcmp(g_fogVisible, g_fogExplored, sizeof g_fogVisible) != 0) return false;
+        for (int i = 0; i < kMap * kMap; ++i)
+            if (g_fogMask[i] != (g_fogVisible[i] == 0x10 ? 1 << 2 : 0)) return false;
+        return true;
+    };
+    // Settle: one tick with "game" so the counter below starts from a known step.
+    config::g.fogOfWar = FogOfWar::Game;
+    step = 100;
+    fog::OnTick();
+    step = 101;
+    fog::OnTick();
+
+    // "game": a new map leaves the game's flag alone.
+    freshMap();
+    flag = 1;
+    unsigned applied = fog::ApplyCount();
+    fog::OnNewMap();
+    step = 0;
+    fog::OnTick();
+    CHECK(flag == 1 && fog::ApplyCount() == applied && g_fogVisible[0] == 0x10, "\"game\" must not touch the fog flag");
+
+    // "off" on a new map (the author's case): the flag goes to 0 and explored ground shows at once.
+    config::g.fogOfWar = FogOfWar::Off;
+    fog::OnTick();  // a changed setting applies once too
+    CHECK(flag == 0 && revealed() && fog::ApplyCount() == applied + 1 && LogContains(dir, "fog of war off ([general] fog_of_war)"),
+          "a changed fog_of_war = \"off\" must clear the flag and reveal the explored map (flag %u)", flag);
+    flag = 1;
+    freshMap();
+    applied = fog::ApplyCount();
+    fog::OnNewMap();
+    step = 1;  // counting on: only the hook says that a map started
+    fog::OnTick();
+    CHECK(flag == 0 && revealed() && fog::ApplyCount() == applied + 1, "the new-map hook must arm \"off\" for the first tick");
+    // The player turns fog back on in the Options screen: that stands for the rest of the game.
+    flag = 1;
+    for (uint32_t s = 2; s < 300; ++s) {
+        step = s;
+        fog::OnTick();
+    }
+    step = 299;  // a step that runs without counting (FUN_004c5190 from FUN_004c57f0)
+    fog::OnTick();
+    CHECK(flag == 1 && fog::ApplyCount() == applied + 1, "the Options screen choice must stand until the next game (flag %u)", flag);
+    // A savegame restores its own step (and its own flag): applied again.
+    freshMap();
+    step = 71234;
+    fog::OnTick();
+    CHECK(flag == 0 && revealed() && fog::ApplyCount() == applied + 2, "loading a savegame must apply \"off\" again");
+    // A new game started from the menu: the game loop set the counter to 0, the startup code set the flag to 1.
+    flag = 1;
+    step = 0;
+    fog::OnTick();
+    CHECK(flag == 0 && fog::ApplyCount() == applied + 3, "a game started without the new-map hook must get \"off\" too");
+    // Already off: nothing to write, nothing logged.
+    step = 5;
+    fog::OnTick();
+    CHECK(fog::ApplyCount() == applied + 3, "a flag that is already right must not be written");
+
+    // "on": the flag goes to 1, the maps are left to the game's own re-fog pass.
+    config::g.fogOfWar = FogOfWar::On;
+    freshMap();
+    for (int i = 0; i < kMap; ++i) g_fogVisible[i] = 0x00;
+    step = 6;
+    fog::OnTick();
+    CHECK(flag == 1 && g_fogVisible[0] == 0x00 && g_fogMask[0] == 0xFF && LogContains(dir, "fog of war on ([general] fog_of_war)"),
+          "\"on\" must set the flag and leave the maps alone (flag %u)", flag);
+    flag = 0;
+    step = 900000;
+    fog::OnTick();
+    CHECK(flag == 1, "\"on\" after a savegame load");
+
+    // Without a map (no buffers yet) the flag is still set, and nothing is copied.
+    config::g.fogOfWar = FogOfWar::Off;
+    *At<uint8_t*>(kRvaFogMaskMap) = nullptr;
+    freshMap();
+    flag = 1;
+    step = 0;
+    fog::OnTick();
+    CHECK(flag == 0 && g_fogVisible[0] == 0x10, "no map buffers: the flag alone");
+    *At<uint8_t*>(kRvaFogMaskMap) = g_fogMask;
+
+    // Through the real hooks: the new-map hook arms it, the tick applies it, and never in multiplayer.
+    WriteFileText(ini, "[general]\nfog_of_war = \"off\"\n");  // the tick's config reload must find the same setting
+    CHECK(config::Init(dir) && config::g.fogOfWar == FogOfWar::Off, "fog_of_war = \"off\" not read");
+    ResetWorld();
+    flag = 1;
+    step = 1000;
+    *At<uint32_t>(kRvaNetGame) = 1;
+    mod::OnTick();
+    CHECK(flag == 1, "a multiplayer game must never get the fog setting");
+    *At<uint32_t>(kRvaNetGame) = 0;
+    step = 1000;  // counting stopped while the game was multiplayer: the first single-player tick sees no jump
+    fog::OnTick();
+    flag = 1;
+    freshMap();
+    *At<uint8_t>(kRvaNetGameAtLoad) = 1;
+    datatweaks::OnNewMapTablesLoaded();
+    *At<uint8_t>(kRvaNetGameAtLoad) = 0;
+    step = 1001;
+    mod::OnTick();
+    CHECK(flag == 1, "a multiplayer map load must not arm the fog setting");
+    datatweaks::OnNewMapTablesLoaded();
+    step = 1002;
+    mod::OnTick();
+    CHECK(flag == 0 && revealed(), "the new-map hook + tick must apply \"off\" in single player (flag %u)", flag);
+    datatweaks::ResetForTests();
+
+    DeleteFileW(ini);
+    config::Init(dir);
+    step = savedStep;
+    fog::OnTick();  // back in step with the restored counter
+    flag = savedFlag;
+    *At<uint8_t*>(kRvaVisibleMap) = savedVisible;
+    *At<uint8_t*>(kRvaExploredMap) = savedExplored;
+    *At<uint8_t*>(kRvaFogMaskMap) = savedMask;
+    *At<uint8_t>(kRvaLocalPlayer) = savedLocal;
+    *At<uint16_t>(kRvaMapSize) = savedSize;
+    *At<uint32_t>(kRvaRuleset) = savedRuleset;
+}
+
 static void ReaimTests(const wchar_t* dir) {
     constexpr uint8_t kFarm = 0x3A, kTower = 0x60;
     struct Sz { uint16_t w, h; };
@@ -7295,6 +7476,7 @@ int wmain(int argc, wchar_t** argv) {
     DodgeTests(dir);
     AreaValueTests(dir, ini);
     ReaimTests(dir);
+    FogTests(dir, ini);
 
     // TOML config: a custom file is honoured, typos and bad values are survivable, a syntax error keeps old settings.
     WriteFileText(ini,

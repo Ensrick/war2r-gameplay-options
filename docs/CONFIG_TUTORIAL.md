@@ -1179,6 +1179,19 @@ toggle_key = "F7"     # "F1" to "F12"
 # toggle_key = ""     # no hotkey
 ```
 
+### Keep fog of war off (or on)
+
+The game does not remember the fog of war choice from its Options screen: every time the game starts, fog is on
+again, and a savegame brings back the fog it was saved with. This makes the choice stick:
+
+```toml
+[general]
+fog_of_war = "off"    # "on" = always fog, "game" = leave it to the game (the default)
+```
+
+It is set at the start of every single-player map (campaign missions and custom games) and after loading a savegame.
+The Options screen still changes it for the rest of that game. Multiplayer games are never touched.
+
 ### See what the mod is doing
 
 ```toml
@@ -1212,6 +1225,7 @@ here and are for your paladins only.
 | general | toggle_key | "F9" | Ctrl + key toggles autocast |
 | general | interval_ticks | 10 | Game steps between autocast passes. Lower reacts faster |
 | general | log_casts | false | Write every cast to gameplay_options.log |
+| general | fog_of_war | "game" | "off" / "on": fog of war at the start of every single-player map and savegame. "game" = the game decides |
 | priority | save_mana | true | A caster keeps its mana for a spell higher in its list instead of casting a cheaper one |
 | priority | hold_for_blocked_area | true | A Blizzard / Death and Decay with a target that only your own units block holds the caster: nothing further down its list is cast |
 | priority | paladin, mage, ogre_mage, death_knight | today's order | The order each caster tries its spells in, by `[spells]` name |

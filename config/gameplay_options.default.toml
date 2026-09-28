@@ -26,6 +26,10 @@ toggle_key = "F9"
 interval_ticks = 10
 # true = write every cast and worker order to gameplay_options.log
 log_casts = false
+# Fog of war. The game forgets the choice you make in its Options screen: every start turns fog back on, and a
+# savegame brings back the fog it was saved with. "off" / "on" = set at the start of every single-player map and
+# after loading a savegame (the Options screen still changes it for the rest of that game). "game" = leave it alone.
+fog_of_war = "game"
 
 # ==============================================================================================================
 #  2. AUTOCAST
