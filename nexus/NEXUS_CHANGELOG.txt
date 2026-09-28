@@ -1,3 +1,8 @@
+[size=4][b]1.37.0[/b][/size]
+[list]
+[*]Mine crews (new, on by default, [workers] mine_workers). A gold mine within 12 tiles of a finished town hall, keep or castle of yours wants workers mining it: 3 while it holds 10000 gold or more, 2 from 5000, 1 below that. Idle workers near that hall are sent to it. With auto-production on, the hall also trains the missing workers, on top of workers_tierN, within food and money. A mine near two halls counts once, toward the nearer one. Seven new keys set the radius, the gold thresholds and the crew sizes. tools/migrate_config.py adds them to an older file.
+[/list]
+
 [size=4][b]1.36.3[/b][/size]
 [list]
 [*]A fireball bursts where it was aimed and does not follow its target, so a dragon or any other unit on the move now counts as half a fireball's damage when mages weigh Polymorph against fireballs. At doubled unit health a fresh dragon now gets Polymorph instead of a first Fireball.

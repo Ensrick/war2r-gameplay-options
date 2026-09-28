@@ -7,6 +7,14 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.37.0 - 2026-09-27
+
+- Mine crews (new, on by default, `[workers] mine_workers`). A gold mine within 12 tiles of a finished town hall, keep
+  or castle of yours wants workers mining it: 3 while it holds 10000 gold or more, 2 from 5000, 1 below that. Idle
+  workers near that hall are sent to it. With auto-production on, the hall also trains the missing workers, on top of
+  workers_tierN, within food and money. A mine near two halls counts once, toward the nearer one. Seven new keys set
+  the radius, the gold thresholds and the crew sizes. `tools/migrate_config.py` adds them to an older file.
+
 ## 1.36.3 - 2026-09-27
 
 - A fireball bursts where it was aimed and does not follow its target, so a dragon or any other unit on the move now

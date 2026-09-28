@@ -15,6 +15,14 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.37.0 (2026-09-27, UNTESTED in game, NOT released)
+
+- Author: "town halls I have within 12 squares of a gold mine try to keep at least 3 peasants on gold ... at least
+  10000 gold ... less than 10k, at least 2, if less than 5k at least 1". Agent victory-mine: src/mineworkers.cpp. Mine
+  gold +0x82 (hundreds); a worker counts as mining when ordered to harvest / enter that mine or on the gold round trip
+  (saved mine +0x70, gold bit 0x08 of +0x75, written 0x4C99F2..F8). Idle workers near the hall (2 s, fixed) are sent;
+  training rides the auto-production pass (so only with it on, and under the victory guard). 18 mutations, 18 caught.
+
 ## 1.36.3 (2026-09-27, UNTESTED in game, NOT released)
 
 - Follow-up to 1.36.1 (agent blizz-groups). A fireball bursts at its aimed tile (research 2.2), and the one logged
