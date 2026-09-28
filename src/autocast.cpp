@@ -1,6 +1,7 @@
 #include "autocast.h"
 
 #include <windows.h>
+#include <cmath>
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
@@ -82,11 +83,28 @@ struct Channel {
     uint8_t order;
     int16_t x, y;
     int buildingHp;    // hit points of the enemy buildings in the blast when it started, 0 = this one is about units
-    uint8_t manaAtStart;  // waves delivered so far = (this - mana now) / cost: the engine counts nothing for us
+    uint8_t lastMana;  // the caster's mana at the last watchdog look
+    int waves;         // waves paid so far, counted from the mana drops the watchdog saw: the engine counts nothing
+                       // for us, and it takes the mana at the hit frame (FUN_004e19a0 / FUN_004e2530), not at the order
 };
 constexpr int kMaxChannels = 32;
 Channel g_channels[kMaxChannels];
 int g_channelCount = 0;
+
+// A channel the watchdog stopped keeps its area closed to new Blizzard / Death and Decay casts while the wave it had
+// paid for is still falling (its shards / clouds, missile types 5 / 6 with the caster at +0x30, dodge.md), at most
+// kStopHoldMs of play. Without it the next pass cast at the same spot again (log of 2026-09-27: the same guard tower
+// 20 times in 4 s).
+constexpr uint8_t kMissileBlizzardShard = 5, kMissileDecayCloud = 6;
+constexpr uint32_t kStopHoldMs = 5000;
+struct StoppedArea {
+    Unit* caster;
+    uint8_t order;
+    int16_t x, y;
+    uint32_t sinceMs;
+};
+StoppedArea g_stopped[kMaxChannels];
+int g_stoppedCount = 0;
 
 // Own and allied buildings with their whole footprint (x, y is the top-left tile, FUN_004b4910). The game files a
 // building on every tile of its footprint in the unit grid; this list does not depend on that.
@@ -710,7 +728,8 @@ void RememberChannel(Unit* caster, uint8_t order, int x, int y, int buildingHp) 
                        static_cast<int16_t>(x),
                        static_cast<int16_t>(y),
                        buildingHp,
-                       Field<uint8_t>(caster, kOffMana)};
+                       Field<uint8_t>(caster, kOffMana),
+                       0};
     for (int i = 0; i < g_channelCount; ++i)
         if (g_channels[i].caster == caster) {
             g_channels[i] = c;
@@ -790,11 +809,40 @@ int ExpectedTenths(uint8_t order, const AxisHits& hx, const AxisHits& hy) {
     return kPointsPerWave * impacts * dmg * 3 * shares * 10 / 400;
 }
 
+// What a target counts for when spots are compared, in percent of a plain unit: area_building_value for a building
+// times its [area_values] entry, with diminishing returns above one unit (the square root: a guard tower's 3 x 3.0 = 9
+// counts 3, a barracks' 4.5 counts 2.1, a farm's 0.9 stays 0.9). The author (2026-09-27) wants groups first: at the
+// full 9 one tower outscored any clump of units, and most holds waited for a tower out of reach.
+int ScoreWeight(const World& w, Unit* u) {
+    const bool building = (w.typeFlags[TypeOf(u)] & kTfBuilding) != 0;
+    const int pct = (building ? config::g.areaBuildingValue : 1) * config::g.areaValues.pct[TypeOf(u)];
+    return pct <= 100 ? pct : static_cast<int>(10.0 * sqrt(static_cast<double>(pct)) + 0.5);
+}
+
+// Waves a spot is judged over: a unit walks out after the first one, a building stays for every wave the caster's
+// mana pays for, and never fewer than the three a cast asks mana for (ManaNeed, the computer's own rule).
+int ScoredWaves(Unit* caster, uint8_t order) {
+    const int cost = ManaCost(order), waves = cost > 0 ? Field<uint8_t>(caster, kOffMana) / cost : 0;
+    return waves > 3 ? waves : 3;
+}
+
+// What hitting one target is worth in thousandths of a unit: its ScoreWeight times the share of its hit points the
+// cast takes off (expected damage over the waves above, never more than it has left, over its maximum). A target is
+// worth at most its weight however tough it is, and a nearly dead one little: the old score in hit points counted a
+// 130 hp tower twice, once by its weight and again by its hit points against a 60 hp grunt's.
+int TargetScore(const World& w, Unit* u, int expectedTenths, int buildingWaves) {
+    const bool building = (w.typeFlags[TypeOf(u)] & kTfBuilding) != 0;
+    const int hp = Field<uint16_t>(u, kOffHp), maxHp = MaxHp(w, u);
+    const long long left = 10LL * hp, full = 10LL * (maxHp > hp ? maxHp : (hp > 0 ? hp : 1));
+    const long long dealt = static_cast<long long>(expectedTenths) * (building ? buildingWaves : 1);
+    return static_cast<int>(ScoreWeight(w, u) * 10LL * (dealt < left ? dealt : left) / full);
+}
+
 // What one aim tile would do, summed over every enemy the pattern reaches.
 struct AimCover {
-    int value;       // useful damage one wave is expected to do, in tenths of a hit point: per target the expected
-                     // damage, never more than the hit points it has left, a building's times area_building_value
-    int damage;      // the same without the building weight, for the log line
+    int value;       // what one cast is expected to be worth, in thousandths of a unit: TargetScore summed over
+                     // every enemy the pattern reaches
+    int damage;      // expected damage of one wave in tenths of a hit point, capped per target, for the log line
     int tiles;       // enemy building footprint tiles inside the 5x5 pattern: the author's "building squares"
     int units;       // enemy units that can take a full hit (their tile is inside the pattern)
     int buildings;   // enemy buildings that can take a full hit (their centre is inside the pattern)
@@ -876,6 +924,7 @@ AreaPick PickCoverageAim(const World& w, Unit* caster, uint8_t order, int reach,
     const int outer = reach + (lookahead > 0 ? lookahead : 0);  // the aims scored: in reach, and the lookahead ring
     const int side = 2 * outer + 1;
     if (reach < 0 || side > kMaxAimBox) return pick;
+    const int waves = ScoredWaves(caster, order);
 
     // Every enemy a pattern aimed in that box can reach: 2 tiles of scatter plus 1 of quarter hits past it. A
     // building is filed on every footprint tile, so it is met more than once; a large one may reach in from further.
@@ -898,7 +947,8 @@ AreaPick PickCoverageAim(const World& w, Unit* caster, uint8_t order, int reach,
     for (int i = 0; i < enemyCount; ++i) {
         const AreaEnemy& e = g_areaEnemies[i];
         const int c2x = e.x0 + e.x1 + 1, c2y = e.y0 + e.y1 + 1;  // centre in half tiles: 2 * x0 + width
-        // What hitting it is worth: area_building_value for a building, times its [area_values] entry, in percent.
+        // What it is worth as configured: area_building_value for a building, times its [area_values] entry, in
+        // percent (the log line and area_reserve_value; the pick itself ranks by TargetScore).
         const int weight = (e.building ? config::g.areaBuildingValue : 1) * config::g.areaValues.pct[TypeOf(e.unit)];
         for (int ay = e.y0 - reachAxis; ay <= e.y1 + reachAxis; ++ay) {
             if (abs(ay - cy) > outer) continue;
@@ -910,11 +960,11 @@ AreaPick PickCoverageAim(const World& w, Unit* caster, uint8_t order, int reach,
                 if (!hx.any) continue;
                 AimCover& c = g_cover[(ay - cy + outer) * side + (ax - cx + outer)];
                 const int full = hx.full * hy.full;
-                // No overkill in the score: a nearly dead target is worth only the hit points it has left, so a spot
-                // full of units one wave already finishes scores low.
+                // No overkill in the score: a nearly dead target is worth only the share of hit points it has left,
+                // so a spot full of units one wave already finishes scores low.
                 const int expected = ExpectedTenths(order, hx, hy), left = 10 * Field<uint16_t>(e.unit, kOffHp);
                 const int useful = expected < left ? expected : left;
-                c.value += weight * useful / 100;
+                c.value += TargetScore(w, e.unit, expected, waves);
                 c.damage += useful;
                 if (!full) continue;  // a quarter hit alone adds a little value, but never makes the spot a target
                 const int dx = 2 * ax + 1 - c2x, dy = 2 * ay + 1 - c2y;
@@ -1078,6 +1128,19 @@ uint8_t g_areaBetterType = 0;
 int g_areaWorthAll = 0, g_areaWorthDistance = 0;
 uint8_t g_areaWorthType = 0;
 
+// How long a caster has been holding for a better spot out of reach (area_settle_percent): per unit slot, keyed by the
+// creation serial. After kSettleHoldMs of play it takes the best spot in reach after all: the hold waits for the player
+// to move the caster, and in the author's games (log of 2026-09-27) the player mostly did not.
+constexpr uint32_t kSettleHoldMs = 10000;
+CastNote g_settleNotes[kMaxNoteSlots];
+
+bool SettleHoldOver(const World& w, Unit* caster) {
+    const unsigned slot = NoteSlot(w, caster);
+    if (slot >= kMaxNoteSlots) return false;
+    const CastNote& n = g_settleNotes[slot];
+    return n.used && n.serial == Field<uint32_t>(caster, kOffSerial) && g_playMs - n.lastMs >= kSettleHoldMs;
+}
+
 bool TryAreaSpell(const World& w, Unit* caster, Spell spell) {
     g_areaBlockedByTroops = false;
     g_areaBetterOut = false;
@@ -1114,8 +1177,9 @@ bool TryAreaSpell(const World& w, Unit* caster, Spell spell) {
         g_areaWorthType = pick.worthAllType;
         g_areaWorthDistance = pick.worthAllDistance;
     }
-    // No cheap cast when a much better spot is a few tiles further: hold for it instead (the player moves the caster).
-    if (channel && pick.found && config::g.areaSettlePercent > 0 && pick.farRaw > 0 &&
+    // No cheap cast when a much better spot is a few tiles further: hold for it instead (the player moves the caster),
+    // for kSettleHoldMs at most.
+    if (channel && pick.found && config::g.areaSettlePercent > 0 && pick.farRaw > 0 && !SettleHoldOver(w, caster) &&
         static_cast<long long>(pick.raw) * 100 < static_cast<long long>(config::g.areaSettlePercent) * pick.farRaw) {
         g_areaBetterOut = true;
         g_areaBetterDistance = pick.farDistance;
@@ -1272,10 +1336,11 @@ BlastLeft WhatIsLeft(const World& w, const Channel& c) {
     return b;
 }
 
-// What one more wave at x, y is worth by the pick's own measure (PickCoverageAim's value): every enemy the pattern
-// reaches, expected damage capped at the hit points it has left, times area_building_value and [area_values].
-int AimValueRaw(const World& w, uint8_t order, int x, int y) {
+// What a cast at x, y is worth by the pick's own measure (PickCoverageAim's value): TargetScore of every enemy the
+// pattern reaches.
+int AimValueRaw(const World& w, Unit* caster, uint8_t order, int x, int y) {
     const Size* sizes = At<Size>(kRvaUnitSizeByType);
+    const int waves = ScoredWaves(caster, order);
     Unit* seen[kMaxAreaEnemies];
     int n = 0, value = 0;
     ScanTileRaw(w, x, y, kPatternHalf + 1 + kMaxBuildingSize - 1, [&](Unit* u) {
@@ -1288,10 +1353,7 @@ int AimValueRaw(const World& w, uint8_t order, int x, int y) {
         const int c2x = 2 * X(u) + (s.w ? s.w : 1), c2y = 2 * Y(u) + (s.h ? s.h : 1);
         const AxisHits hx = HitsOnAxis(x, c2x), hy = HitsOnAxis(y, c2y);
         if (!hx.any || !hy.any) return false;
-        const bool building = (w.typeFlags[TypeOf(u)] & kTfBuilding) != 0;
-        const int weight = (building ? config::g.areaBuildingValue : 1) * config::g.areaValues.pct[TypeOf(u)];
-        const int expected = ExpectedTenths(order, hx, hy), left = 10 * Field<uint16_t>(u, kOffHp);
-        value += weight * (expected < left ? expected : left) / 100;
+        value += TargetScore(w, u, ExpectedTenths(order, hx, hy), waves);
         return false;
     });
     return value;
@@ -1324,7 +1386,7 @@ const char* ReaimReason(const World& w, const Channel& c) {
     if (!pick.found) return nullptr;
     const int dx = abs(pick.x - c.x), dy = abs(pick.y - c.y);
     if ((dx > dy ? dx : dy) <= kReaimMinDistance) return nullptr;
-    const int now = AimValueRaw(w, c.order, c.x, c.y);
+    const int now = AimValueRaw(w, c.caster, c.order, c.x, c.y);
     if (static_cast<long long>(now) * 100 >= static_cast<long long>(config::g.areaSettlePercent) * pick.raw) return nullptr;
     n = {c.serial, g_playMs, true};
     sprintf_s(g_reaimWhy, "re-aiming: better spot at %d,%d worth %d (this one %d)", pick.x, pick.y, (pick.raw + 5) / 10,
@@ -1340,8 +1402,10 @@ const char* StopReason(const World& w, const Channel& c, bool reaim) {
         return "mana below channel_mana_reserve";
     // No overkill on anything: once every enemy the pattern reaches, units included, has no more hit points left than
     // one wave is expected to take off it, the wave already falling finishes the job and the next one would be waste.
-    // Counted per target, so one weak unit never hides a tough one. An estimate (2.6a).
-    if (WhatIsLeft(w, c).survivors == 0) return "everything left in the area dies to the wave already falling";
+    // Counted per target, so one weak unit never hides a tough one. An estimate (2.6a). Only once a wave has been paid
+    // for: before the first hit frame nothing is falling, and a stop then restarted the same cast every pass without a
+    // wave ever landing (log of 2026-09-27).
+    if (c.waves > 0 && WhatIsLeft(w, c).survivors == 0) return "everything left in the area dies to the wave already falling";
     // No overkill on buildings. A channel started for buildings runs until the waves it has paid for cover the hit
     // points those buildings had, or until what is left in the blast would die to the damage already falling on it.
     // A channel started for UNITS (buildingHp 0) is never stopped here: units walk in and out, there is nothing to
@@ -1349,27 +1413,48 @@ const char* StopReason(const World& w, const Channel& c, bool reaim) {
     if (c.buildingHp > 0) {
         const AreaTargets a = ScanArea(w, w.localPlayer, c.x, c.y, kAreaCount);
         if (a.units < config::g.areaMinEnemies) {
-            const int wave = WaveDamage(c.order), cost = ManaCost(c.order);
-            const int spent = c.manaAtStart - Field<uint8_t>(c.caster, kOffMana);
-            const int waves = cost > 0 ? spent / cost : 0;
-            if (a.buildings == 0 || a.buildingHp <= wave || waves * wave >= c.buildingHp)
+            const int wave = WaveDamage(c.order);
+            if (a.buildings == 0 || (c.waves > 0 && a.buildingHp <= wave) || c.waves * wave >= c.buildingHp)
                 return "the buildings in the area are covered by the waves already cast";
         }
     }
     return reaim ? ReaimReason(w, c) : nullptr;
 }
 
+// A drop of about one wave's cost since the last look is a wave paid; regeneration only ever adds a point or two.
+void CountWaves(Channel& c) {
+    const int mana = Field<uint8_t>(c.caster, kOffMana), cost = ManaCost(c.order);
+    if (mana < c.lastMana && cost > 0) c.waves += (c.lastMana - mana + cost / 2) / cost;
+    c.lastMana = static_cast<uint8_t>(mana);
+}
+
+// Is a wave of this stopped channel still falling? Without a readable pool nothing can be ruled out, so it is.
+bool StoppedWaveFalling(const StoppedArea& s) {
+    if (g_playMs - s.sinceMs >= kStopHoldMs) return false;
+    const uint8_t* pool = *At<uint8_t*>(kRvaMissilePool);
+    const uint32_t slots = *At<uint32_t>(kRvaMissileSlots);
+    if (!pool) return true;
+    const uint8_t type = s.order == kOrderBlizzard ? kMissileBlizzardShard : kMissileDecayCloud;
+    for (uint32_t i = 0; i < slots && i < 4096; ++i) {
+        const uint8_t* m = pool + i * kMissileSize;
+        if (!(m[kMisOffFlags] & 1) && m[kMisOffType] == type && *reinterpret_cast<Unit* const*>(m + kMisOffSource) == s.caster)
+            return true;
+    }
+    return false;
+}
+
 // Stops (stop handler, positional at the caster's own tile) every channel the mod started that turned unsafe or useless.
 void GuardChannelsImpl(const World& w, bool reaim) {
     int kept = 0;
     for (int i = 0; i < g_channelCount; ++i) {
-        const Channel c = g_channels[i];
+        Channel c = g_channels[i];
         Unit* u = c.caster;
         // Still the unit the mod gave this channel to, still on it at the same tile? Otherwise it ended, the unit died or
         // the player gave it an order of their own: not ours any more.
         if (!InUnitArray(w, u) || Field<uint32_t>(u, kOffSerial) != c.serial || !IsActive(u) || OrderOf(u) != c.order ||
             Field<int16_t>(u, kOffOrderX) != c.x || Field<int16_t>(u, kOffOrderY) != c.y)
             continue;
+        CountWaves(c);
         const char* why = StopReason(w, c, reaim);
         if (!why) {
             g_channels[kept++] = c;
@@ -1377,6 +1462,7 @@ void GuardChannelsImpl(const World& w, bool reaim) {
         }
         if (!OnMap(w, X(u), Y(u))) continue;
         IssueOrder(u, static_cast<int16_t>(X(u)), static_cast<int16_t>(Y(u)), nullptr, kRvaStopHandler);
+        if (g_stoppedCount < kMaxChannels) g_stopped[g_stoppedCount++] = {u, c.order, c.x, c.y, g_playMs};
         if (config::g.logCasts)
             logx::Write("channel stopped: %s by caster type %u at %d,%d on tile %d,%d: %s",
                         c.order == kOrderBlizzard ? "blizzard" : "death_and_decay", TypeOf(u), X(u), Y(u), c.x, c.y, why);
@@ -1538,10 +1624,10 @@ int AreaReserve(const World& w, Unit* caster, const int8_t* list, int* areaSpell
 // walk. With hold_for_blocked_area on, a Blizzard / Death and Decay blocked only by the player's own units stops it
 // too, and so does one that passed up a cheap spot for a better one within lookahead_tiles (area_settle_percent).
 // While a target worth area_reserve_value is near, the other spells only spend the mana above one full area cast.
-// Holding issues no order, so the caster does not walk either.
-void CasterThink(const World& w, Unit* caster) {
+// Holding issues no order, so the caster does not walk either. True when it held for a better spot out of reach.
+bool CasterWalk(const World& w, Unit* caster) {
     const int kind = KindOf(Field<uint8_t>(caster, kOffType));
-    if (kind < 0) return;
+    if (kind < 0) return false;
     const int8_t* list = config::g.priority.list[kind];
     const bool hold = config::g.priority.holdForBlockedArea;
     const bool settle = config::g.areaSettlePercent > 0 && config::g.areaLookaheadTiles > 0;
@@ -1552,14 +1638,14 @@ void CasterThink(const World& w, Unit* caster) {
         g_manaReserve = IsChannelSpell(spell) ? 0 : reserve;
         const bool cast = TrySpell(w, caster, spell);
         g_manaReserve = 0;
-        if (cast) return;
+        if (cast) return false;
         bool blocked = hold && IsChannelSpell(spell) && g_areaBlockedByTroops;  // it had the mana, own troops in the way
         bool better = settle && IsChannelSpell(spell) && g_areaBetterOut;
         if (config::g.priority.saveMana || hold || (settle && IsChannelSpell(spell))) {
             if (WouldCastWithMoreMana(w, caster, spell)) {  // short of mana only: the dry run found a clean target
                 if (config::g.priority.saveMana) {
                     NoteSaving(w, caster, kind, spell);
-                    return;
+                    return false;
                 }
             } else if (IsChannelSpell(spell) && Field<uint8_t>(caster, kOffMana) < ManaNeed(spell)) {
                 blocked = blocked || (hold && g_areaBlockedByTroops);  // short of mana AND blocked: the dry run says why
@@ -1568,16 +1654,29 @@ void CasterThink(const World& w, Unit* caster) {
         }
         if (blocked) {
             NoteHolding(w, caster, kind, spell, "only your own units are in the way");
-            return;
+            return false;
         }
         if (better) {
             char why[96];
             sprintf_s(why, "a better target %d tiles away (%s)", g_areaBetterDistance, TypeName(g_areaBetterType));
             NoteHolding(w, caster, kind, spell, why);
-            return;
+            return true;
         }
         if (reserve > 0 && !IsChannelSpell(spell) && spell != areaSpell) NoteReserve(w, caster, kind, areaSpell, reserve);
     }
+    return false;
+}
+
+// The walk, and the clock of a hold for a better spot: started by the first pass that holds, cleared by any that
+// does not (a cast, or nothing better out there any more).
+void CasterThink(const World& w, Unit* caster) {
+    const bool held = CasterWalk(w, caster);
+    const unsigned slot = NoteSlot(w, caster);
+    if (slot >= kMaxNoteSlots) return;
+    CastNote& n = g_settleNotes[slot];
+    const uint32_t serial = Field<uint32_t>(caster, kOffSerial);
+    if (!held) n.used = false;
+    else if (!n.used || n.serial != serial) n = {serial, g_playMs, true};
 }
 
 void PassImpl(const World& w) {
@@ -1595,6 +1694,15 @@ void PassImpl(const World& w) {
         g_claims[g_claimCount++] = {order, Field<Unit*>(u, kOffOrderTarget), Field<int16_t>(u, kOffOrderX),
                                     Field<int16_t>(u, kOffOrderY)};
     }
+    // Stopped channels whose last wave is still falling claim their tile too (kStopHoldMs).
+    int keptStopped = 0;
+    for (int i = 0; i < g_stoppedCount; ++i) {
+        const StoppedArea& s = g_stopped[i];
+        if (!StoppedWaveFalling(s)) continue;
+        g_stopped[keptStopped++] = s;
+        if (g_claimCount < kMaxClaims) g_claims[g_claimCount++] = {s.order, nullptr, s.x, s.y};
+    }
+    g_stoppedCount = keptStopped;
     GuardChannelsImpl(w, true);  // re-aiming only here: the next lines of this pass cast at the better spot
 
     for (unsigned i = 0; i < w.unitCount; ++i) {
@@ -1622,7 +1730,9 @@ void OnNewMap() {
     memset(g_reaimNotes, 0, sizeof(g_reaimNotes));
     memset(g_reserveNotes, 0, sizeof(g_reserveNotes));
     memset(g_holdNotes, 0, sizeof(g_holdNotes));
+    memset(g_settleNotes, 0, sizeof(g_settleNotes));
     g_channelCount = 0;
+    g_stoppedCount = 0;
 }
 unsigned RaiseDeadNoteCount() { return g_raiseNoteCount; }
 unsigned CastCount() { return g_castCount; }

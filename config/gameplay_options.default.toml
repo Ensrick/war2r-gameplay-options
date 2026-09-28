@@ -76,6 +76,8 @@ channel_mana_reserve = 0
 # it takes at least this many enemy units close together. Whirlwind needs this many enemies of any kind.
 area_min_enemies = 3
 # An enemy building in the blast counts as this many units when the spot is picked (a building cannot walk away).
+# Between spots, anything worth more than one unit counts its square root (a guard tower's 3 x 3.0 = 9 counts 3), so
+# a group of units and buildings beats one lone building.
 # A channel aimed at buildings stops once the waves already cast cover their hit points: no mana spent on rubble.
 area_building_value = 3
 # Tiles around the aim point of a Blizzard or Death and Decay that must hold nothing of yours. The waves reach about
@@ -86,6 +88,7 @@ area_building_value = 3
 area_friendly_clearance = 4
 # Blizzard / Death and Decay also look this many tiles past their reach for a better spot. When the best spot in reach
 # is worth less than area_settle_percent of that one, the caster casts nothing and waits: move it a few steps closer.
+# After 10 seconds of waiting it casts at the best spot in reach.
 lookahead_tiles = 8
 area_settle_percent = 50
 # While a target worth this many plain units (a guard tower is 9, a barracks 4.5, a farm 0.9) is that close, the caster

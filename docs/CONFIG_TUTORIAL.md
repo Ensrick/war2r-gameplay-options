@@ -96,16 +96,24 @@ its outer ring. So the mod tries every tile in range and takes the one where the
 the middle of a castle, between two buildings that stand side by side, the middle of a group. The cast line in the
 log says how much it covers (`covers 16 building tiles, 0 units, about 66 damage a wave`).
 
-**No damage wasted.** A target only counts for the hit points it has left, so three nearly dead grunts are worth less
-than three healthy ones further away. A running blizzard or death and decay is stopped once everything still in it
-would die to the wave already falling. These are estimates from the spell's average damage: a wave can roll higher or
-lower, and units walk in and out, so now and then a channel stops one wave early or runs one wave long.
+**No damage wasted.** A target only counts for the share of its hit points the cast can still take off it, so three
+nearly dead grunts are worth less than three healthy ones further away. A running blizzard or death and decay is
+stopped once everything still in it would die to the wave already falling, but never before its first wave has been
+paid for, and nobody casts at that spot again while that wave is still coming down (5 seconds at most). These are
+estimates from the spell's average damage: a wave can roll higher or lower, and units walk in and out, so now and then
+a channel stops one wave early or runs one wave long.
 
 **Buildings are the better target.** A building cannot walk out of a blizzard, so an enemy building the waves reach
 counts `area_building_value` (3 by default) times what a unit in the same spot would: two buildings and two units
 beat four units. One building is reason enough to cast; without a building it takes `area_min_enemies` units, so a
 building and a unit are a valid target while two lone units are not. A building whose middle the waves cannot reach
 (only a corner is in range) is not a target at all.
+
+**Groups first.** When spots are compared, a target worth more than one unit counts with diminishing returns (the
+square root: a guard tower's 3 x 3.0 = 9 counts 3, a barracks' 3 x 1.5 = 4.5 counts 2.1, a farm's 0.9 stays 0.9), and
+no target counts for more than its value however many hit points it has. So three grunts and a farm beat a lone guard
+tower, and a tower with two grunts at its foot beats three grunts. A building counts over every wave the caster has
+the mana for, a unit over one (it walks out).
 
 **Towers first, farms last.** What a target is worth depends on what it is: guard and cannon towers count three
 times, barracks, halls and every other building that trains or researches one and a half times, casters and siege
@@ -120,7 +128,8 @@ farm = 0.0                # never worth a blizzard of its own
 **No blizzard on farms when a tower is right there.** The caster also looks `lookahead_tiles` (8) past its reach. When
 the best spot it can reach is worth less than `area_settle_percent` (50 %) of the best spot a little further out, it
 casts nothing at all and waits, and the log says why (`holding: mage ... for blizzard: a better target 11 tiles away
-(human_guard_tower)`). It does **not** walk there by itself: move the mage a few steps and the blizzard goes off.
+(human_guard_tower)`). It does **not** walk there by itself: move the mage a few steps and the blizzard goes off. It
+waits 10 seconds at most; after that it casts at the best spot it can reach.
 
 A blizzard that is already falling moves too: when the spot it is on has become worth less than
 `area_settle_percent` of the best spot in reach (the targets there died or walked off, or a bigger group arrived

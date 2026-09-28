@@ -2252,13 +2252,13 @@ static void AreaValueTests(const wchar_t* dir, const wchar_t* ini) {
     auto ox = [](Unit* u) { return static_cast<int>(Field<int16_t>(u, kOffOrderX)); };
     auto oy = [](Unit* u) { return static_cast<int>(Field<int16_t>(u, kOffOrderY)); };
 
-    // Two farms in reach, a guard tower 11 tiles out (its middle only reachable from aims 31 and up; reach is 8): the
-    // farms are worth 0.3 x 2 against the tower's 3.0, so the mage holds for the tower instead of blizzarding farms,
-    // and casts nothing else either.
+    // A farm in reach, a guard tower 11 tiles out (its middle only reachable from aims 31 and up; reach is 8): the
+    // farm is worth 0.3 x 3 = 0.9 against the tower's 3 x 3.0 = 9, which counts sqrt(9) = 3 when spots are compared
+    // (1.35.1), so the mage holds for the tower instead of blizzarding the farm, and casts nothing else either. (Two
+    // farms, 1.8 against 3, are no longer worth the wait.)
     list(kSpellBlizzard, kSpellSlow);
     Unit* mg = world(255);
     building(kFarm, 25, 20, 400);
-    building(kFarm, 25, 22, 400);
     building(kTower, 33, 20, 130);
     {
         const int before = LogCount(dir, "holding: mage at 20,20 mana 255 for blizzard: a better target");
@@ -2441,6 +2441,191 @@ static void ReaimTests(const wchar_t* dir) {
     ResetWorld();
 }
 
+
+// Blizzard aim and timing (1.35.1), from the author's log of 2026-09-27:
+//  1. a channel stopped for "everything left dies to the wave already falling" before its first hit frame (no mana
+//     gone, nothing falling), and the next pass cast at the same spot again: 20 casts in 4 s, no wave ever landed;
+//  2. a lone guard tower (3 x 3.0 = 9 units, and scored by its hit points too) beat a group of units and buildings;
+//  3. a caster holding for a better spot out of reach held for as long as the player left it there.
+static void GroupTests(const wchar_t* dir) {
+    constexpr uint8_t kFarm = 0x3A, kTower = 0x60;
+    struct Sz { uint16_t w, h; };
+    Sz* sizes = At<Sz>(kRvaUnitSizeByType);
+    uint32_t* tf = At<uint32_t>(kRvaTypeFlags);
+    uint16_t* maxHp = At<uint16_t>(kRvaMaxHpByType);
+    const Sz savedSz[2] = {sizes[kFarm], sizes[kTower]};
+    const uint32_t savedTf[3] = {tf[kFarm], tf[kTower], tf[kGrunt]};
+    const uint16_t savedHp[3] = {maxHp[kFarm], maxHp[kTower], maxHp[kGrunt]};
+    sizes[kFarm] = sizes[kTower] = {2, 2};
+    tf[kFarm] = tf[kTower] = kTfBuilding;
+    tf[kGrunt] = kTfFleshy | kTfAttacker;
+    maxHp[kFarm] = 400;
+    maxHp[kTower] = 130;
+    maxHp[kGrunt] = 60;
+    bool savedSpells[kSpellCount];
+    memcpy(savedSpells, config::g.spell, sizeof(savedSpells));
+    const Priority savedPriority = config::g.priority;
+    const bool savedLog = config::g.logCasts;
+    uint8_t* const savedPool = *At<uint8_t*>(kRvaMissilePool);
+    const uint32_t savedSlots = *At<uint32_t>(kRvaMissileSlots);
+    static uint8_t missiles[16 * kMissileSize];
+    memset(missiles, 0, sizeof(missiles));
+    for (int i = 0; i < 16; ++i) missiles[i * kMissileSize + kMisOffFlags] = 1;  // all free
+    *At<uint8_t*>(kRvaMissilePool) = missiles;
+    *At<uint32_t>(kRvaMissileSlots) = 16;
+    config::g.logCasts = true;
+    for (int i = 0; i < kSpellCount; ++i) config::g.spell[i] = i == kSpellBlizzard;
+    config::g.areaValues = AreaValues();  // towers 3, farms 0.3
+    config::g.areaBuildingValue = 3;
+    config::g.areaLookaheadTiles = 8;
+    config::g.areaSettlePercent = 50;
+    config::g.areaReserveValue = 0.0;
+    config::g.channelManaReserve = 0;
+    int8_t* l = config::g.priority.list[kCasterMage];
+    l[0] = kSpellBlizzard;
+    l[1] = -1;
+    const int cost = At<uint16_t>(kRvaManaCostByOrder)[kOrderBlizzard];
+    auto building = [&](uint8_t type, int x, int y, int hp) {
+        Unit* b = AddUnit(type, 1, x, y, hp, 0, kOrderStand);
+        Field<uint16_t>(b, kOffStateFlags) = kStateComplete;
+        for (int dy = 0; dy < 2; ++dy)
+            for (int dx = 0; dx < 2; ++dx) g_grid[(y + dy) * kMap + x + dx] = b;
+        return b;
+    };
+    uint32_t serial = 9100;
+    auto world = [&](int mana) {
+        ResetWorld();
+        autocast::OnNewMap();
+        Unit* m = AddUnit(kTypeMage, 0, 20, 20, 60, mana, kOrderStand);
+        Field<uint32_t>(m, kOffSerial) = ++serial;
+        return m;
+    };
+    auto ox = [](Unit* u) { return static_cast<int>(Field<int16_t>(u, kOffOrderX)); };
+    auto oy = [](Unit* u) { return static_cast<int>(Field<int16_t>(u, kOffOrderY)); };
+
+    // ---- 1. The cast / stop loop. A damaged guard tower (60 of 130 hp) whose one expected wave (~66 at dmg 10, a 2x2
+    // aimed at its middle) is more than it has left, but more than the pick's 5 x dmg = 50: the pick casts at it.
+    {
+        Unit* mg = world(255);
+        building(kTower, 25, 20, 60);
+        const int castsBefore = LogCount(dir, "cast blizzard: caster type");
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderBlizzard && autocast::ChannelCount() == 1, "loop setup: blizzard at the tower (order %u)",
+              OrderOf(mg));
+        const int tx = ox(mg), ty = oy(mg);
+        // No hit frame yet: the mana is all there, nothing is falling. 1.35.0 stopped here and cast again next pass.
+        for (int i = 0; i < 5; ++i) mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderBlizzard && ox(mg) == tx && oy(mg) == ty &&
+                  LogCount(dir, "cast blizzard: caster type") == castsBefore + 1,
+              "the watchdog must not stop a channel before its first wave (order %u, casts %d)", OrderOf(mg),
+              LogCount(dir, "cast blizzard: caster type") - castsBefore);
+        // The first wave is paid (the hit frame takes the mana) and its shards are falling: now the stop is right.
+        Field<uint8_t>(mg, kOffMana) = static_cast<uint8_t>(255 - cost);
+        uint8_t* shard = missiles + 3 * kMissileSize;
+        shard[kMisOffFlags] = 0;
+        shard[kMisOffType] = 5;  // a blizzard shard
+        *reinterpret_cast<Unit**>(shard + kMisOffSource) = mg;
+        {
+            const int before = LogCount(dir, "everything left in the area dies to the wave already falling");
+            mod::RunAutocastPass();
+            CHECK(OrderOf(mg) != kOrderBlizzard &&
+                      LogCount(dir, "everything left in the area dies to the wave already falling") == before + 1,
+                  "after one wave the tower dies to what is falling: the channel must stop (order %u)", OrderOf(mg));
+        }
+        // While that wave is still falling nobody casts at the same area again, the caster included.
+        Idle(mg);
+        for (int i = 0; i < 3; ++i) mod::RunAutocastPass();
+        CHECK(OrderOf(mg) != kOrderBlizzard, "re-cast at the same tower while the stopped wave is still falling (order %u)",
+              OrderOf(mg));
+        // Shards gone, tower still standing (the wave missed it): one more cast is fine.
+        shard[kMisOffFlags] = 1;
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderBlizzard && ox(mg) == tx && oy(mg) == ty,
+              "the wave has landed and the tower still stands: blizzard again (order %u at %d,%d)", OrderOf(mg), ox(mg), oy(mg));
+        // Without a readable missile pool the hold lasts 5 s of play.
+        Field<uint8_t>(mg, kOffMana) = static_cast<uint8_t>(255 - 2 * cost);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) != kOrderBlizzard, "second loop stop (order %u)", OrderOf(mg));
+        *At<uint8_t*>(kRvaMissilePool) = nullptr;
+        Idle(mg);
+        autocast::AddPlayTime(4900);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) != kOrderBlizzard, "no missile pool: re-cast within 5 s (order %u)", OrderOf(mg));
+        autocast::AddPlayTime(100);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderBlizzard, "no missile pool: blizzard again after 5 s (order %u)", OrderOf(mg));
+        *At<uint8_t*>(kRvaMissilePool) = missiles;
+    }
+
+    // ---- 2. Groups first. A lone guard tower (full hit points) east, three grunts and a farm south, both in reach and
+    // far enough apart that no aim reaches both. 1.35.0 took the tower: 9 units, scored by its 130 hit points against
+    // 60 per grunt. Now the tower counts sqrt(9) = 3 units and the group 3 grunts + a farm.
+    {
+        Unit* mg = world(255);
+        building(kTower, 27, 17, 130);
+        for (int i = 0; i < 3; ++i) AddUnit(kGrunt, 1, 19 + i, 26, 60, 0, kOrderAttack);
+        building(kFarm, 20, 27, 400);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderBlizzard && oy(mg) >= 24,
+              "three grunts and a farm must beat a lone guard tower (order %u at %d,%d)", OrderOf(mg), ox(mg), oy(mg));
+    }
+    // Two grunts alone are no group (area_min_enemies 3 and no building): the tower gets it.
+    {
+        Unit* mg = world(255);
+        building(kTower, 27, 17, 130);
+        for (int i = 0; i < 2; ++i) AddUnit(kGrunt, 1, 19 + i, 26, 60, 0, kOrderAttack);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderBlizzard && oy(mg) <= 20, "the tower when there is no group (order %u at %d,%d)", OrderOf(mg),
+              ox(mg), oy(mg));
+    }
+    // Buildings still count: a guard tower with two grunts at its foot beats three grunts on their own.
+    {
+        Unit* mg = world(255);
+        building(kTower, 27, 17, 130);
+        AddUnit(kGrunt, 1, 26, 17, 60, 0, kOrderAttack);
+        AddUnit(kGrunt, 1, 26, 18, 60, 0, kOrderAttack);
+        for (int i = 0; i < 3; ++i) AddUnit(kGrunt, 1, 19 + i, 26, 60, 0, kOrderAttack);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderBlizzard && oy(mg) <= 20, "a tower and two grunts must beat three grunts (order %u at %d,%d)",
+              OrderOf(mg), ox(mg), oy(mg));
+    }
+
+    // ---- 3. The hold for a better spot out of reach ends after 10 s of play. A farm in reach, a guard tower 13 tiles
+    // out (reach 8, lookahead 8): hold; 10 s later the farm gets the blizzard.
+    {
+        Unit* mg = world(255);
+        building(kFarm, 25, 20, 400);
+        building(kTower, 33, 20, 130);
+        const int before = LogCount(dir, "holding: mage at 20,20 mana 255 for blizzard: a better target");
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand && LogCount(dir, "holding: mage at 20,20 mana 255 for blizzard: a better target") == before + 1,
+              "a farm in reach, a tower further out: hold (order %u at %d,%d)", OrderOf(mg), ox(mg), oy(mg));
+        autocast::AddPlayTime(9900);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderStand, "the hold ended before 10 s (order %u)", OrderOf(mg));
+        autocast::AddPlayTime(100);
+        mod::RunAutocastPass();
+        CHECK(OrderOf(mg) == kOrderBlizzard && ox(mg) <= 28, "after 10 s holding the farm must get the blizzard (order %u at %d,%d)",
+              OrderOf(mg), ox(mg), oy(mg));
+    }
+
+    *At<uint8_t*>(kRvaMissilePool) = savedPool;
+    *At<uint32_t>(kRvaMissileSlots) = savedSlots;
+    config::g.priority = savedPriority;
+    memcpy(config::g.spell, savedSpells, sizeof(savedSpells));
+    config::g.logCasts = savedLog;
+    SetLegacyAreaRules();
+    sizes[kFarm] = savedSz[0];
+    sizes[kTower] = savedSz[1];
+    tf[kFarm] = savedTf[0];
+    tf[kTower] = savedTf[1];
+    tf[kGrunt] = savedTf[2];
+    maxHp[kFarm] = savedHp[0];
+    maxHp[kTower] = savedHp[1];
+    maxHp[kGrunt] = savedHp[2];
+    autocast::OnNewMap();
+    ResetWorld();
+}
 
 // [dodge] (src/dodge.cpp): the player's units step out of a falling Blizzard / Death and Decay and hold at its edge
 // instead of walking in, and get their order back once it is gone.
@@ -5391,21 +5576,30 @@ int wmain(int argc, wchar_t** argv) {
                 run();
                 return LogCount(dir, text) - before;
             };
-            // The cast line: (score) and "about N damage a wave", both the expected damage of one wave in hit points:
+            // The cast line: (score) and "about N damage a wave", the expected damage of one wave in hit points:
             // 5 points x 11 (blizzard) or 10 (death and decay) impacts x dmg x (0.75 x full + 0.1875 x quarter shares)
-            // / 25; the score counts a building area_building_value (3) times. A lone barracks: 1 full + 8 quarter
-            // shares, (3 x 1 + 9) = 12 "shares" of 3/400.
+            // / 25. A lone barracks: 1 full + 8 quarter shares, (3 x 1 + 9) = 12 "shares" of 3/400. The score (1.35.1)
+            // is in hundredths of a unit: the building's area_building_value 3 counts sqrt(3) = 1.73 (diminishing
+            // returns above one unit), times the share of its maximum hit points the waves the caster's 255 mana pays
+            // for take off it (a unit: one wave).
             const int impacts = ac.order == kOrderBlizzard ? 11 : 10;
             auto waveTenths = [&](int shares) { return 5 * impacts * At<uint8_t>(dmgRva)[3] * 3 * shares * 10 / 400; };
-            auto castLine = [&](char* out, size_t len, int x, int y, int tenths, int weight, int tiles, int units) {
+            auto scoreOf = [&](int weightPct, int tenths, int hp, int maxHp, bool building) {
+                const int weight = weightPct <= 100 ? weightPct : static_cast<int>(10.0 * sqrt(static_cast<double>(weightPct)) + 0.5);
+                const int cost = At<uint16_t>(kRvaManaCostByOrder)[ac.order];
+                const int waves = building ? (255 / cost > 3 ? 255 / cost : 3) : 1;
+                const long long dealt = 1LL * tenths * waves, left = 10LL * hp, full = 10LL * (maxHp > hp ? maxHp : hp);
+                return static_cast<int>(weight * 10LL * (dealt < left ? dealt : left) / full);
+            };
+            auto castLine = [&](char* out, size_t len, int x, int y, int tenths, int score, int tiles, int units) {
                 sprintf_s(out, len, "-> tile %d,%d (%d), covers %d building tiles, %d units, about %d damage a wave", x, y,
-                          (weight * tenths + 5) / 10, tiles, units, (tenths + 5) / 10);
+                          (score + 5) / 10, tiles, units, (tenths + 5) / 10);
             };
             char line[160];
             ResetWorld();
             c = caster(ac.casterType, 20, 20);
             fileFootprint(AddUnit(kBarracks, 1, 27, 20, 800, 0, kOrderStand));
-            castLine(line, sizeof(line), 28, 21, waveTenths(12), 3, 9, 0);
+            castLine(line, sizeof(line), 28, 21, waveTenths(12), scoreOf(300, waveTenths(12), 800, 800, true), 9, 0);
             {
                 const int logged = logDelta(line, [&] { mod::RunAutocastPass(); });
                 CHECK(castAt(c, ac.order, 28, 21) && logged == 1, "%s at a lone barracks: centre tile, log '%s' (order %u at %d,%d, log %d)",
@@ -5418,7 +5612,7 @@ int wmain(int argc, wchar_t** argv) {
             c = caster(ac.casterType, 33, 26);
             fileFootprint(AddUnit(kCastle, 1, 26, 19, 1600, 0, kOrderStand));  // tiles 26..29 x 19..22
             {
-                castLine(line, sizeof(line), 28, 21, waveTenths(16), 3, 16, 0);
+                castLine(line, sizeof(line), 28, 21, waveTenths(16), scoreOf(300, waveTenths(16), 1600, 1600, true), 16, 0);
                 const int covered = logDelta(line, [&] { mod::RunAutocastPass(); });
                 CHECK(OrderOf(c) == ac.order && ox(c) >= 27 && ox(c) <= 28 && oy(c) >= 20 && oy(c) <= 21 && covered == 1,
                       "%s at a lone 4x4 castle must cover all 16 footprint tiles, never aim at a corner (order %u at %d,%d, "
@@ -5488,6 +5682,11 @@ int wmain(int argc, wchar_t** argv) {
             CHECK(OrderOf(c) == ac.order, "%s: the watchdog stopped although a 60 hp grunt outlasts one wave's ~%d (order %u)",
                   name, waveTenths(12) / 10, OrderOf(c));
             Field<uint16_t>(slot(2), kOffHp) = static_cast<uint16_t>(waveTenths(12) / 10);  // now every one dies to the wave
+            // ... but only once a wave is falling: before the first hit frame no mana has gone and nothing is falling.
+            // Stopping then restarted the same cast every pass and no wave ever landed (log of 2026-09-27, 1.35.0).
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == ac.order, "%s: the watchdog stopped a channel before its first wave (order %u)", name, OrderOf(c));
+            Field<uint8_t>(c, kOffMana) = static_cast<uint8_t>(255 - At<uint16_t>(kRvaManaCostByOrder)[ac.order] + 1);  // a wave, 1 regen
             mod::RunAutocastPass();
             CHECK(OrderOf(c) == kOrderStop, "%s: the watchdog kept a channel on units one wave finishes (order %u)", name,
                   OrderOf(c));
@@ -5548,6 +5747,9 @@ int wmain(int argc, wchar_t** argv) {
             Field<uint8_t>(c, kOffMana) = 255;
             mod::RunAutocastPass();
             Field<uint16_t>(target, kOffHp) = static_cast<uint16_t>(wave - 1);
+            mod::RunAutocastPass();
+            CHECK(OrderOf(c) == ac.order, "%s stopped a channel on a building before its first wave (order %u)", name, OrderOf(c));
+            Field<uint8_t>(c, kOffMana) = static_cast<uint8_t>(255 - cost);
             mod::RunAutocastPass();
             CHECK(OrderOf(c) == kOrderStop, "%s kept channelling at a building the next wave would finish (order %u)", name, OrderOf(c));
             // A channel cast at units only is never stopped by the budget.
@@ -7295,6 +7497,7 @@ int wmain(int argc, wchar_t** argv) {
     DodgeTests(dir);
     AreaValueTests(dir, ini);
     ReaimTests(dir);
+    GroupTests(dir);
 
     // TOML config: a custom file is honoured, typos and bad values are survivable, a syntax error keeps old settings.
     WriteFileText(ini,

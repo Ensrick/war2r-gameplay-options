@@ -393,6 +393,65 @@ from the tiles within reach + 6, each adding to the at most (w + 6) x (h + 6) ai
 256 friendly-fire checks. Whirlwind keeps the per-target aim: it lands on the aim and then wanders at random, so there
 is no pattern to cover.
 
+### 2.6c Groups first, and the cast / stop loop (1.35.1)
+
+The author (2026-09-27): "logic for blizzard is still kinda bad for targeting things ... I again had a blizzard get
+cast on a single structure while there was a group of enemies and structures just below them. It also seems like they
+don't use it as often as I'd hope." Evidence: the two logs of that evening (1.35.0, `log_casts = true`, the author's
+`[spell_damage] blizzard = 20`, `area_building_value = 3`, default `[area_values]`, `lookahead_tiles = 8`,
+`area_settle_percent = 50`, `area_reserve_value = 4.0`, `save_mana` and `hold_for_blocked_area` on). 78 Blizzard
+casts, no Death and Decay; 57 channel stops.
+
+**1. The cast / stop loop.** 21:24:03.565 to 21:24:07.462: 16 casts at tile 44,4 (a guard tower and a farm, "covers 8
+building tiles, 0 units, about 260 damage a wave, worth 9.90 units"), each followed one pass (~130 ms) later by
+`channel stopped: ... everything left in the area dies to the wave already falling`. Over both logs, 25 of the 28 stops
+for that reason came less than 1 s after their cast, and 20 casts went to the same tile within 2 s of such a stop
+(21:23:35 has the same shape on farms). No wave was ever paid: the caster's mana read 84 at 21:24:04.732, after five of
+those casts; five waves would have cost 125. The hit-frame actions (`FUN_004e19a0` / `FUN_004e2530`, 2.5 / 2.6) take
+the mana and drop the wave; a new order before the first hit frame restarts the cast animation [inferred from the unchanged mana], so the tower took no
+damage at all and the 20 re-casts cost nothing but the caster's time.
+
+Why the stop fired: `WhatIsLeft` compares each target's hit points with the expected damage of ONE wave on it (2.6a):
+a 2x2 aimed at its middle takes 4 full shares, 55 x 4/25 x 0.75 x 20 = 132 at the author's damage 20, more than a guard
+tower's 130. The per-target estimate is right as an average (the "260" in the cast line is the two buildings together,
+each capped at its hit points); what was wrong is "the wave already falling": at that point nothing was falling. The
+pick's own overkill rule (building hit points <= 5 x dmg = 100) let the cast through, so pick and watchdog disagreed
+on every pass.
+
+Fix: the channel counts the waves it has paid from the mana drops the watchdog sees (a drop of about one cost, rounded,
+since regeneration adds a point now and then; it replaces "mana at start - mana now", which regeneration undercounts),
+and both overkill stops ("everything left dies", and a building at or below one wave) need at least one paid wave.
+A stopped channel's tile then stays claimed for Blizzard / Death and Decay (the usual 4-tile clearance) while a missile
+of its type (blizzard shard 5, death and decay cloud 6) with the caster as source (+0x30, dodge.md) is in the pool, at
+most 5 s of play (the whole 5 s when the pool cannot be read). The selftest's GroupTests reproduce it: a 60-of-130 hp
+tower, five passes with no mana gone must keep the channel (1.35.0: three casts), one wave paid plus a falling shard
+stops it, nobody re-casts while the shard is in the pool, and the tower gets the next cast once it is gone.
+
+**2. A lone structure over a group.** 54 of the 78 casts hit 0 units; the most valuable target was a guard tower in 30
+of them. The 1.35.0 score per target was `area_building_value x [area_values] x min(expected damage, hit points
+left)`: the hit points counted a building a second time. A full guard tower: 9 x min(132, 130) = 1170; a 60 hp grunt:
+1 x min(99, 60) = 60. One tower outscored 19 grunts, a barracks-and-three-grunts spot (4.5 x 99 + 3 x 60 = 626) lost to
+it by half. Now per target: `sqrt` of that weight above one unit (a tower counts 3, a barracks 2.1, a caster 1.2, a farm
+stays 0.9), times the share of its maximum hit points the cast takes off it, expected damage over the waves the
+caster's mana pays for (at least 3) for a building and over one wave for a unit, capped at what it has left. A target
+is thus worth at most its weight, a nearly dead one little (the old no-overkill rule, now as a share). At the author's
+numbers a full tower is 3, a grunt 1, a barracks 1.7 over 10 waves, a farm 0.9: three grunts and a farm (3.9) or three
+grunts and a barracks (4.7) beat the lone tower. `worth` in the log and `area_reserve_value` keep the configured,
+undiminished values (a lone tower still reserves mana: 9 >= 4). Selftest: three grunts and a farm beat a lone tower
+(1.35.0 picked the tower); a tower with two grunts beats three grunts; two grunts alone leave it to the tower.
+
+**3. Frequency.** Reason lines in both logs (each throttled to one per caster per 30 s of play, so they count stretches,
+not passes): `no enemy in reach` 682, `saving mana (needs 75)` 253 plus 95 `saving:`, `holding: ... a better target`
+119 (92 of them a guard or cannon tower out of reach), `holding: ... only your own units are in the way` 84,
+`reserving:` 122, gate not met 18, friendly in every spot 17, another area spell on the spot 9, "would die to one
+wave" 6. Leaving out "no enemy" (nothing to cast at) and mana (the three-wave rule the computer uses too), the hold for
+a better spot out of reach is the rule that turned down the most castable spots, and it waits for the player to walk
+the caster over, which mostly did not happen. Two changes: the tower that caused 92 of those holds now counts 3, not 9,
+against what is in reach; and a hold lasts at most 10 s of play per caster (`SettleHoldOver`, clock started by the
+first pass that holds, cleared by any that does not), then the best spot in reach is cast at. `hold_for_blocked_area`
+is untouched: it keeps the player's own troops out of the blast. Selftest: a farm in reach and a tower 13 tiles off
+hold for 9.9 s and cast at the farm at 10 s.
+
 ### 2.7 Whirlwind (0x34)
 
 ```c
