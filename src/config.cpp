@@ -647,6 +647,20 @@ static void ReadFarmWorkers(const toml::table& root, FarmWorkers& out) {
                 kNames[static_cast<int>(out)]);
 }
 
+// fog_of_war = "game" | "off" | "on"
+static void ReadFogOfWar(const toml::table& root, FogOfWar& out) {
+    const auto node = root["general"]["fog_of_war"];
+    if (!node) return;
+    static const char* const kNames[] = {"game", "off", "on"};
+    const auto s = node.value<std::string>();
+    for (int i = 0; s && i < 3; ++i)
+        if (_stricmp(s->c_str(), kNames[i]) == 0) {
+            out = static_cast<FogOfWar>(i);
+            return;
+        }
+    logx::Write("config: [general] fog_of_war must be \"game\", \"off\" or \"on\", keeping \"%s\"", kNames[static_cast<int>(out)]);
+}
+
 static void ReadHeroes(const toml::table& root, Config& c) {
     if (const auto node = root["heroes"]["units"]) {
         if (const toml::array* arr = node.as_array()) {
@@ -731,7 +745,7 @@ static void WarnUnknownKeys(const toml::table& root) {
         const char* section;
         const char* keys;
     } kKnown[] = {
-        {"general", " enabled toggle_key interval_ticks log_casts log_ai fix_ai_after_load "},
+        {"general", " enabled toggle_key interval_ticks log_casts log_ai fix_ai_after_load fog_of_war "},
         {"autocast", " search_radius combat_radius own_units_only cast_while_attacking channel_mana_reserve area_min_enemies "
                      "area_building_value area_friendly_clearance fireball_min_enemies resume_orders lookahead_tiles "
                      "area_settle_percent area_reserve_value "},
@@ -828,6 +842,7 @@ static bool Load() {
     ReadToggleKey(root, "general", c.toggleKey);
     ReadInt(root, "general", "interval_ticks", 1, 500, c.intervalTicks);
     ReadBool(root, "general", "log_casts", c.logCasts);
+    ReadFogOfWar(root, c.fogOfWar);
     ReadInt(root, "autocast", "search_radius", 1, 15, c.searchRadius);
     ReadInt(root, "autocast", "combat_radius", 1, 15, c.combatRadius);
     ReadBool(root, "autocast", "own_units_only", c.ownUnitsOnly);

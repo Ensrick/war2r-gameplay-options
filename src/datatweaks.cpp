@@ -10,6 +10,7 @@
 #include "production.h"
 #include "resume.h"
 #include "dodge.h"
+#include "fog.h"
 #include "scouts.h"
 #include "spells.h"
 #include "trees.h"
@@ -260,6 +261,7 @@ void OnNewMapTablesLoaded() {
     TakeSnapshot();
     g_notNowLogged = false;
     tweaks::OnNewMap();
+    fog::OnNewMap();
     autocast::OnNewMap();
     scouts::OnNewMap();
     dodge::OnNewMap();

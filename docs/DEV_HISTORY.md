@@ -15,6 +15,15 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.36.0 (2026-09-27, UNTESTED in game, NOT released)
+
+- Author: "My preferences aren't saved. I keep turning fog of war off, over and over". Agent fog-pref: the game never
+  writes fog to Saved Games\Warcraft2Remastered\Warcraft2.ini; startup (INIT, FUN_004cd950) sets 0x918CCF = 1, each
+  savegame stores its own flag, custom games reset it after the new-map hook (FUN_004d6800 at 0x4C45A0). So the new-map
+  hook only arms, and the first tick after a map start or savegame load (step counter jump) writes the flag, calling
+  the game's own explored-to-visible copy (FUN_004d3960) for "off". Once per game: the Options screen wins afterwards.
+  13 mutations, 13 caught.
+
 ## 1.35.1 (2026-09-27, UNTESTED in game, NOT released)
 
 - Author: "blizzard ... get cast on a single structure while there was a group of enemies and structures just below

@@ -215,12 +215,16 @@ struct Multipliers {
 // [farms] workers: which peasants may be sent to build a farm.
 enum class FarmWorkers { IdleOnly, IdleThenLumber, Any };
 
+// [general] fog_of_war: "game" leaves the game's flag alone, "off" / "on" set it when a single-player game starts.
+enum class FogOfWar { Game, Off, On };
+
 struct Config {
     // [general]
     bool enabled = true;
     int toggleKey = 0x78;         // VK_F9, pressed together with Ctrl
     int intervalTicks = 10;       // game steps between autocast passes
     bool logCasts = false;
+    FogOfWar fogOfWar = FogOfWar::Game;  // applied when each single-player game starts (src/fog.cpp)
 
     // [autocast]
     int searchRadius = 8;         // tiles around the caster

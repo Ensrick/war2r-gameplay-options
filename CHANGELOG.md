@@ -7,6 +7,14 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.36.0 - 2026-09-27
+
+- `[general] fog_of_war = "off"` / `"on"` keeps your fog of war choice. The game itself forgets the choice from its
+  Options screen: every start turns fog back on, a savegame brings back the fog it was saved with, and a custom game
+  uses its own setting. The mod sets your choice at the start of every single-player map and after every savegame
+  load; the Options screen still changes it for the rest of that game. The default `"game"` leaves everything to the
+  game. Never in multiplayer. `tools/migrate_config.py` adds the key (as "game") to an older config.
+
 ## 1.35.1 - 2026-09-27
 
 - Blizzard / Death and Decay no longer stop a channel before its first wave has fallen. 1.35.0 did, then cast at the

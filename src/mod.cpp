@@ -7,6 +7,7 @@
 #include "datatweaks.h"
 #include "eye.h"
 #include "farms.h"
+#include "fog.h"
 #include "log.h"
 #include "production.h"
 #include "resume.h"
@@ -127,6 +128,7 @@ void __cdecl OnTick() {
         return;
     }
     g_netGameLogged = false;
+    fog::OnTick();  // before BuildWorld: the flag does not need the unit array
 
     World w;
     if (!BuildWorld(w)) return;

@@ -93,6 +93,14 @@ constexpr uint32_t kRvaRuneY = 0x518D48;              // uint8[kMaxRunes]
 constexpr uint32_t kRvaRuneTimers = 0x518D80;         // uint16[kMaxRunes], 0 = free slot, placed with 0x800 steps
 constexpr uint32_t kRvaExploredMap = 0x51AD60;       // uint8_t* [mapSize*mapSize] for the LOCAL player, 0x10 = never explored
 constexpr uint32_t kRvaVisibleMap = 0x51AD5C;        // uint8_t* same layout, 0x10 = currently fogged
+// Fog of war, evidence in docs/research/fog_of_war.md. The game keeps the Options screen choice in no settings file:
+// every start sets it to 1 (0x4CDC28), a savegame carries it, a custom game takes it from its game options.
+constexpr uint32_t kRvaFogOfWar = 0x518CCF;          // uint8, 1 = fog on: FUN_004d39d0 re-fogs the visible map every ~100 steps
+constexpr uint32_t kRvaFogMaskMap = 0x51AD64;        // uint8_t* same layout, player bits of the tiles that are fogged
+constexpr uint32_t kRvaRevealExplored = 0xD3960;     // void __cdecl (void): visible map = explored map, mask rebuilt; the
+                                                     // Options screen calls it when fog goes from on to off (0x4DF23E)
+constexpr uint32_t kRvaGameStep = 0x519824;          // uint32: 0 when the game loop starts (0x4C527F), +1 after each step
+                                                     // (0x4C5059), a savegame restores its own (0x4AAE84)
 constexpr uint32_t kRvaRegionMap = 0x51AD7C;         // uint16* [mapSize*mapSize]: 0xFFFE tree, 0xFFFC tree being chopped, else region id
 // Terrain (TILE.cpp), evidence in docs/research/tree_regrowth.md. The three maps are always 0x8000-byte buffers
 // (FUN_004c6110), so a map is at most 128 x 128, and all three are stored verbatim in a savegame.
