@@ -99,6 +99,7 @@ static void ResetWorld() {
     g_unitCount = 0;
     *At<uint32_t>(kRvaUnitCount) = 0;
     *At<uint32_t>(kRvaNetGame) = 0;
+    *At<uint16_t>(kRvaObjective) = 0;  // no "destroy all enemy forces" test left over: see VictoryCounters
 }
 
 static Unit* AddUnit(uint8_t type, uint8_t owner, int x, int y, int hp, int mana, uint8_t order) {
@@ -450,6 +451,17 @@ constexpr uint32_t kRvaTileSeenBits = 0x51AD64;    // uint8*: per-tile player bi
 constexpr uint8_t kPeasant = 2, kHall = 0x4A, kFarmType = 0x3A;
 constexpr int kHallX = 20, kHallY = 20;
 
+// The counters the game's "destroy all enemy forces" check reads (docs/research/victory.md): every player 0..7 empty,
+// objective 0x100. Tests then put single units / buildings back to see the condition fail.
+static void VictoryCounters(uint16_t objective) {
+    *At<uint16_t>(kRvaObjective) = objective;
+    for (int p = 1; p < 16; ++p) At<uint16_t>(kRvaUnitsCounted)[p] = 0;  // player 0 is the local one: its units stay
+    memset(At<uint16_t>(kRvaBuildingsCounted), 0, 32);
+    memset(At<uint16_t>(kRvaFlyingMachineCount), 0, 32);
+    memset(At<uint16_t>(kRvaTransportCount), 0, 32);
+    memset(At<uint16_t>(kRvaTankerCount), 0, 32);
+}
+
 static uint16_t g_farmRegion[kMap * kMap], g_farmSq[kMap * kMap];
 static uint8_t g_farmExplored[kMap * kMap], g_farmSeen[kMap * kMap];
 
@@ -522,7 +534,7 @@ static int FarmOrders() {
     return n;
 }
 
-static void FarmTests() {
+static void FarmTests(const wchar_t* dir) {
     // 1. The trigger: the HIGHER of free_min and free_percent of the supply, rounded up.
     struct { int supply, used; bool want; } kCases[] = {
         {20, 16, true}, {20, 15, false},    // 10 % of 20 = 2: 4 is higher
@@ -986,6 +998,31 @@ static void FarmTests() {
     CHECK(Field<uint8_t>(goldMiner, kOffNextOrder) == kOrderBuild, "any: the empty-handed gold miner may build");
     config::g.farmsWorkers = FarmWorkers::IdleThenLumber;
     tf[kTypeGoldMine] = savedMineFlags;
+
+    // Every enemy gone in a "destroy all enemy forces" mission: no new farm (a farm under construction keeps the game
+    // from ending the mission, docs/research/victory.md). One enemy footman back: farms as usual.
+    {
+        const uint16_t savedObjective = *At<uint16_t>(kRvaObjective);
+        FarmWorld();
+        Unit* p1 = FarmPeasant(30, 30, kOrderStop);
+        VictoryCounters(kObjectiveKillAll);
+        const int lines = LogCount(dir, "farm: all enemies defeated, no new farm is started so the mission can end");
+        FarmPass();
+        FarmPass();
+        CHECK(FarmOrders() == 0 && Field<uint8_t>(p1, kOffNextOrder) == kOrderNone &&
+                  LogCount(dir, "farm: all enemies defeated, no new farm is started so the mission can end") == lines + 1,
+              "victory: no farm order once every enemy is gone, and the log says so once (%d orders)", FarmOrders());
+        At<uint16_t>(kRvaUnitsCounted)[1] = 1;
+        FarmPass();
+        CHECK(Field<uint8_t>(p1, kOffNextOrder) == kOrderBuild, "victory: one enemy unit left, the farm is built as usual");
+        FarmWorld();
+        p1 = FarmPeasant(30, 30, kOrderStop);
+        VictoryCounters(0x200);  // another objective type (0x4F4368 path): the enemy rule is not the game's test there
+        FarmPass();
+        CHECK(Field<uint8_t>(p1, kOffNextOrder) == kOrderBuild, "victory: another objective type is unaffected");
+        VictoryCounters(0);
+        *At<uint16_t>(kRvaObjective) = savedObjective;
+    }
 
     *At<uint16_t*>(kRvaRegionMap) = s.region;
     *At<uint16_t*>(kRvaSquareFlags) = s.sq;
@@ -2053,6 +2090,8 @@ static ProdSnapshot g_prodSnaps[] = {
     {kRvaUnitsCounted, 32, {}},         {kRvaFoodFreeUnits, 32, {}},     {kRvaUnitsInTraining, 32, {}},
     {kRvaPlayerGold, 64, {}},           {kRvaPlayerLumber, 64, {}},      {kRvaPlayerOil, 64, {}},
     {kRvaSelectedUnit, 4 + 12 * 4, {}}, {kRvaSquareFlags, 4, {}},   {kRvaAlliance, 16 * 16, {}},
+    {kRvaObjective, 2, {}},             {kRvaBuildingsCounted, 32, {}},  {kRvaFlyingMachineCount, 32, {}},
+    {kRvaTransportCount, 32, {}},       {kRvaTankerCount, 32, {}},
 };
 static void ProdSave() {
     for (auto& s : g_prodSnaps) memcpy(s.bytes, At<uint8_t>(s.rva), s.size < sizeof(s.bytes) ? s.size : sizeof(s.bytes));
@@ -4218,6 +4257,77 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
     CHECK(g_prodStartCount == 0, "(h) a new map forgets what every building was saving for (%d starts)", g_prodStartCount);
     ProdPass(121000);
     CHECK(StartsOf(0x1E) == 1, "and the clock runs again from the new map (%d)", StartsOf(0x1E));
+
+    // Victory (docs/research/victory.md): in a "destroy all enemy forces" mission the game ends the mission only at a
+    // check that finds nothing of the player's in training, so once its own enemy condition holds nothing new starts.
+    {
+        const char* kLine = "production: all enemies defeated, nothing new is started so the mission can end";
+        auto defeated = [] {
+            World w;
+            return BuildWorld(w) && game::EnemiesDefeated(w);
+        };
+        ProdWorld();
+        Unit* barracks = AddProd(0x3C, 0, 5, 5);
+        Unit* busy = AddProd(0x3C, 0, 10, 5);
+        Field<uint16_t>(busy, kOffJobFlags) |= 0x10;  // already training: must be left alone
+        ++At<uint16_t>(kRvaUnitsInTraining)[0];
+        for (int i = 0; i < 4; ++i) AddProd(0x00, 0, i, 20);  // the player's own army counts for nothing here
+        VictoryCounters(kObjectiveKillAll);
+        At<uint16_t>(kRvaBuildingsCounted)[0] = 2;
+        const int victoryLines = LogCount(dir, kLine);
+        ProdPass(1000);
+        ProdPass(2000);
+        CHECK(defeated() && g_prodAttempts == 0 && StartsAt(barracks) == 0 && LogCount(dir, kLine) == victoryLines + 1,
+              "victory: nothing starts once every enemy is gone, the log says so once (%d attempts)", g_prodAttempts);
+        CHECK((Field<uint16_t>(busy, kOffJobFlags) & 0x10) && At<uint16_t>(kRvaUnitsInTraining)[0] == 1,
+              "victory: the unit already in training is never cancelled");
+        FinishTraining(0);
+        CHECK(At<uint16_t>(kRvaUnitsInTraining)[0] == 0, "victory: it finishes as usual, the game's check can then pass");
+
+        // Flying machines, transports and tankers are left out by the game (0x4F4337..0x4F4347): still defeated.
+        At<uint16_t>(kRvaUnitsCounted)[3] = 3;
+        At<uint16_t>(kRvaFlyingMachineCount)[3] = 1;
+        At<uint16_t>(kRvaTransportCount)[3] = 1;
+        At<uint16_t>(kRvaTankerCount)[3] = 1;
+        // Players 8..15 are outside the game's loop (cmp eax, 8): a neutral critter or a rescuable player 8 is no enemy.
+        At<uint16_t>(kRvaUnitsCounted)[8] = 5;
+        At<uint16_t>(kRvaBuildingsCounted)[15] = 5;
+        ProdPass(3000);
+        CHECK(defeated() && g_prodAttempts == 0, "victory: a flyer / transport / tanker-only enemy is defeated, as the game says");
+
+        // One enemy unit or building left anywhere in 0..7: business as usual, allied or not (the game reads no
+        // alliance), and the log line comes back the next time every enemy is gone.
+        At<uint16_t>(kRvaUnitsCounted)[3] = 4;  // a fourth unit that is none of the three
+        ProdPass(4000);
+        CHECK(!defeated() && StartsAt(barracks) == 1, "victory: one enemy unit left, production as usual (%d)", StartsAt(barracks));
+        At<uint16_t>(kRvaUnitsCounted)[3] = 3;
+        At<uint16_t>(kRvaBuildingsCounted)[7] = 1;  // a building, finished or not
+        At<uint8_t>(kRvaAlliance)[0 * 16 + 7] = At<uint8_t>(kRvaAlliance)[7 * 16 + 0] = 1;
+        FinishTraining(0);
+        ProdPass(5000);
+        CHECK(!defeated() && StartsAt(barracks) == 2, "victory: one building of an ALLIED player 7 left, production as usual");
+        At<uint8_t>(kRvaAlliance)[0 * 16 + 7] = At<uint8_t>(kRvaAlliance)[7 * 16 + 0] = 0;
+        At<uint16_t>(kRvaBuildingsCounted)[7] = 0;
+        FinishTraining(0);
+        ProdPass(6000);
+        CHECK(StartsAt(barracks) == 2 && LogCount(dir, kLine) == victoryLines + 2, "victory: gone again, stopped again and logged again");
+
+        // Another objective type, or a multiplayer game: the rule does not apply.
+        *At<uint16_t>(kRvaObjective) = 0x200;  // the 0x4F4368 objectives
+        ProdPass(7000);
+        CHECK(!defeated() && StartsAt(barracks) == 3, "victory: another objective type is unaffected");
+        FinishTraining(0);
+        *At<uint16_t>(kRvaObjective) = 7;  // a mission number that keeps its own routine
+        ProdPass(8000);
+        CHECK(!defeated() && StartsAt(barracks) == 4, "victory: a mission-number objective is unaffected");
+        FinishTraining(0);
+        *At<uint16_t>(kRvaObjective) = kObjectiveKillAll;
+        *At<uint32_t>(kRvaNetGame) = 1;
+        CHECK(!defeated(), "victory: never in a multiplayer game");
+        *At<uint32_t>(kRvaNetGame) = 0;
+        CHECK(defeated(), "victory: and back in single player");
+        VictoryCounters(0);
+    }
 
     // The food gate in a real pass: supply 20, 15 used: one unit, not two.
     ProdWorld();
@@ -7874,7 +7984,7 @@ int wmain(int argc, wchar_t** argv) {
         ResetWorld();
     }
 
-    FarmTests();
+    FarmTests(dir);
     LiveStatsTests(dir);
     SpellNumberTests(dir, ini);
     UpgradeTests(dir, ini);

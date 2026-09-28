@@ -24,6 +24,7 @@ unsigned g_sincePassMs = 0;
 unsigned g_playMs = 0;
 unsigned g_lastWhyMs = 0;
 bool g_whyLogged = false;
+bool g_victoryLogged = false;
 
 using CanPlaceFn = uint16_t(__cdecl*)(Unit*, uint32_t, uint32_t);
 using TargetTileFn = int(__cdecl*)(Unit*, int16_t*, uint32_t);
@@ -261,6 +262,16 @@ void LogWhy(Why why) {
 }
 
 void Pass(const World& w) {
+    // A farm under construction keeps the game from ending a "destroy all enemy forces" mission, like a unit in
+    // training does (docs/research/victory.md): with every enemy gone no new farm is started.
+    if (EnemiesDefeated(w)) {
+        if (!g_victoryLogged) {
+            g_victoryLogged = true;
+            logx::Write("farm: all enemies defeated, no new farm is started so the mission can end");
+        }
+        return;
+    }
+    g_victoryLogged = false;
     const uint8_t me = w.localPlayer;
     const int supply = At<uint16_t>(kRvaFoodSupply)[me];
     const int used = At<uint16_t>(kRvaUnitsCounted)[me] - At<uint16_t>(kRvaFoodFreeUnits)[me];
@@ -353,6 +364,7 @@ void ResetForTests() {
     g_playMs = 0;
     g_lastWhyMs = 0;
     g_whyLogged = false;
+    g_victoryLogged = false;
 }
 
 void OnTick(const World& w, unsigned elapsedMs) {
