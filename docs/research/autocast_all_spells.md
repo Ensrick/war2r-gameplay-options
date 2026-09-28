@@ -480,7 +480,7 @@ Rules now (`src/autocast.cpp`):
   (a full hit on the unit it is aimed at, 2.6a), HALF that on a flyer or a unit on a move / patrol order, after the
   fireball damage already on its way, times the fireball cost, plus the Slow about to be cast. When one Polymorph costs no more (a tie goes to Polymorph: one cast, certain),
   and the caster has it researched, switched on and the mana for it, the unit is polymorphed instead (log: `cast
-  polymorph: ... (instead of slow: 3 fireballs and the slow, 200 mana, to kill it)`). The `area_reserve_value` mana
+  polymorph: ... (instead of slow: 5 fireballs and the slow, 300 mana, to kill it)`). The `area_reserve_value` mana
   does not hold that Polymorph back. The caster's `[priority]` list still decides everything else; the swap only
   replaces a Slow or Fireball the list had already chosen, and not when `[spells] polymorph` is off or the unit is not
   in `[polymorph] targets`.
