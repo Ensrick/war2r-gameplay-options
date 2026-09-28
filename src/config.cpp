@@ -768,7 +768,9 @@ static void WarnUnknownKeys(const toml::table& root) {
         {"range", nullptr},
         {"unit", nullptr},
         {"building", nullptr},
-        {"workers", " auto_harvest harvest_idle_seconds harvest_radius auto_repair repair_idle_seconds repair_radius "},
+        {"workers", " auto_harvest harvest_idle_seconds harvest_radius auto_repair repair_idle_seconds repair_radius "
+                    "mine_workers mine_workers_radius mine_workers_rich_gold mine_workers_rich mine_workers_medium_gold "
+                    "mine_workers_medium mine_workers_poor "},
         {"trees", " regrow regrow_min_minutes regrow_max_minutes building_distance unit_distance "},
         {"spell_cost", " all holy_vision heal exorcism flame_shield fireball slow invisibility polymorph blizzard eye_of_kilrogg "
                        "bloodlust raise_dead death_coil whirlwind haste unholy_armor runes death_and_decay "},
@@ -896,6 +898,13 @@ static bool Load() {
     ReadBool(root, "workers", "auto_repair", c.workerAutoRepair);
     ReadInt(root, "workers", "repair_idle_seconds", 0, 3600, c.workerRepairIdleSeconds);
     ReadInt(root, "workers", "repair_radius", 1, 64, c.workerRepairRadius);
+    ReadBool(root, "workers", "mine_workers", c.mineWorkers);
+    ReadInt(root, "workers", "mine_workers_radius", 1, 64, c.mineWorkersRadius);
+    ReadInt(root, "workers", "mine_workers_rich_gold", 0, 6553500, c.mineWorkersRichGold);
+    ReadInt(root, "workers", "mine_workers_rich", 0, 20, c.mineWorkersRich);
+    ReadInt(root, "workers", "mine_workers_medium_gold", 0, 6553500, c.mineWorkersMediumGold);
+    ReadInt(root, "workers", "mine_workers_medium", 0, 20, c.mineWorkersMedium);
+    ReadInt(root, "workers", "mine_workers_poor", 0, 20, c.mineWorkersPoor);
     ReadBool(root, "trees", "regrow", c.treesRegrow);
     ReadInt(root, "trees", "regrow_min_minutes", 1, 600, c.treesRegrowMinMinutes);
     ReadInt(root, "trees", "regrow_max_minutes", 1, 600, c.treesRegrowMaxMinutes);

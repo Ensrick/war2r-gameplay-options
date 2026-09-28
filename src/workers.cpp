@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "log.h"
+#include "mineworkers.h"
 
 using namespace game;
 
@@ -18,6 +19,11 @@ struct IdleInfo {
 IdleInfo g_idle[kMaxSlots];
 unsigned g_sincePassMs = 0;
 constexpr unsigned kPassEveryMs = 250;
+constexpr unsigned kMineIdleMs = 2000;  // a worker idle this long goes to a mine short of workers ([workers] mine_workers)
+
+// The mines of this pass, collected the first time a worker is ready for one (mineworkers::Collect).
+mineworkers::Mine g_mines[mineworkers::kMaxMines];
+int g_mineCount = -1;  // -1 = not collected in this pass yet
 
 struct Size {
     uint16_t w, h;
@@ -127,15 +133,42 @@ bool TryHarvest(const World& w, Unit* worker) {
     return false;
 }
 
+// The nearest mine short of workers whose hall is within mine_workers_radius of this worker, in the worker's region.
+bool TryMineCrew(const World& w, Unit* worker) {
+    if (Field<uint8_t>(worker, kOffWorkerFlags) & kWorkerCarrying) return false;  // hands its cargo in first
+    if (g_mineCount < 0) g_mineCount = mineworkers::Collect(w, g_mines, mineworkers::kMaxMines);
+    const int wx = Field<int16_t>(worker, kOffX), wy = Field<int16_t>(worker, kOffY);
+    const uint16_t region = mineworkers::RegionOf(w, worker);
+    mineworkers::Mine* best = nullptr;
+    int bestDistance = 0;
+    for (int k = 0; k < g_mineCount; ++k) {
+        mineworkers::Mine& m = g_mines[k];
+        if (m.have >= m.want || mineworkers::RegionOf(w, m.hall) != region) continue;
+        if (mineworkers::DistanceToFootprint(wx, wy, m.hall) > config::g.mineWorkersRadius) continue;
+        const int d = mineworkers::DistanceToFootprint(wx, wy, m.mine);
+        if (!best || d < bestDistance) {
+            best = &m;
+            bestDistance = d;
+        }
+    }
+    if (!best || !Issue(worker, 0, 0, best->mine, kRvaHarvestHandler, kOrderHarvest)) return false;
+    ++best->have;
+    if (config::g.logCasts)
+        logx::Write("worker at %d,%d -> gold mine at %d,%d (%d/%d mining)", wx, wy, Field<int16_t>(best->mine, kOffX),
+                    Field<int16_t>(best->mine, kOffY), best->have, best->want);
+    return true;
+}
+
 }  // namespace
 
 void OnTick(const World& w, unsigned elapsedMs) {
-    const bool harvest = config::g.workerAutoHarvest, repair = config::g.workerAutoRepair;
-    if (!harvest && !repair) return;
+    const bool harvest = config::g.workerAutoHarvest, repair = config::g.workerAutoRepair, crews = config::g.mineWorkers;
+    if (!harvest && !repair && !crews) return;
     g_sincePassMs += elapsedMs;
     if (g_sincePassMs < kPassEveryMs) return;
     const unsigned stepMs = g_sincePassMs;
     g_sincePassMs = 0;
+    g_mineCount = -1;
 
     const unsigned count = w.unitCount < kMaxSlots ? w.unitCount : kMaxSlots;
     for (unsigned i = 0; i < count; ++i) {
@@ -154,6 +187,7 @@ void OnTick(const World& w, unsigned elapsedMs) {
 
         bool ordered = false;
         if (repair && info.idleMs >= static_cast<uint32_t>(config::g.workerRepairIdleSeconds) * 1000) ordered = TryRepair(w, u);
+        if (!ordered && crews && info.idleMs >= kMineIdleMs) ordered = TryMineCrew(w, u);
         if (!ordered && harvest && info.idleMs >= static_cast<uint32_t>(config::g.workerHarvestIdleSeconds) * 1000) {
             ordered = TryHarvest(w, u);
             // Nothing to do here either: start the wait over instead of rescanning the map four times a second.
