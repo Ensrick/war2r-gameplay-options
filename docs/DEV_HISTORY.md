@@ -15,6 +15,16 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.36.1 (2026-09-27, UNTESTED in game, NOT released)
+
+- Author: mages "slow and spam several fireballs at a dragon despite having polymorph ready". Agent blizz-groups, from
+  the logs: a Slow 1 ms after another mage's Polymorph on the same dragon; 3 fireballs in 0.8 s on one dragon (in-flight
+  missiles ignored); area_reserve_value 75 + Polymorph 200 > 255 max mana made Polymorph impossible near any Blizzard
+  target. Fix: Slow skips polymorph claims; a Slow or Fireball on a [polymorph] target turns into Polymorph when the
+  mages' remaining kill cost (fireballs at 0.75 x damage, minus in-flight, plus the Slow) is >= 200 (tie to Polymorph),
+  exempt from the reserve; fireballs count missiles in flight. At his numbers a fresh 200 hp dragon still costs 150 in
+  fireballs, so a lone first Fireball stays. 7 mutations, 7 caught.
+
 ## 1.36.0 (2026-09-27, UNTESTED in game, NOT released)
 
 - Author: "My preferences aren't saved. I keep turning fog of war off, over and over". Agent fog-pref: the game never

@@ -248,6 +248,12 @@ Unit names you can use:
 
 Only living units can be polymorphed, so machines and ships are ignored even if you list them.
 
+**Polymorph before a pile of fireballs.** Before a mage casts Slow, or a Fireball whose line holds one of your
+`targets`, it works out what the mages would still spend to kill that unit with fireballs (after the fireballs already
+on their way), plus the Slow. When one Polymorph costs no more, and the mage has the mana for it, it polymorphs the
+unit instead (`cast polymorph: ... (instead of slow: ...)` in the log). Nobody slows a unit that is being polymorphed,
+and no mage sends a fireball after a unit the fireballs already flying will kill.
+
 ### Haste on every fighter, not just flyers
 
 ```toml

@@ -473,6 +473,25 @@ void StartCooldown(const World& w, Unit* caster, Spell spell) {
     if (slot < kMaxNoteSlots) g_healNotes[slot] = {Field<uint32_t>(caster, kOffSerial), g_playMs, true};
 }
 
+// Casts `spell` at unit `best`: claim, cooldown, log line (`note` appended).
+bool IssueUnitCast(const World& w, Unit* caster, Spell spell, Unit* best, const char* note) {
+    if (g_dryRun) return true;
+    const SpellDef& def = kSpells[spell];
+    IssueSpell(caster, def.order, 0, 0, best);
+    if (OrderOf(caster) != def.order) return false;  // order was not interruptible
+    if (g_claimCount < kMaxClaims) g_claims[g_claimCount++] = {def.order, best, 0, 0};
+    ++g_castCount;
+    StartCooldown(w, caster, spell);
+    if (config::g.logCasts)
+        logx::Write("cast %s: caster type %u at %d,%d -> target type %u owner %u at %d,%d%s", config::kSpellKeys[spell],
+                    Field<uint8_t>(caster, kOffType), Field<int16_t>(caster, kOffX), Field<int16_t>(caster, kOffY),
+                    Field<uint8_t>(best, kOffType), Field<uint8_t>(best, kOffOwner), Field<int16_t>(best, kOffX),
+                    Field<int16_t>(best, kOffY), note);
+    return true;
+}
+
+bool PolymorphInstead(const World& w, Unit* caster, Unit* t, int alsoSpent, const char* instead);
+
 bool TryCast(const World& w, Unit* caster, Spell spell) {
     if (!config::g.spell[spell]) return false;
     const SpellDef& def = kSpells[spell];
@@ -484,6 +503,9 @@ bool TryCast(const World& w, Unit* caster, Spell spell) {
     int bestScore = -1;
     ScanGrid(w, caster, config::g.searchRadius, [&](Unit* t) {
         if (IsClaimed(def.order, t)) return false;
+        // No Slow on a unit another caster is turning into a critter right now (log of 2026-09-27: a dragon polymorphed
+        // and slowed within the same millisecond).
+        if (spell == kSpellSlow && IsClaimed(kSpells[kSpellPolymorph].order, t)) return false;
         const int score = ScoreTarget(w, spell, caster, t);
         if (score > bestScore) {
             bestScore = score;
@@ -494,19 +516,8 @@ bool TryCast(const World& w, Unit* caster, Spell spell) {
     if (!best) return false;
     char urgent[64] = "";
     if (!CooldownAllows(w, caster, spell, best, urgent, sizeof(urgent))) return false;
-    if (g_dryRun) return true;
-
-    IssueSpell(caster, def.order, 0, 0, best);
-    if (OrderOf(caster) != def.order) return false;  // order was not interruptible
-    if (g_claimCount < kMaxClaims) g_claims[g_claimCount++] = {def.order, best, 0, 0};
-    ++g_castCount;
-    StartCooldown(w, caster, spell);
-    if (config::g.logCasts)
-        logx::Write("cast %s: caster type %u at %d,%d -> target type %u owner %u at %d,%d%s", config::kSpellKeys[spell],
-                    Field<uint8_t>(caster, kOffType), Field<int16_t>(caster, kOffX), Field<int16_t>(caster, kOffY),
-                    Field<uint8_t>(best, kOffType), Field<uint8_t>(best, kOffOwner), Field<int16_t>(best, kOffX),
-                    Field<int16_t>(best, kOffY), urgent);
-    return true;
+    if (spell == kSpellSlow && PolymorphInstead(w, caster, best, ManaCost(def.order), "slow")) return true;
+    return IssueUnitCast(w, caster, spell, best, urgent);
 }
 
 // Every tile comes from a live unit or from arithmetic kept inside the map; checked once more here, so no positional
@@ -668,16 +679,118 @@ bool BuildingsLeftToBlizzard(Unit* caster) {
            (At<uint32_t>(kRvaSpellsResearched)[OwnerOf(caster)] & kSpells[kSpellBlizzard].researchBit) != 0;
 }
 
+// Fireball damage still on its way (log of 2026-09-27: one mage put three fireballs on a dragon's tile in 0.8 s, none
+// of them had landed when the next was cast). Two sources, gathered once per pass:
+//  - fireball missiles in the pool, read once per pass (type 2, +0x37 damage, +0x38 counter: a splash every 8 updates, so counter / 8 of
+//    the five splashes are done; the rest fall on the aimed tile, +0x28 / +0x2A, and every 1.5 tiles past it along
+//    the line from the source caster);
+//  - fireball orders not yet at their hit frame (the claims): the first splash on the aimed tile.
+// A splash on a unit's own tile counts 0.75 x its damage, on a tile next to it a quarter of that (the average full /
+// quarter hit of FUN_004afb50, 2.6a). An estimate: rolls, flyers moving and the exact splash pixel move it either way.
+constexpr uint8_t kMissileFireball = 2;
+constexpr int kMisOffPosX = 0x00, kMisOffPosY = 0x02, kMisOffAimX = 0x28, kMisOffAimY = 0x2A, kMisOffDamage = 0x37,
+              kMisOffCounter = 0x38;
+constexpr int kFireballSplashes = 5;
+struct Splash {
+    int16_t x, y;
+    int dmg;
+};
+constexpr int kMaxSplashes = 256;
+Splash g_splashes[kMaxSplashes];
+int g_splashCount = 0;
+bool g_splashesReady = false;
+
+int FireballDamage() { return At<uint8_t>(kRvaFireballDamageInsn)[1]; }  // the imm8 of `mov al, 0x28`, live
+
+void AddSplash(const World& w, int x, int y, int dmg) {
+    if (g_splashCount < kMaxSplashes && OnMap(w, x, y)) g_splashes[g_splashCount++] = {static_cast<int16_t>(x), static_cast<int16_t>(y), dmg};
+}
+
+bool InUnitArray(const World& w, Unit* u);
+
+void GatherSplashes(const World& w) {
+    if (g_splashesReady) return;
+    g_splashesReady = true;
+    g_splashCount = 0;
+    const uint8_t* pool = *At<uint8_t*>(kRvaMissilePool);
+    const uint32_t slots = *At<uint32_t>(kRvaMissileSlots);
+    for (uint32_t i = 0; pool && i < slots && i < 4096; ++i) {
+        const uint8_t* m = pool + i * kMissileSize;
+        if ((m[kMisOffFlags] & 1) || m[kMisOffType] != kMissileFireball) continue;
+        const int ax = *reinterpret_cast<const int16_t*>(m + kMisOffAimX) >> 5;
+        const int ay = *reinterpret_cast<const int16_t*>(m + kMisOffAimY) >> 5;
+        Unit* source = *reinterpret_cast<Unit* const*>(m + kMisOffSource);
+        int sx = *reinterpret_cast<const int16_t*>(m + kMisOffPosX) >> 5, sy = *reinterpret_cast<const int16_t*>(m + kMisOffPosY) >> 5;
+        if (source && InUnitArray(w, source)) {
+            sx = X(source);
+            sy = Y(source);
+        }
+        const int done = m[kMisOffCounter] / 8, dx = ax - sx, dy = ay - sy;
+        const int len = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
+        for (int k = done; k < kFireballSplashes; ++k) {
+            if (k > 0 && len == 0) break;  // no line to follow
+            const int half = 3 * k;        // 1.5 tiles apart
+            AddSplash(w, ax + (k ? RoundDiv(half * dx, 2 * len) : 0), ay + (k ? RoundDiv(half * dy, 2 * len) : 0), m[kMisOffDamage]);
+        }
+    }
+}
+
+// Tenths of a hit point the fireballs on their way are expected to take off u.
+int PendingFireballTenths(const World& w, Unit* u) {
+    GatherSplashes(w);
+    int tenths = 0;
+    auto add = [&](int x, int y, int dmg) {
+        const int dx = abs(x - X(u)), dy = abs(y - Y(u)), d = dx > dy ? dx : dy;
+        if (d == 0) tenths += dmg * 15 / 2;       // 0.75 x dmg, in tenths
+        else if (d == 1) tenths += dmg * 15 / 8;  // 0.1875 x dmg
+    };
+    for (int i = 0; i < g_splashCount; ++i) add(g_splashes[i].x, g_splashes[i].y, g_splashes[i].dmg);
+    for (int i = 0; i < g_claimCount; ++i)  // claims change during the pass: read live
+        if (g_claims[i].order == kOrderFireball && !g_claims[i].target) add(g_claims[i].x, g_claims[i].y, FireballDamage());
+    return tenths;
+}
+
+// The fireballs already on their way are expected to finish it.
+bool Doomed(const World& w, Unit* u) { return 10 * Field<uint16_t>(u, kOffHp) <= PendingFireballTenths(w, u); }
+
+// Polymorph instead of Slow or Fireball (the author, 2026-09-27: "slow and spam several fireballs at a dragon despite
+// having polymorph ready which would've saved more mana for the other mages"). What counts is the mana ALL the mages
+// would still spend to kill it: fireballs at 0.75 x the live fireball damage each on the unit they are aimed at, minus
+// what is already on its way, plus `alsoSpent` (the Slow about to be cast). When one Polymorph costs no more, and this
+// caster knows it, has it switched on, has the mana for it and the unit is a [polymorph] target in reach, Polymorph is
+// cast instead. The area_reserve_value mana does not hold it back: 200 + 75 is more than any caster holds, and the
+// mana it would save is the group's. Everything else still follows the caster's [priority] list.
+bool PolymorphInstead(const World& w, Unit* caster, Unit* t, int alsoSpent, const char* instead) {
+    const Spell poly = kSpellPolymorph;
+    const SpellDef& def = kSpells[poly];
+    if (!config::g.spell[poly] || !(At<uint32_t>(kRvaSpellsResearched)[OwnerOf(caster)] & def.researchBit)) return false;
+    const int polyCost = ManaCost(def.order);
+    if (Field<uint8_t>(caster, kOffMana) < polyCost) return false;
+    if (Distance(caster, t) > config::g.searchRadius || IsClaimed(def.order, t) || ScoreTarget(w, poly, caster, t) < 0) return false;
+    const int perFireball = FireballDamage() * 15 / 2;  // tenths
+    if (perFireball <= 0) return false;
+    const int left = 10 * Field<uint16_t>(t, kOffHp) - PendingFireballTenths(w, t);
+    const int fireballs = left > 0 ? (left + perFireball - 1) / perFireball : 0;
+    const int killCost = fireballs * ManaCost(kOrderFireball) + alsoSpent;
+    if (polyCost > killCost) return false;
+    char note[112];
+    sprintf_s(note, " (instead of %s: %d fireballs%s, %d mana, to kill it)", instead, fireballs, alsoSpent ? " and the slow" : "",
+              killCost);
+    return IssueUnitCast(w, caster, poly, t, note);
+}
+
 bool TryFireball(const World& w, Unit* caster) {
     if (!Ready(caster, kSpellFireball, ManaCost(kOrderFireball))) return false;
     const uint8_t me = OwnerOf(caster);
     const int cx = X(caster), cy = Y(caster);
     const bool unitsOnly = BuildingsLeftToBlizzard(caster);
+    // A unit the fireballs on their way already finish is no target: no pile of fireballs on one dragon.
     auto isFireballTarget = [&](Unit* u) {
-        return IsTarget(w, me, u) && !(unitsOnly && (w.typeFlags[TypeOf(u)] & kTfBuilding));
+        return IsTarget(w, me, u) && !(unitsOnly && (w.typeFlags[TypeOf(u)] & kTfBuilding)) && !Doomed(w, u);
     };
     Unit* best = nullptr;
     int bestScore = 0, bestDistance = 1 << 30;
+    Unit* bestPoly = nullptr;  // the best [polymorph] target among what the chosen fireball would hit
     ScanGrid(w, caster, Reach(kOrderFireball), [&](Unit* t) {
         if (!isFireballTarget(t)) return false;
         const int ax = X(t), ay = Y(t), d = Distance(caster, t);
@@ -702,9 +815,20 @@ bool TryFireball(const World& w, Unit* caster) {
         best = t;
         bestScore = n;
         bestDistance = d;
+        bestPoly = nullptr;
+        int polyScore = -1;
+        for (int i = 0; i < n; ++i) {
+            const int ps = ScoreTarget(w, kSpellPolymorph, caster, hit[i]);
+            if (ps > polyScore) {
+                polyScore = ps;
+                bestPoly = hit[i];
+            }
+        }
         return false;
     });
-    return best && CastAtTile(w, caster, kSpellFireball, X(best), Y(best), bestScore);
+    if (!best) return false;
+    if (bestPoly && PolymorphInstead(w, caster, bestPoly, 0, "fireball")) return true;
+    return CastAtTile(w, caster, kSpellFireball, X(best), Y(best), bestScore);
 }
 
 // A whirlwind lives 800 missile updates (FUN_004aeb70); its missile record names the caster at +0x30 (FUN_004af5c0).
@@ -1682,6 +1806,7 @@ void CasterThink(const World& w, Unit* caster) {
 void PassImpl(const World& w) {
     CollectFriendlyBuildings(w);
     g_sumsTried = false;
+    g_splashesReady = false;
 
     // Casts already under way, so two casters never pick the same target for the same spell. This is taken BEFORE the
     // watchdog stops anything: a channel it ends keeps its tile claimed for the rest of the pass, so the caster it

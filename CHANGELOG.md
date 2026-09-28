@@ -7,6 +7,14 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.36.1 - 2026-09-27
+
+- Mages polymorph instead of slowing or fireballing a Polymorph target when that is cheaper overall: they count the
+  mana all the mages would still spend on fireballs (and the Slow) to kill it, and one Polymorph at the same price or
+  less wins. The Blizzard mana reserve (area_reserve_value) no longer makes Polymorph impossible.
+- No Slow on a unit that another mage is polymorphing.
+- No more fireballs piling onto one target: a unit the fireballs already on their way will kill is left alone.
+
 ## 1.36.0 - 2026-09-27
 
 - `[general] fog_of_war = "off"` / `"on"` keeps your fog of war choice. The game itself forgets the choice from its

@@ -1,0 +1,3 @@
+Mages polymorph instead of slowing or fireballing a Polymorph target when that is cheaper overall: they count the mana all the mages would still spend on fireballs (and the Slow) to kill it, and one Polymorph at the same price or less wins. The Blizzard mana reserve (area_reserve_value) no longer makes Polymorph impossible.
+No Slow on a unit that another mage is polymorphing.
+No more fireballs piling onto one target: a unit the fireballs already on their way will kill is left alone.
