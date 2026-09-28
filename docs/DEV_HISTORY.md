@@ -15,6 +15,15 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.35.1 (2026-09-27, UNTESTED in game, NOT released)
+
+- Author: "blizzard ... get cast on a single structure while there was a group of enemies and structures just below
+  them", "they don't use it as often as I'd hope". Agent blizz-groups, from the 1.35.0 logs (78 casts, 54 on 0 units):
+  the overkill stop fired ~130 ms after the cast, before the first hit frame, so 16 free re-casts on one tower did
+  nothing; the score counted building hit points twice (a tower 1170 vs a grunt 60); 92 of 119 settle holds waited for
+  towers. Fix: stops need a paid wave, a stopped tile stays claimed while its missiles fall (5 s cap), sqrt diminishing
+  value per target scored by share of max HP, settle hold capped at 10 s. 8 mutations, 8 caught. No new keys.
+
 ## 1.35.0 (2026-09-26, NOT released)
 
 - Author: "separating out all these AI fixes into their own mod". AI Fixes 0.1.0 (repo war2r-ai-fixes, winmm.dll proxy,

@@ -7,6 +7,17 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.35.1 - 2026-09-27
+
+- Blizzard / Death and Decay no longer stop a channel before its first wave has fallen. 1.35.0 did, then cast at the
+  same spot again on the next pass: up to 16 casts in 4 seconds on one guard tower, with no mana spent and no damage
+  done. After a stop, nobody casts at that spot again while its wave is still falling (5 seconds at most).
+- Groups first: when spots are compared, a target worth more than one unit counts with diminishing returns (a guard
+  tower's 9 counts as 3), and no target counts for more than its value however many hit points it has. Three grunts
+  and a farm now beat a lone guard tower.
+- A caster waiting for a better spot out of its reach (area_settle_percent) waits 10 seconds at most, then casts at
+  the best spot it can reach.
+
 ## 1.35.0 - 2026-09-26
 
 - The computer-AI features moved to their own mod, AI Fixes (winmm.dll, settings in ai_fixes.toml): the AI log
