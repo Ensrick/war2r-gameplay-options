@@ -172,6 +172,19 @@ constexpr uint32_t kRvaCounterByType = 0x4C0B80;     // uint16*[110] (.data): th
 constexpr uint32_t kRvaFoodFreeUnits = 0x51B6AC;     // uint16[16]: skeletons, daemons, critters (0x8C0B80[0x37..0x39])
 constexpr uint32_t kRvaUnitsInTraining = 0x5193F0;   // uint16[16]: +1 in StartProduction kind 0 (0x4AD079), -1 when it ends
 constexpr uint32_t kRvaPlayerOil = 0x519168;         // int32[16]
+// Victory (docs/research/victory.md). The game step (call 0x4C504A) runs FUN_004f4f60, which every 51 steps jumps to the
+// objective routine at 0x93766C. For "destroy all enemy forces" FUN_004f42a0 wins when, for every player 0..7 except
+// the local one, buildings == 0 and units - flying machines - transports - tankers == 0 (16-bit subtraction,
+// 0x4F4324..0x4F434F; alliances and controllers are not read). It tests that only while the local player has NOTHING
+// in training and no building under construction (0x4F42C4 / 0x4F42D3 jump past it otherwise).
+constexpr uint32_t kRvaObjective = 0x5191C4;          // uint16, saved (0x4AB32C): bit kObjectiveKillAll selects the test (bt ax, 8 at 0x4F4316)
+constexpr uint16_t kObjectiveKillAll = 0x100;         // setup FUN_004f4520 keeps 0x100 (and maps mission 7 to it) -> routine 0x4F43E0
+constexpr uint32_t kRvaUnderConstruction = 0x519410;  // uint16[16]: +1 when a building is placed (0x4EDE22), -1 finished / destroyed
+constexpr uint32_t kRvaBuildingsCounted = 0x51B3AC;   // uint16[16]: every building, complete or not (CountAdd 0x4B5315)
+constexpr uint32_t kRvaFlyingMachineCount = 0x51B80C; // uint16[16]: 0x8C0B80[0x28 / 0x29], flying machines + zeppelins
+constexpr uint32_t kRvaTransportCount = 0x51B78C;     // uint16[16]: 0x8C0B80[0x1C / 0x1D]
+constexpr uint32_t kRvaTankerCount = 0x51B68C;        // uint16[16]: 0x8C0B80[0x1A / 0x1B]
+constexpr int kVictoryPlayers = 8;                    // the loop at 0x4F4320: cmp eax, 8
 // Production rules (docs/research/production.md sections 2 and 4).
 constexpr uint32_t kRvaTrainedAt = 0x438248;         // uint8[0x3A] (.rdata): building type that trains each unit, 'n' = none
 constexpr uint32_t kRvaResearchAt = 0x438284;        // uint8[52] (.rdata): building type that researches each UGRD index

@@ -21,6 +21,23 @@ bool BuildWorld(World& w) {
     return w.localPlayer < kMaxPlayers && At<uint8_t>(kRvaController)[w.localPlayer] == 0;  // 0 = human
 }
 
+bool EnemiesDefeated(const World& w) {
+    if (*At<uint32_t>(kRvaNetGame) != 0) return false;
+    if (!(*At<uint16_t>(kRvaObjective) & kObjectiveKillAll)) return false;
+    const uint16_t* buildings = At<uint16_t>(kRvaBuildingsCounted);
+    const uint16_t* units = At<uint16_t>(kRvaUnitsCounted);
+    const uint16_t* flyers = At<uint16_t>(kRvaFlyingMachineCount);
+    const uint16_t* transports = At<uint16_t>(kRvaTransportCount);
+    const uint16_t* tankers = At<uint16_t>(kRvaTankerCount);
+    for (int p = 0; p < kVictoryPlayers; ++p) {
+        if (p == w.localPlayer) continue;
+        if (buildings[p] != 0) return false;
+        // The same 16-bit subtraction as 0x4F432F..0x4F434F.
+        if (static_cast<uint16_t>(units[p] - flyers[p] - transports[p] - tankers[p]) != 0) return false;
+    }
+    return true;
+}
+
 static int g_refusedOrders = 0;
 
 int RefusedOrderCount() { return g_refusedOrders; }

@@ -94,4 +94,11 @@ void IssueSpell(Unit* caster, uint8_t order, int16_t x, int16_t y, Unit* target)
 
 void ShowMessage(const char* text);  // the game's own banner line (cheat-toggle style)
 
+// The game's own "destroy all enemy forces" condition (FUN_004f42a0, docs/research/victory.md), read from its counters:
+// true only in a single-player game whose objective is that one and in which every player 0..7 but the local one has
+// no building and no unit other than flying machines, transports and tankers. The game ends the mission on its next
+// 51-step check only once the local player has nothing in training and nothing under construction, so the features
+// that start either stop while this holds.
+bool EnemiesDefeated(const World& w);
+
 }  // namespace game

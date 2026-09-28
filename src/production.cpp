@@ -358,6 +358,7 @@ unsigned g_nextDiagMs = 0;
 unsigned g_nextSaveLogMs = 0;
 int g_navyCapState = -1;  // -1 not decided yet, 0 the caps are in force, 1 the enemy has a navy
 int g_navyFoodLogged = 0;  // the navy food reserve the log last announced
+bool g_victoryLogged = false;  // "all enemies defeated" is in the log for this stretch of the game
 Plan g_lastPlan;
 
 // The map decides how much of the army is ships. Counted once per map: every tile and every oil source.
@@ -907,12 +908,23 @@ void OnNewMap() {
     g_nextSaveLogMs = 0;
     g_navyCapState = -1;
     g_navyFoodLogged = 0;
+    g_victoryLogged = false;
     g_landmassCount = 0;  // counted again with the next map profile
     g_frontLogged[0] = 0;
     for (unsigned i = 0; i < kMaxSlots; ++i) g_slots[i].save = SaveUp{};  // no building saves into the next map
 }
 
 void Pass(const World& w, unsigned nowMs) {
+    // Every enemy gone: the game ends the mission only at a 51-step check that finds nothing of the player's in
+    // training (docs/research/victory.md), so nothing new is started. What is queued finishes as usual.
+    if (EnemiesDefeated(w)) {
+        if (!g_victoryLogged) {
+            g_victoryLogged = true;
+            logx::Write("production: all enemies defeated, nothing new is started so the mission can end");
+        }
+        return;
+    }
+    g_victoryLogged = false;
     const AutoProduction& cfg = config::g.production;
     const uint8_t p = w.localPlayer;
     static Owned o;

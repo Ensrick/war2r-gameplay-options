@@ -501,6 +501,9 @@ The rules:
 - The nearest peasant that `workers` allows goes. A peasant that is repairing, building, fighting, carrying goods,
   chopping or told to stand ground is never taken.
 - Your own units only, never the computer's. Off in multiplayer.
+- Once every enemy is gone in a "destroy all enemy forces" mission, no new farm is started: the game only declares
+  the victory while nothing of yours is being trained or built, so a farm on its way would hold the mission open.
+  The log says `farm: all enemies defeated, no new farm is started so the mission can end` once.
 - With `log_casts = true` each farm is written to the log: `farm: peasant at 31,40 -> farm at 18,18 (food 18/20)`.
 
 This is the same rule `[auto_production]` uses to keep food free (`food_free_min` / `food_free_percent`, the higher
@@ -781,6 +784,13 @@ Every **idle** building of yours then trains on its own, all of them in the same
 make workers, barracks, aviaries / roosts, mage towers / temples and shipyards make the army. The computer's buildings
 are never touched, a building you have selected is left alone (so your own click is never stolen), and the mod never
 starts a research or a building upgrade.
+
+Once every enemy is gone in a "destroy all enemy forces" mission, nothing new is started. The game only declares the
+victory at a moment when nothing of yours is in training and nothing is being built, so a building that keeps
+training would hold the mission open for minutes. What is already in training finishes normally, and the game's next
+check (every 51 game steps) then ends the mission. Units you train yourself hold it open the same way. Enemy flying machines, zeppelins, transports and oil tankers do not count, exactly as
+in the game's own check. The log says `production: all enemies defeated, nothing new is started so the mission can
+end` once.
 
 What it builds: **workers, footmen / grunts, archers / axethrowers (rangers / berserkers once upgraded), knights /
 ogres (paladins / ogre-mages once upgraded), mages / death knights, gryphon riders / dragons, ballistas / catapults,
