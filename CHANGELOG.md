@@ -7,6 +7,14 @@ existing `gameplay_options.toml` files. Every change gets its own version and en
 [GitHub release](https://github.com/Ensrick/war2r-gameplay-options/releases) (2026-09-20). Nexus carries a changelog
 entry for every version since 1.0.0.
 
+## 1.36.2 - 2026-09-27
+
+- A "destroy all enemy forces" mission now ends once the last enemy is gone. The game only declares the victory at a
+  check that finds nothing of yours in training and nothing under construction, and auto-production and auto-farms
+  kept starting new work, so the mission could stay open for minutes (#31). Once every enemy is gone (the game's own
+  rule: flying machines, zeppelins, transports and tankers do not count), neither starts anything new; what is already
+  running finishes normally.
+
 ## 1.36.1 - 2026-09-27
 
 - Mages polymorph instead of slowing or fireballing a Polymorph target when that is cheaper overall: they count the

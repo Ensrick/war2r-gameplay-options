@@ -15,6 +15,15 @@ Every change gets its own build number; newest first.
   "new issue" link redirects to sign-in, so an account is needed there as on GitHub. The post covers people with
   neither.
 
+## 1.36.2 (2026-09-27, UNTESTED in game, NOT released)
+
+- #31, hit again 2026-09-27 (production started an ogre with no enemies left). The victory check 0x4F42A0 (every 51
+  steps via 0x4F4F60) skips while the local player's in-training 0x9193F0[L] or under-construction 0x919410[L] counts
+  are non-zero; only StartProduction and the Build handler raise them, i.e. our auto-production and auto-farms.
+  world::EnemiesDefeated mirrors the game's rule (disasm-matched; flyers, transports, tankers excluded); while it holds
+  with objective 0x100 in single player, neither starts new work. Started by agent prior-art, finished by victory-mine.
+  7 mutations, 7 caught.
+
 ## 1.36.1 (2026-09-27, UNTESTED in game, NOT released)
 
 - Author: mages "slow and spam several fireballs at a dragon despite having polymorph ready". Agent blizz-groups, from

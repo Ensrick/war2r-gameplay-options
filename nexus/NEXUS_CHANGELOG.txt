@@ -1,3 +1,8 @@
+[size=4][b]1.36.2[/b][/size]
+[list]
+[*]A "destroy all enemy forces" mission now ends once the last enemy is gone. The game only declares the victory at a check that finds nothing of yours in training and nothing under construction, and auto-production and auto-farms kept starting new work, so the mission could stay open for minutes (#31). Once every enemy is gone (the game's own rule: flying machines, zeppelins, transports and tankers do not count), neither starts anything new; what is already running finishes normally.
+[/list]
+
 [size=4][b]1.36.1[/b][/size]
 [list]
 [*]Mages polymorph instead of slowing or fireballing a Polymorph target when that is cheaper overall: they count the mana all the mages would still spend on fireballs (and the Slow) to kill it, and one Polymorph at the same price or less wins. The Blizzard mana reserve (area_reserve_value) no longer makes Polymorph impossible.
