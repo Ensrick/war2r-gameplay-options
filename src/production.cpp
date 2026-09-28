@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "log.h"
+#include "mineworkers.h"
 
 using namespace game;
 
@@ -223,10 +224,14 @@ int WorkerTarget(const Plan& plan, const AutoProduction& cfg) {
     return cfg.workersTier[plan.tier > kProdTiers ? kProdTiers - 1 : plan.tier - 1];
 }
 
-bool WantWorker(const Plan& plan, const AutoProduction& cfg) {
-    return plan.trainable[kProdWorkers] && plan.count[kProdWorkers] < WorkerTarget(plan, cfg) && UnderCap(plan, kProdWorkers) &&
-           FoodAllows(plan, cfg) &&
+// Everything a worker needs but the count target: the class switch, the food and the money.
+bool WorkerAllowed(const Plan& plan, const AutoProduction& cfg) {
+    return plan.trainable[kProdWorkers] && UnderCap(plan, kProdWorkers) && FoodAllows(plan, cfg) &&
            (cfg.workersIgnoreReserve ? CanPay(plan, kProdWorkers) : CanAfford(plan, cfg, kProdWorkers));
+}
+
+bool WantWorker(const Plan& plan, const AutoProduction& cfg) {
+    return plan.count[kProdWorkers] < WorkerTarget(plan, cfg) && WorkerAllowed(plan, cfg);
 }
 
 // One tanker, once an oil platform is his: enough to keep the oil coming without a fleet of them. It pays for itself,
@@ -1056,6 +1061,28 @@ void Pass(const World& w, unsigned nowMs) {
     for (int k = 0; k < idleCount; ++k) {
         const uint8_t t = TypeOf(idle[k].unit);
         if (!(ClassesAt(t) & (1u << kProdWorkers)) || !usable(idle[k]) || !WantWorker(plan, cfg)) continue;
+        if (Start(w, plan, idle[k].unit, idle[k].slot, kProdWorkers, TypeFor(kProdWorkers, t & 1, o), maxSerial, nowMs)) idle[k].unit = nullptr;
+    }
+    // 1b. Mine crews ([workers] mine_workers): a hall whose mines have fewer workers mining them than their gold asks
+    // for trains one more, on top of the count target. Idle workers near the hall are about to be sent there
+    // (workers.cpp), so they count as filling a place.
+    static mineworkers::Mine mines[mineworkers::kMaxMines];
+    const int mineCount = mineworkers::Collect(w, mines, mineworkers::kMaxMines);
+    for (int k = 0; k < idleCount && mineCount > 0; ++k) {
+        if (!idle[k].unit || !usable(idle[k])) continue;
+        const uint8_t t = TypeOf(idle[k].unit);
+        if (!(ClassesAt(t) & (1u << kProdWorkers))) continue;
+        int missing = 0;
+        Unit* shortMine = nullptr;
+        for (int m = 0; m < mineCount; ++m)
+            if (mines[m].hall == idle[k].unit && mines[m].have < mines[m].want) {
+                missing += mines[m].want - mines[m].have;
+                if (!shortMine) shortMine = mines[m].mine;
+            }
+        if (missing <= 0 || missing <= mineworkers::IdleNear(w, idle[k].unit) || !WorkerAllowed(plan, cfg)) continue;
+        if (config::g.logCasts)
+            logx::Write("production: the gold mine at %d,%d is short of workers (%d missing at this hall)", Field<int16_t>(shortMine, kOffX),
+                        Field<int16_t>(shortMine, kOffY), missing);
         if (Start(w, plan, idle[k].unit, idle[k].slot, kProdWorkers, TypeFor(kProdWorkers, t & 1, o), maxSerial, nowMs)) idle[k].unit = nullptr;
     }
     // 2. One tanker, once an oil platform is yours.

@@ -213,6 +213,17 @@ repair_radius = 10
 auto_harvest = false
 harvest_idle_seconds = 10
 harvest_radius = 5
+# Mine crews: a gold mine within mine_workers_radius tiles of a finished hall of yours wants this many of your
+# workers mining it: mine_workers_rich from mine_workers_rich_gold gold, mine_workers_medium from
+# mine_workers_medium_gold, mine_workers_poor below that. The nearest hall trains the missing ones (with
+# [auto_production] on, within food and money, on top of workers_tierN), and idle workers near that hall go there.
+mine_workers = true
+mine_workers_radius = 12
+mine_workers_rich_gold = 10000
+mine_workers_rich = 3
+mine_workers_medium_gold = 5000
+mine_workers_medium = 2
+mine_workers_poor = 1
 
 # ==============================================================================================================
 #  4. RESOURCES

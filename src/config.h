@@ -289,6 +289,16 @@ struct Config {
     bool workerAutoRepair = true;
     int workerRepairIdleSeconds = 1;
     int workerRepairRadius = 10;
+    // Mine crews (src/mineworkers.cpp): a gold mine within mineWorkersRadius tiles of a finished hall of yours wants
+    // this many of your workers mining it, by the gold it still holds. The nearest hall trains them (with
+    // [auto_production] on) and idle workers near that hall are sent to it.
+    bool mineWorkers = true;
+    int mineWorkersRadius = 12;
+    int mineWorkersRichGold = 10000;  // at least this much gold: mineWorkersRich workers
+    int mineWorkersRich = 3;
+    int mineWorkersMediumGold = 5000;  // at least this much: mineWorkersMedium
+    int mineWorkersMedium = 2;
+    int mineWorkersPoor = 1;           // less than that, as long as the mine has any gold
 
     // [trees]
     bool treesRegrow = false;         // felled forest grows back

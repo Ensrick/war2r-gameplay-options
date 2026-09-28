@@ -249,6 +249,11 @@ constexpr int kOffResumeOrder = 0x8D;   // uint8, Remastered: order resumed afte
 constexpr uint16_t kStateComplete = 0x80;  // building finished (full 16-bit state word at kOffStateFlags)
 constexpr uint8_t kWorkerCarrying = 0x20;
 constexpr uint8_t kWorkerGoldJob = 0x80, kWorkerLumberJob = 0x40, kWorkerChopping = 0x02;  // +0x75, docs/research/workers_and_gold.md
+// A miner leaving the mine loaded remembers it: +0x75 |= 0x08 and +0x70 = the mine (0x4C99F2..0x4C99F8). The leave
+// action at the hall clears the bit and re-issues the harvest to +0x70 (0x4C9CED..0x4C9D05). docs/research/mine_workers.md
+constexpr uint8_t kWorkerSavedMine = 0x08;
+constexpr int kOffSavedMine = 0x70;     // Unit*, workers
+constexpr uint8_t kTypeTownHall = 0x4A, kTypeKeep = 0x58, kTypeCastle = 0x5A;  // +1 = the orc one; all six are depots
 constexpr uint8_t kTypeGoldMine = 0x5C;
 constexpr uint16_t kRegionTree = 0xFFFE;
 constexpr uint16_t kRegionChopping = 0xFFFC;      // a tree some worker is felling right now (FUN_004eb3b0)
@@ -315,6 +320,7 @@ constexpr uint8_t kOrderStop = 2, kOrderMove = 3, kOrderMovePatrol = 4, kOrderPa
 constexpr uint8_t kOrderAttack = 8, kOrderAttackTarget = 9, kOrderAttackArea = 10, kOrderAttackWall = 11;
 constexpr uint8_t kOrderDefend = 12, kOrderStand = 13, kOrderStandAttack = 14, kOrderDefendGround = 15, kOrderDefendStopped = 16;
 constexpr uint8_t kOrderHarvest = 23, kOrderReturnGoods = 24, kOrderRepair = 27, kOrderBuild = 28;
+constexpr uint8_t kOrderEnter = 25, kOrderLeave = 26;  // inside a mine or a hall (action table 0x8C13A0: 0x4C9820 / 0x4C9BF0)
 constexpr uint8_t kOrderSpellEye = 0x30;
 constexpr uint8_t kOrderHolyVision = 0x26, kOrderFlameShield = 0x2A, kOrderFireball = 0x2B, kOrderInvisibility = 0x2D;
 constexpr uint8_t kOrderBlizzard = 0x2F, kOrderWhirlwind = 0x34, kOrderRunes = 0x37, kOrderDeathAndDecay = 0x38;

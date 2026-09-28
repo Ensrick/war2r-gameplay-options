@@ -8,6 +8,7 @@ Steps (each one only when the file still needs it):
   1.2.0  adds the [food] block after [oil_platforms]
   1.3.0  adds the [trees] block after [food]
   1.36.0 adds [general] fog_of_war = "game" after log_casts
+  1.37.0 adds the [workers] mine_workers keys (mine crews, switched on: the same as a file without them)
   1.32.0 adds [autocast] lookahead_tiles, area_settle_percent, area_reserve_value and the [area_values] example
   1.31.0 adds the [dodge] block (switched off) in front of [workers]
   1.30.0 adds [auto_production] land_units_where_enemies = true after reserve_navy_food
@@ -70,6 +71,7 @@ SPELLS_NEW = ['# Area spells hurt YOUR units and buildings too. They are only ca
 AREA_KEYS_1320 = ['# Blizzard / Death and Decay also look this many tiles past their reach for a better spot. When the best spot in reach', '# is worth less than area_settle_percent of that one, the caster casts nothing and waits: move it a few steps closer.', 'lookahead_tiles = 8', 'area_settle_percent = 50', '# While a target worth this many plain units (a guard tower is 9, a barracks 4.5, a farm 0.9) is that close, the caster', '# keeps the mana for one full Blizzard / Death and Decay and its other spells only spend what is above it. 0 = off.', 'area_reserve_value = 4.0']
 AREA_TABLE_1320 = ['# What hitting a type is worth to Blizzard / Death and Decay, 0 to 10. Defaults: guard and cannon towers 3; barracks,', '# halls and other production buildings, casters and siege 1.5; farms, scout towers, oil platforms and walls 0.3;', '# everything else 1. Add a line to change one:', '# [area_values]', '# human_guard_tower = 3.0']
 DODGE_1310 = ['[dodge]', "# true = while a Blizzard or Death and Decay is falling (the enemy's or your own), your units standing in it step out", '# to the nearest safe spot, and units that would walk into one on their own (chasing an enemy, attack-move) stop at', '# the edge. Once it is over they go back to what they were doing. Moves you order yourself are left alone.', 'enabled = false']
+MINE_WORKERS_1370 = ['# Mine crews: a gold mine within mine_workers_radius tiles of a finished hall of yours wants this many of your', '# workers mining it: mine_workers_rich from mine_workers_rich_gold gold, mine_workers_medium from', '# mine_workers_medium_gold, mine_workers_poor below that. The nearest hall trains the missing ones (with', '# [auto_production] on, within food and money, on top of workers_tierN), and idle workers near that hall go there.', 'mine_workers = true', 'mine_workers_radius = 12', 'mine_workers_rich_gold = 10000', 'mine_workers_rich = 3', 'mine_workers_medium_gold = 5000', 'mine_workers_medium = 2', 'mine_workers_poor = 1']
 FOG_1360 = ['# Fog of war. The game forgets the choice you make in its Options screen: every start turns fog back on, and a',
             '# savegame brings back the fog it was saved with. "off" / "on" = set at the start of every single-player map and',
             '# after loading a savegame (the Options screen still changes it for the rest of that game). "game" = leave it alone.',
@@ -292,6 +294,11 @@ def dodge_1310(lines, tree, notes):
             return
     lines += [''] + DODGE_1310
     notes.append('added [dodge] at the end (switched off)')
+
+
+def mine_workers_1370(lines, tree, notes):
+    if isinstance(tree.get('workers'), dict):
+        append_missing(lines, tree, 'workers', MINE_WORKERS_1370, notes)
 
 
 def fog_1360(lines, tree, notes):
@@ -658,6 +665,7 @@ def main():
     dodge_1310(lines, tomllib.loads(LF.join(lines)), notes)
     area_value_1320(lines, tomllib.loads(LF.join(lines)), notes)
     fog_1360(lines, tomllib.loads(LF.join(lines)), notes)
+    mine_workers_1370(lines, tomllib.loads(LF.join(lines)), notes)
     auto_production_180(lines, now, notes)
     save_up_1120(lines, now, notes)
     plenty_1140(lines, now, notes, 'auto_production' in before)
@@ -682,7 +690,7 @@ def main():
     allowed = {('oil_platforms', 'unlimited'), ('oil_platforms', 'amount'), ('gold_mines', 'amount'), ('food', 'hall_food'),
                ('food', 'hall_food_amount'), ('heroes', 'regen'), ('unit_regen', 'enabled'), ('unit_regen', 'hp_per_second'),
                ('unit_regen', 'regen_for')} | {('spells', l.split('=')[0].strip()) for l in SPELLS_NEW if not l.startswith('#')} | {
-               ('autocast', l.split('=')[0].strip()) for l in AUTOCAST_NEW if not l.startswith('#')} | {('autocast', 'area_building_value'), ('auto_production', 'save_up_seconds'), ('upgrades', 'missile_damage'), ('upgrades', 'melee_damage'), ('upgrades', 'shields'), ('upgrades', 'ship_damage'), ('upgrades', 'ship_armor'), ('upgrades', 'siege_damage'), ('auto_production', 'plenty_units'), ('autocast', 'area_friendly_clearance'), ('heal', 'cooldown_seconds'), ('heal', 'urgent_below_percent'), ('autocast', 'resume_orders'), ('priority', 'hold_for_blocked_area'), ('scouts', 'enabled'), ('farms', 'auto_build'), ('farms', 'free_min'), ('farms', 'free_percent'), ('farms', 'mine_clearance'), ('auto_production', 'reserve_navy_food'), ('auto_production', 'land_units_where_enemies'), ('dodge', 'enabled'), ('autocast', 'lookahead_tiles'), ('autocast', 'area_settle_percent'), ('autocast', 'area_reserve_value'), ('farms', 'workers'), ('scouts', 'units'), ('scouts', 'toggle_key'), ('scouts', 'idle_seconds'), ('heal', 'cooldown_for_computer'), ('general', 'fog_of_war')} | {('priority', k) for k in ('paladin', 'mage', 'ogre_mage', 'death_knight', 'save_mana')} | {
+               ('autocast', l.split('=')[0].strip()) for l in AUTOCAST_NEW if not l.startswith('#')} | {('autocast', 'area_building_value'), ('auto_production', 'save_up_seconds'), ('upgrades', 'missile_damage'), ('upgrades', 'melee_damage'), ('upgrades', 'shields'), ('upgrades', 'ship_damage'), ('upgrades', 'ship_armor'), ('upgrades', 'siege_damage'), ('auto_production', 'plenty_units'), ('autocast', 'area_friendly_clearance'), ('heal', 'cooldown_seconds'), ('heal', 'urgent_below_percent'), ('autocast', 'resume_orders'), ('priority', 'hold_for_blocked_area'), ('scouts', 'enabled'), ('farms', 'auto_build'), ('farms', 'free_min'), ('farms', 'free_percent'), ('farms', 'mine_clearance'), ('auto_production', 'reserve_navy_food'), ('auto_production', 'land_units_where_enemies'), ('dodge', 'enabled'), ('autocast', 'lookahead_tiles'), ('autocast', 'area_settle_percent'), ('autocast', 'area_reserve_value'), ('farms', 'workers'), ('scouts', 'units'), ('scouts', 'toggle_key'), ('scouts', 'idle_seconds'), ('heal', 'cooldown_for_computer'), ('general', 'fog_of_war')} | {('workers', l.split('=')[0].strip()) for l in MINE_WORKERS_1370 if not l.startswith('#')} | {('priority', k) for k in ('paladin', 'mage', 'ogre_mage', 'death_knight', 'save_mana')} | {
                (sec, l.split('=')[0].strip()) for sec in ('spell_damage', 'spell_cost', 'mana') for l in SPELL_POWER
                if l and not l.startswith(('#', '['))} | {
                k for k in AUTO_PRODUCTION_KEYS | {('auto_production', 'no_enemy_navy_cap', c) for c in

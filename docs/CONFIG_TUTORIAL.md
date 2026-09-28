@@ -4,7 +4,8 @@ All settings live in one text file: `Warcraft II Remastered\x86\gameplay_options
 
 ## What is on when you install it
 
-Only four autocasts (**Heal, Slow, Bloodlust, Raise Dead**) and **worker auto-repair**. Every other feature is off, every
+Only four autocasts (**Heal, Slow, Bloodlust, Raise Dead**), **worker auto-repair** and **mine crews** (idle workers
+near a hall go to its gold mine while it is short of miners). Every other feature is off, every
 multiplier is 1.0, and the unit / building examples in the file are comments. Nothing rebalances your game until you
 turn it on.
 
@@ -383,6 +384,41 @@ repair_radius = 10
 auto_harvest = true      # off by default
 harvest_idle_seconds = 10
 harvest_radius = 5       # raise this if your idle workers stand far from the trees
+```
+
+### Mine crews
+
+On by default. Every gold mine within `mine_workers_radius` tiles (12) of a finished town hall, keep or castle of yours
+wants a crew of your workers mining it, by the gold it still holds:
+
+| Gold in the mine | Workers mining it |
+|---|---|
+| `mine_workers_rich_gold` (10000) or more | `mine_workers_rich` (3) |
+| `mine_workers_medium_gold` (5000) or more | `mine_workers_medium` (2) |
+| less, but not empty | `mine_workers_poor` (1) |
+
+- A worker counts as mining the mine while it walks there, while it is inside, and while it carries that mine's gold
+  home, hands it in and heads back. Wood cutters and workers you sent elsewhere do not count.
+- A mine near two halls belongs to the nearer one, and only once. The hall and the mine must be on the same land
+  (a mine across water is nobody's).
+- An idle worker within `mine_workers_radius` of that hall is sent to the mine after 2 seconds, before
+  `auto_harvest` would pick a tree or another mine. A worker carrying goods is left alone.
+- With `[auto_production]` on, the hall itself trains the missing workers, one at a time, even above
+  `workers_tierN`: only while it is idle and not selected, with the food and the money for it, and never with
+  `[auto_production.units] workers = false`. Idle workers near the hall count as already on their way, so it never
+  trains one for a place they will fill. Once every enemy is gone it trains nothing, like the rest of auto-production.
+- `log_casts = true` writes `production: the gold mine at 20,10 is short of workers (2 missing at this hall)` and
+  `worker at 16,20 -> gold mine at 20,10 (3/3 mining)`.
+
+```toml
+[workers]
+mine_workers = true           # false = none of this
+mine_workers_radius = 12
+mine_workers_rich_gold = 10000
+mine_workers_rich = 3
+mine_workers_medium_gold = 5000
+mine_workers_medium = 2
+mine_workers_poor = 1
 ```
 
 ### Forests that grow back
@@ -1300,6 +1336,8 @@ here and are for your paladins only.
 | oil_platforms | amount | 1.0 | Multiplies the oil in every patch and platform when a new map starts |
 | workers | auto_repair / repair_idle_seconds / repair_radius | true / 1 / 10 | Idle workers repair your damaged buildings |
 | workers | auto_harvest / harvest_idle_seconds / harvest_radius | false / 10 / 5 | Idle workers go to the nearest mine or tree |
+| workers | mine_workers / mine_workers_radius | true / 12 | Mine crews: halls keep workers on every gold mine within this many tiles |
+| workers | mine_workers_rich_gold / _rich, _medium_gold / _medium, _poor | 10000 / 3, 5000 / 2, 1 | Crew size by the gold left in the mine (0 to 20 workers) |
 | trees | regrow / regrow_min_minutes / regrow_max_minutes | false / 10 / 20 | Felled forest grows back; every stump waits its own time between min and max |
 | trees | building_distance / unit_distance | 3 / 3 | No regrowth this close to a building or wall / to a ground unit (flyers do not count) |
 | health / costs / time | all | 1.0 | Master multiplier of the section: everything (units, ships, structures, research) |

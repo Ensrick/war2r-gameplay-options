@@ -25,6 +25,7 @@
 #include "../src/spells.h"
 #include "../src/upgrades.h"
 #include "../src/farms.h"
+#include "../src/workers.h"
 #include "../src/fog.h"
 #include "../src/trees.h"
 
@@ -4377,6 +4378,176 @@ static void ProductionTests(const wchar_t* dir, const wchar_t* ini) {
         *At<uint32_t>(kRvaNetGame) = 0;
         CHECK(defeated(), "victory: and back in single player");
         VictoryCounters(0);
+    }
+
+    // Mine crews ([workers] mine_workers, docs/research/mine_workers.md): a gold mine within 12 tiles of a finished hall
+    // wants 3 workers mining it from 10000 gold, 2 from 5000, 1 below. The hall trains the missing ones on top of the
+    // workers target, idle workers near the hall are sent there, and a mine near two halls counts toward the nearer.
+    {
+        struct Sz { uint16_t w, h; };
+        Sz* sizes = At<Sz>(kRvaUnitSizeByType);
+        const Sz savedHall = sizes[0x4A], savedMine = sizes[kTypeGoldMine];
+        sizes[0x4A] = {4, 4};
+        sizes[kTypeGoldMine] = {3, 3};
+        static uint16_t crewRegion[kMap * kMap];
+        for (auto& r : crewRegion) r = 0x4001;
+        uint16_t* savedRegion = *At<uint16_t*>(kRvaRegionMap);
+        *At<uint16_t*>(kRvaRegionMap) = crewRegion;
+        const bool savedRepair = config::g.workerAutoRepair, savedHarvest = config::g.workerAutoHarvest;
+        config::g.workerAutoRepair = config::g.workerAutoHarvest = false;
+        const Config savedCfg = config::g;
+        uint32_t* tf = At<uint32_t>(kRvaTypeFlags);
+
+        Unit* hall = nullptr;
+        Unit* mine = nullptr;
+        // A hall at 10,10 (footprint 10..13), its mine 6 tiles off its edge at 20,10, no workers target of its own.
+        auto crewWorld = [&](int hundreds) {
+            ProdWorld();
+            tf[0x02] = tf[0x03] = kTfWorker | kTfFleshy;
+            for (int& n : config::g.production.workersTier) n = 0;
+            hall = AddProd(0x4A, 0, 10, 10);
+            mine = AddProd(kTypeGoldMine, kNeutralPlayer, 20, 10);
+            Field<uint16_t>(mine, kOffResources) = static_cast<uint16_t>(hundreds);
+        };
+        auto miner = [&](uint8_t order, Unit* target, uint8_t flags, Unit* saved) {
+            Unit* u = AddProd(0x02, 0, 16, 20);
+            Field<uint8_t>(u, kOffOrder) = order;
+            Field<Unit*>(u, kOffOrderTarget) = target;
+            Field<uint8_t>(u, kOffWorkerFlags) = flags;
+            Field<Unit*>(u, kOffSavedMine) = saved;
+            return u;
+        };
+
+        crewWorld(100);  // 10000 gold: 3 wanted, none there
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 1 && StartsOf(0x02) == 1, "crew: a hall with an unmanned 10000-gold mine trains a worker (%d)", StartsAt(hall));
+
+        // Walking there, inside it (hidden, enter order), carrying its gold home: three miners, nothing more.
+        crewWorld(100);
+        miner(kOrderHarvest, mine, 0, nullptr);
+        Unit* inside = miner(kOrderEnter, mine, kWorkerGoldJob, nullptr);
+        Field<uint8_t>(inside, kOffStateFlags) = kStateHidden;
+        miner(kOrderReturnGoods, hall, kWorkerGoldJob | kWorkerCarrying | kWorkerSavedMine, mine);
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 0, "crew: walking to it, inside it and carrying from it are three miners: nothing trained (%d)", StartsAt(hall));
+
+        // Not miners: a wood cutter, a worker moved away with the mine still saved, one handing in lumber at the hall.
+        // 9900 gold wants 2 and one real miner is there: any of the three counted by mistake would stop the hall.
+        crewWorld(99);
+        miner(kOrderHarvest, mine, 0, nullptr);
+        miner(kOrderHarvest, nullptr, kWorkerLumberJob, nullptr);
+        miner(kOrderMove, nullptr, kWorkerGoldJob | kWorkerSavedMine, mine);
+        miner(kOrderEnter, hall, kWorkerLumberJob | kWorkerCarrying | kWorkerSavedMine, mine);
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 1, "crew: wood cutters and a gold worker sent elsewhere do not count (%d)", StartsAt(hall));
+
+        // Two miners and an idle worker by the hall: it is about to go there, so the hall waits.
+        crewWorld(100);
+        miner(kOrderHarvest, mine, 0, nullptr);
+        miner(kOrderHarvest, mine, 0, nullptr);
+        Unit* loafer = miner(kOrderStop, nullptr, 0, nullptr);
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 0, "crew: an idle worker near the hall fills the missing place (%d)", StartsAt(hall));
+        // workers.cpp sends it: harvest on that mine.
+        {
+            World w;
+            CHECK(BuildWorld(w), "crew: world");
+            workers::OnTick(w, 2500);
+            CHECK(OrderOf(loafer) == kOrderHarvest && TargetOf(loafer) == mine, "crew: the idle worker is sent to the short mine (order %u)", OrderOf(loafer));
+            Unit* spare = miner(kOrderStop, nullptr, 0, nullptr);
+            CHECK(BuildWorld(w), "crew: world");
+            workers::OnTick(w, 2500);
+            CHECK(OrderOf(spare) == kOrderStop, "crew: a full mine takes nobody more (order %u)", OrderOf(spare));
+        }
+
+        // The gold left sets the crew: 9900 -> 2, 4900 -> 1, 0 -> none.
+        crewWorld(99);
+        miner(kOrderHarvest, mine, 0, nullptr);
+        miner(kOrderHarvest, mine, 0, nullptr);
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 0, "crew: 9900 gold wants 2, two there (%d)", StartsAt(hall));
+        crewWorld(99);
+        miner(kOrderHarvest, mine, 0, nullptr);
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 1, "crew: 9900 gold, one there: one more (%d)", StartsAt(hall));
+        crewWorld(50);
+        miner(kOrderHarvest, mine, 0, nullptr);
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 1, "crew: exactly 5000 gold wants 2 (%d)", StartsAt(hall));
+        crewWorld(49);
+        miner(kOrderHarvest, mine, 0, nullptr);
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 0, "crew: 4900 gold wants 1 (%d)", StartsAt(hall));
+        crewWorld(49);
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 1, "crew: 4900 gold, nobody: one (%d)", StartsAt(hall));
+        crewWorld(0);
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 0, "crew: an empty mine wants nobody (%d)", StartsAt(hall));
+
+        // 12 tiles between the footprints is near, 13 is not.
+        crewWorld(100);
+        Field<int16_t>(mine, kOffX) = 26;  // 12 free tiles: 14..25
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 1, "crew: 12 tiles away counts (%d)", StartsAt(hall));
+        crewWorld(100);
+        Field<int16_t>(mine, kOffX) = 27;
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 0, "crew: 13 tiles away does not (%d)", StartsAt(hall));
+
+        // One mine between two halls: only the nearer one trains for it.
+        crewWorld(100);
+        Unit* farHall = AddProd(0x4A, 0, 30, 10);  // 7 tiles from the mine's far edge; hall is 6
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 1 && StartsAt(farHall) == 0, "crew: a mine near two halls counts toward the nearer (%d, %d)", StartsAt(hall), StartsAt(farHall));
+        crewWorld(100);
+        Unit* nearHall = AddProd(0x4A, 0, 24, 10);  // 1 tile from the mine, later in the unit array
+        ProdPass(1000);
+        CHECK(StartsAt(nearHall) == 1 && StartsAt(hall) == 0, "crew: the nearer hall wins wherever it is in the array (%d, %d)", StartsAt(nearHall), StartsAt(hall));
+
+        // A hall still under construction, the computer's hall, another region, the switch, the class switch, no money.
+        crewWorld(100);
+        Field<uint16_t>(hall, kOffStateFlags) = 0;
+        Unit* enemyHall = AddProd(0x4B, 1, 10, 20);
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 0 && StartsAt(enemyHall) == 0, "crew: unfinished or computer halls never train for it");
+        crewWorld(100);
+        for (int y = 9; y <= 13; ++y)
+            for (int x = 19; x <= 23; ++x) crewRegion[y * kMap + x] = 0x4002;  // the mine and its ring: another island
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 0, "crew: a mine the hall's workers cannot walk to is not its mine (%d)", StartsAt(hall));
+        for (auto& r : crewRegion) r = 0x4001;
+        crewWorld(100);
+        config::g.mineWorkers = false;
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 0, "crew: mine_workers = false trains nothing (%d)", StartsAt(hall));
+        config::g.mineWorkers = true;
+        crewWorld(100);
+        config::g.production.unitClass[kProdWorkers] = false;
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 0, "crew: [auto_production.units] workers = false wins (%d)", StartsAt(hall));
+        crewWorld(100);
+        At<int32_t>(kRvaPlayerGold)[0] = 300;  // a peasant costs 400
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 0, "crew: only with the money for it (%d)", StartsAt(hall));
+        crewWorld(100);
+        At<uint16_t>(kRvaUnitsCounted)[0] = 200;  // no food left
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 0, "crew: only with the food for it (%d)", StartsAt(hall));
+
+        // Every enemy gone: the victory guard stops this too.
+        crewWorld(100);
+        VictoryCounters(kObjectiveKillAll);
+        ProdPass(1000);
+        CHECK(StartsAt(hall) == 0, "crew: nothing trained once every enemy is gone (%d)", StartsAt(hall));
+        VictoryCounters(0);
+
+        config::g = savedCfg;
+        config::g.workerAutoRepair = savedRepair;
+        config::g.workerAutoHarvest = savedHarvest;
+        *At<uint16_t*>(kRvaRegionMap) = savedRegion;
+        sizes[0x4A] = savedHall;
+        sizes[kTypeGoldMine] = savedMine;
     }
 
     // The food gate in a real pass: supply 20, 15 used: one unit, not two.
